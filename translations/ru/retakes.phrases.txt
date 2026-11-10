@@ -36,6 +36,10 @@
 	{
 		"ru"			"Разминка: {1} сек"
 	}
+	"NotEnoughSpawns"
+	{
+		"ru"			"{LIGHT_RED}На этой карте не хватает спавнов для Retakes. {NORMAL}Админ может создать их командой {GREEN}!edit"
+	}
 	"FailedToPlant"
 	{
 		"ru"		"{PURPLE}{1} {NORMAL}не установил бомбу..."

@@ -104,6 +104,17 @@ int g_NumT;
 int g_ActivePlayers;
 bool g_RoundSpawnsDecided; // spawns are lazily decided on the first player spawn event
 
+/**
+ * Round preparation state. CS:S has no round_prestart event, so the teams for the next
+ * round are set right after round_end (see PrepareNextRound), before the game respawns the players.
+ */
+bool g_PreparePending; // round_end was seen, PrepareNextRound runs on the next frame
+bool g_RoundPrepared;  // PrepareNextRound has run and its data (teams, spawns) is usable
+bool g_PrepConsumed;   // a round_start has already used the prepared data
+bool g_TeamsValid;     // UpdateTeams actually assigned the teams (false if the map has no spawns)
+int g_RoundSerial;     // incremented on every round_start, lets the delayed callbacks detect a new round
+bool g_NoSpawnsLogged;
+
 /** Forwards **/
 Handle g_hOnGunsCommand;
 Handle g_hOnPostRoundEnqueue;
@@ -196,8 +207,7 @@ public void OnPluginStart() {
     HookEvent("player_spawn", Event_PlayerSpawn);
     HookEvent("player_hurt", Event_DamageDealt);
     HookEvent("player_death", Event_PlayerDeath);
-    HookEvent("round_prestart", Event_RoundPreStart);
-    HookEvent("round_poststart", Event_RoundPostStart);
+    HookEvent("round_start", Event_RoundStart);
     HookEvent("round_freeze_end", Event_RoundFreezeEnd);
     HookEvent("bomb_planted", Event_BombPlant);
     HookEvent("bomb_exploded", Event_Bomb);
@@ -238,6 +248,11 @@ public void OnMapStart() {
     g_WinStreak = 0;
     g_RoundCount = 0;
     g_RoundSpawnsDecided = false;
+    g_PreparePending = false;
+    g_RoundPrepared = false;
+    g_PrepConsumed = false;
+    g_TeamsValid = false;
+    g_NoSpawnsLogged = false;
 
     g_bombPlanted = false;
     g_bombPlantSignal = false;
@@ -306,7 +321,7 @@ public void OnClientConnected(int client) {
 
 public void OnClientDisconnect(int client) {
     ResetClientVariables(client);
-    CheckRoundDone();
+    CheckRoundDone(client);
 }
 
 /**
@@ -317,6 +332,7 @@ public void ResetClientVariables(int client) {
         g_BombOwner = -1;
     Queue_Drop(g_hWaitingQueue, client);
     g_Team[client] = CS_TEAM_SPECTATOR;
+    g_SpawnIndices[client] = -1;
     g_PluginTeamSwitch[client] = false;
     g_RoundPoints[client] = -POINTS_LOSS;
     g_LastDeathTime[client] = 0.0;
@@ -423,7 +439,11 @@ public Action PlacePlayer(int client) {
     if (nPlayers < 2) {
         ChangeClientTeam(client, CS_TEAM_SPECTATOR);
         Queue_Enqueue(g_hWaitingQueue, client);
-        CS_TerminateRound(0.0, CSRoundEnd_CTWin);
+        // Между раундами следующий раунд уже подготовлен без этого игрока:
+        // его подхватит проверка в Timer_PostRoundStart.
+        if (!InIntermission()) {
+            CS_TerminateRound(0.0, CSRoundEnd_CTWin);
+        }
         return Plugin_Handled;
     }
 
@@ -455,7 +475,7 @@ public Action Event_PlayerTeam(Event event, const char[] name, bool dontBroadcas
 
 /**
  * Called when a player spawns.
- * Gives default weapons. (better than mp_ct_default_primary since it gives the player the correct skin)
+ * Moves the player to the retake spawn and gives the weapons.
  */
 public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast) {
     if (!g_Enabled) {
@@ -466,21 +486,37 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
     if (!IsValidClient(client) || !IsOnTeam(client) || InFreePlay())
         return Plugin_Continue;
 
-    if (!g_RoundSpawnsDecided) {
-        if (IsPlayer(g_BombOwner)) {
-            g_SpawnIndices[g_BombOwner] = SelectSpawn(CS_TEAM_T, true);
-        }
+    // В CS:S player_spawn приходит и при входе на сервер, когда игрок ещё мёртв.
+    if (!IsPlayerAlive(client))
+        return Plugin_Continue;
 
-        for (int i = 1; i <= MAXPLAYERS; i++) {
-            if (IsPlayer(i) && IsOnTeam(i) && i != g_BombOwner) {
-                g_SpawnIndices[i] = SelectSpawn(g_Team[i], false);
-            }
-        }
-        g_RoundSpawnsDecided = true;
+    // Раунд не подготовлен (первый раунд, mp_restartgame) или на карте нет спавнов:
+    // в первом случае Event_RoundStart сам подготовит раунд и переспаунит игроков.
+    if (!g_RoundPrepared || !g_TeamsValid)
+        return Plugin_Continue;
+
+    if (!g_RoundSpawnsDecided) {
+        DecideRoundSpawns();
     }
 
     SetupPlayer(client);
     return Plugin_Continue;
+}
+
+/**
+ * Picks the spawn points for everybody that plays the round.
+ */
+static void DecideRoundSpawns() {
+    if (IsPlayer(g_BombOwner)) {
+        g_SpawnIndices[g_BombOwner] = SelectSpawn(CS_TEAM_T, true);
+    }
+
+    for (int i = 1; i <= MaxClients; i++) {
+        if (IsPlayer(i) && IsOnTeam(i) && i != g_BombOwner) {
+            g_SpawnIndices[i] = SelectSpawn(g_Team[i], false);
+        }
+    }
+    g_RoundSpawnsDecided = true;
 }
 
 /**
@@ -564,54 +600,139 @@ public Action Event_Bomb(Event event, const char[] name, bool dontBroadcast) {
 }
 
 /**
- * Called before any other round start events. This is the best place to change teams
- * since it should happen before respawns.
+ * Sets up everything for the next round: the ranking queue, the teams, the bombsite and
+ * the bomb carrier. This is what round_prestart did in CS:GO; CS:S has no such event, so:
+ *  - normally this runs one frame after round_end (see Event_RoundEnd), i.e. before the
+ *    game restarts the round and respawns the players in their new teams;
+ *  - if a round starts without it (first round, mp_restartgame), Event_RoundStart runs it
+ *    and respawns the players.
+ * It never runs twice for the same round.
  */
-public Action Event_RoundPreStart(Event event, const char[] name, bool dontBroadcast) {
-    if (!Retakes_Live()) {
-        return Plugin_Continue;
+public void PrepareNextRound() {
+    g_PreparePending = false;
+    g_RoundPrepared = true;
+    g_PrepConsumed = false;
+    g_RoundSpawnsDecided = false;
+    g_TeamsValid = false;
+    g_BombOwner = -1;
+
+    for (int i = 1; i <= MaxClients; i++) {
+        g_SpawnIndices[i] = -1;
+        g_Team[i] = CS_TEAM_SPECTATOR;
     }
 
-    g_RoundSpawnsDecided = false;
     RoundEndUpdates();
     UpdateTeams();
 
     ArrayList ts = new ArrayList();
-    for (int i = 1; i < MaxClients; i++) {
-        if (IsValidClient(i) && IsOnTeam(i)) {
-            RemoveAllWeapons(i);
-            if (GetClientTeam(i) == CS_TEAM_T) {
-                ts.Push(i);
-            }
+    for (int i = 1; i <= MaxClients; i++) {
+        if (IsPlayer(i) && g_Team[i] == CS_TEAM_T) {
+            ts.Push(i);
         }
     }
 
     if (ts.Length >= 1) {
-        int player = RandomElement(ts);
-        g_BombOwner = player;
+        g_BombOwner = RandomElement(ts);
     }
     delete ts;
-
-    return Plugin_Continue;
 }
 
-public Action Event_RoundPostStart(Event event, const char[] name, bool dontBroadcast) {
-    if (!Retakes_Live()) {
+/**
+ * Returns if a round has ended and the next one has not started yet.
+ */
+bool InIntermission() {
+    return g_PreparePending || (g_RoundPrepared && !g_PrepConsumed);
+}
+
+public void Frame_PrepareNextRound(any serial) {
+    // Если за этот кадр раунд уже успел начаться (или сменилась карта), подготовку сделал/сделает Event_RoundStart.
+    if (!g_PreparePending || serial != g_RoundSerial || !Retakes_Live()) {
+        g_PreparePending = false;
+        return;
+    }
+
+    // CSS-VERIFY: CS_SwitchTeam живого игрока между round_end и рестартом раунда не убивает его,
+    // а при рестарте все появляются уже в новых командах (и на спавнах ретейка).
+    PrepareNextRound();
+}
+
+/**
+ * Round start. In CS:S the players have already been respawned when this event fires.
+ */
+public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast) {
+    g_RoundSerial++;
+    g_bombPlanted = false;
+
+    if (!g_Enabled) {
         return Plugin_Continue;
     }
 
-    if (!g_EditMode) {
-        GameRules_SetProp("m_iRoundTime", g_hRoundTime.IntValue, 4, 0, true);
-        Retakes_MessageToAll("%t", "RetakeSiteMessage", SITESTRING(g_Bombsite), g_NumT, g_NumCT);
+    if (InFreePlay()) {
+        ExtendFreePlayRound();
+        return Plugin_Continue;
     }
 
-    g_bombPlanted = false;
+    // Страховка: раунд начался без подготовки (первый раунд после разминки, mp_restartgame).
+    bool fallback = !g_RoundPrepared || g_PrepConsumed;
+    if (fallback) {
+        PrepareNextRound();
+    }
+    g_PrepConsumed = true;
 
+    for (int i = 1; i <= MaxClients; i++) {
+        g_RoundPoints[i] = 0;
+    }
+
+    if (!g_TeamsValid) {
+        return Plugin_Continue;
+    }
+
+    if (fallback) {
+        // Игроки уже заспаунены игрой в старых командах и на стандартных спавнах.
+        // CSS-VERIFY: CS_RespawnPlayer внутри обработчика round_start переспаунивает игроков без побочных эффектов.
+        for (int i = 1; i <= MaxClients; i++) {
+            if (IsValidClient(i) && IsOnTeam(i) && g_Team[i] == GetClientTeam(i)) {
+                CS_RespawnPlayer(i);
+            }
+        }
+    }
+
+    // CSS-VERIFY: по истечении m_iRoundTime без установленной бомбы побеждают CT (Target Saved),
+    // а после установки бомбы раунд по этому таймеру уже не заканчивается.
+    SetRoundTime(g_hRoundTime.IntValue);
+    Retakes_MessageToAll("%t", "RetakeSiteMessage", SITESTRING(g_Bombsite), g_NumT, g_NumCT);
+
+    CreateTimer(0.1, Timer_PostRoundStart, g_RoundSerial, TIMER_FLAG_NO_MAPCHANGE);
     return Plugin_Continue;
 }
 
 /**
- * Round freezetime end, resets the round points and unfreezes the players.
+ * Runs shortly after the round start, when every player has been spawned by the game.
+ */
+public Action Timer_PostRoundStart(Handle timer, any serial) {
+    if (serial != g_RoundSerial || !Retakes_Live() || !g_TeamsValid) {
+        return Plugin_Handled;
+    }
+
+    // CSS-VERIFY: игрок, переведённый плагином из наблюдателей в команду, спаунится игрой при рестарте раунда.
+    // Если нет - доспауниваем его здесь.
+    for (int i = 1; i <= MaxClients; i++) {
+        if (IsValidClient(i) && IsOnTeam(i) && g_Team[i] == GetClientTeam(i) && !IsPlayerAlive(i)) {
+            CS_RespawnPlayer(i);
+        }
+    }
+
+    // Раунд начался меньше чем с двумя игроками, а в очереди кто-то ждёт (зашёл между раундами):
+    // не ждём конца раунда, а сразу начинаем следующий, уже с ним.
+    if (g_hAutoTeamsCvar.IntValue != 0 && g_ActivePlayers < 2 && !Queue_IsEmpty(g_hWaitingQueue)) {
+        CS_TerminateRound(1.0, CSRoundEnd_Draw);
+    }
+
+    return Plugin_Handled;
+}
+
+/**
+ * Round freezetime end, resets the round points.
  */
 public Action Event_RoundFreezeEnd(Event event, const char[] name, bool dontBroadcast) {
     for (int i = 1; i <= MaxClients; i++) {
@@ -629,9 +750,17 @@ public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
         return Plugin_Continue;
     }
 
-    if (g_ActivePlayers >= 2) {
+    // Повторный round_end до начала следующего раунда (например, CS_TerminateRound из-за
+    // вышедшего игрока): раунд уже посчитан, следующий уже подготовлен.
+    if (InIntermission()) {
+        return Plugin_Continue;
+    }
+
+    int winner = event.GetInt("winner");
+
+    // winner не T/CT - это ничья или "Game Commencing": очки не трогаем.
+    if (g_ActivePlayers >= 2 && g_TeamsValid && (winner == CS_TEAM_T || winner == CS_TEAM_CT)) {
         g_RoundCount++;
-        int winner = event.GetInt("winner");
 
         ArrayList ts = new ArrayList();
         ArrayList cts = new ArrayList();
@@ -666,6 +795,11 @@ public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
             CounterTerroristsWon();
         }
     }
+
+    // Команды следующего раунда выставляем на следующем кадре, до рестарта раунда.
+    // Не таймер: при CS_TerminateRound с задержкой 0.0-0.1 таймер мог бы опоздать.
+    g_PreparePending = true;
+    RequestFrame(Frame_PrepareNextRound, g_RoundSerial);
 
     return Plugin_Continue;
 }
@@ -723,7 +857,12 @@ public void UpdateTeams() {
     }
 
     if (g_NumSpawns < g_hMaxPlayers.IntValue) {
-        LogError("This map does not have enough spawns!");
+        if (!g_NoSpawnsLogged) {
+            g_NoSpawnsLogged = true;
+            LogError("This map does not have enough spawns! (%d spawns, sm_retakes_maxplayers is %d)",
+                     g_NumSpawns, g_hMaxPlayers.IntValue);
+        }
+        Retakes_MessageToAll("%t", "NotEnoughSpawns");
         return;
     }
 
@@ -852,6 +991,7 @@ public void UpdateTeams() {
 
     delete ts;
     delete cts;
+    g_TeamsValid = true;
 }
 
 static bool ScramblesEnabled() {
@@ -890,10 +1030,33 @@ public void CounterTerroristsWon() {
     g_WinStreak = 0;
 }
 
-void CheckRoundDone() {
-    int tHumanCount=0, ctHumanCount=0;
-    GetTeamsClientCounts(tHumanCount, ctHumanCount);
-    if (tHumanCount == 0 || ctHumanCount == 0) {
+/**
+ * Ends the round if one of the teams has no players left.
+ * ignoredClient is a client that is about to leave and must not be counted.
+ */
+void CheckRoundDone(int ignoredClient = 0) {
+    if (!g_Enabled || InFreePlay()) {
+        return;
+    }
+
+    // Между round_end и стартом следующего раунда ничего завершать не нужно.
+    if (InIntermission()) {
+        return;
+    }
+
+    int tCount = 0, ctCount = 0;
+    for (int i = 1; i <= MaxClients; i++) {
+        if (i == ignoredClient || !IsValidClient(i)) {
+            continue;
+        }
+        if (GetClientTeam(i) == CS_TEAM_T) {
+            tCount++;
+        } else if (GetClientTeam(i) == CS_TEAM_CT) {
+            ctCount++;
+        }
+    }
+
+    if (tCount == 0 || ctCount == 0) {
         CS_TerminateRound(0.1, CSRoundEnd_TerroristWin);
     }
 }

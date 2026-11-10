@@ -79,6 +79,9 @@ public void StartWarmup(int time) {
 public void GoLive() {
     g_InWarmup = false;
     g_EditMode = false;
+    // Раунд после рестарта подготовит Event_RoundStart: round_end при mp_restartgame может не прийти.
+    g_PreparePending = false;
+    g_RoundPrepared = false;
     ServerCommand("mp_restartgame 1");
 }
 
