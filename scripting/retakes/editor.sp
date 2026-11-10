@@ -2,6 +2,16 @@ int g_iBeamSprite = 0;
 int g_iHaloSprite = 0;
 Bombsite g_EditingSite = BombsiteA;
 
+/**
+ * Precaches the sprites the editor draws the spawns with. Called on every map start.
+ */
+public void PrecacheEditorSprites() {
+    // CSS-VERIFY: в CS:S есть sprites/laserbeam.vmt и sprites/halo01.vmt (в CS:GO был sprites/halo.vmt),
+    // кольца и стрелки спавнов в редакторе видны.
+    g_iBeamSprite = PrecacheModel("sprites/laserbeam.vmt", true);
+    g_iHaloSprite = PrecacheModel("sprites/halo01.vmt", true);
+}
+
 public void MovePlayerToEditMode(int client) {
     SwitchPlayerTeam(client, CS_TEAM_CT);
     CS_RespawnPlayer(client);
@@ -30,8 +40,6 @@ public Action Timer_ShowSpawns(Handle timer) {
     if (!g_EditMode || g_hEditorEnabled.IntValue == 0)
         return Plugin_Continue;
 
-    g_iBeamSprite = PrecacheModel("sprites/laserbeam.vmt", true);
-    g_iHaloSprite = PrecacheModel("sprites/halo.vmt", true);
     float origin[3];
     float angle[3];
 
@@ -42,7 +50,7 @@ public Action Timer_ShowSpawns(Handle timer) {
 
         for (int j = 0; j < g_NumSpawns; j++) {
             origin = g_SpawnPoints[j];
-            angle = g_SpawnPoints[j];
+            angle = g_SpawnAngles[j];
             if (SpawnFilter(j)) {
                 DisplaySpawnPoint(i, origin, angle, 40.0, g_SpawnTeams[j] == CS_TEAM_CT, g_SpawnTypes[j]);
             }

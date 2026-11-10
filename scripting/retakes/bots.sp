@@ -222,4 +222,9 @@ public void Frame_MoveUnassignedToSpectator(int userid) {
     // (не возвращается в команду сам) до следующей подготовки раунда.
     DebugLog("round: %L spawned without a slot in this round, moving to spectators", client);
     SwitchPlayerTeam(client, CS_TEAM_SPECTATOR);
+    if (!IsFakeClient(client)) {
+        // человек (например, переведённый админом) - в очередь, чтобы попал в следующий раунд
+        Queue_Enqueue(g_hWaitingQueue, client);
+        Retakes_Message(client, "%t", "JoinedQueueMessage");
+    }
 }

@@ -7,6 +7,8 @@ public Action Command_EditSpawns(int client, int args) {
     if (!g_EditMode) {
         // Свободный режим (респаун, раунд не кончается) включается самим флагом, см. warmup.sp.
         g_EditMode = true;
+        // Ботов из редактора убираем сразу, не дожидаясь секундного таймера.
+        UpdateBotQuota(false);
         for (int i = 1; i <= MaxClients; i++) {
             if (IsValidClient(i) && !IsFakeClient(i)) {
                 MovePlayerToEditMode(i);
@@ -152,6 +154,9 @@ public Action Command_IterateSpawns(int client, int args) {
     if (args >= 1 && GetCmdArg(1, buf, sizeof(buf))) {
         startIndex = StringToInt(buf);
     }
+    if (startIndex < 0) {
+        startIndex = 0;
+    }
 
     DataPack pack;
 
@@ -168,17 +173,19 @@ public Action Timer_IterateSpawns(Handle timer, DataPack data) {
     int spawnIndex = data.ReadCell();
     int client = GetClientFromSerial(serial);
 
-    if (!IsPlayer(client))
+    if (!IsPlayer(client) || !g_EditMode)
         return Plugin_Handled;
 
-    MoveToSpawnInEditor(client, spawnIndex);
+    if (IsValidSpawn(spawnIndex)) {
+        MoveToSpawnInEditor(client, spawnIndex);
+    }
 
     spawnIndex++;
-    while (g_SpawnDeleted[spawnIndex] && spawnIndex < g_NumSpawns) {
+    while (spawnIndex < g_NumSpawns && g_SpawnDeleted[spawnIndex]) {
         spawnIndex++;
     }
 
-    if (!g_SpawnDeleted[spawnIndex] && spawnIndex < g_NumSpawns) {
+    if (spawnIndex < g_NumSpawns) {
         DataPack newData;
         CreateDataTimer(2.0, Timer_IterateSpawns, newData);
         newData.WriteCell(serial);

@@ -5,25 +5,54 @@ static void GetConfigFileName(char[] buffer, int size) {
     BuildPath(Path_SM, buffer, size, "configs/retakes/%s.cfg", mapName);
 }
 
+/**
+ * Reads the bounding box of an entity in world coordinates.
+ */
+static bool GetEntityWorldBounds(int entity, float mins[3], float maxs[3]) {
+    // CSS-VERIFY: у func_bomb_target в CS:S читаются m_vecMins/m_vecMaxs, и вместе с m_vecOrigin
+    // они дают мировые координаты зоны закладки (спавн внутри бомбплейса определяется верно).
+    if (HasEntProp(entity, Prop_Send, "m_vecMins") && HasEntProp(entity, Prop_Send, "m_vecMaxs")) {
+        GetEntPropVector(entity, Prop_Send, "m_vecMins", mins);
+        GetEntPropVector(entity, Prop_Send, "m_vecMaxs", maxs);
+    } else if (HasEntProp(entity, Prop_Data, "m_vecMins") && HasEntProp(entity, Prop_Data, "m_vecMaxs")) {
+        GetEntPropVector(entity, Prop_Data, "m_vecMins", mins);
+        GetEntPropVector(entity, Prop_Data, "m_vecMaxs", maxs);
+    } else {
+        return false;
+    }
+
+    // У брашевых сущностей origin обычно нулевой, но полагаться на это не будем.
+    float origin[3];
+    if (HasEntProp(entity, Prop_Send, "m_vecOrigin")) {
+        GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
+    } else if (HasEntProp(entity, Prop_Data, "m_vecOrigin")) {
+        GetEntPropVector(entity, Prop_Data, "m_vecOrigin", origin);
+    }
+    AddVectors(mins, origin, mins);
+    AddVectors(maxs, origin, maxs);
+    return true;
+}
+
 public void FindSites() {
     g_SiteMins.Clear();
     g_SiteMaxs.Clear();
 
-    int maxEnt = GetMaxEntities();
-    char sClassName[128];
-    for (int i = MaxClients; i < maxEnt; i++) {
-        bool valid = IsValidEdict(i) && IsValidEntity(i);
-        if (valid && GetEdictClassname(i, sClassName, sizeof(sClassName))) {
-            if (StrEqual(sClassName, "func_bomb_target")) {
-                float vecBombsiteMin[3];
-                float vecBombsiteMax[3];
-                GetEntPropVector(i, Prop_Send, "m_vecMins", vecBombsiteMin);
-                GetEntPropVector(i, Prop_Send, "m_vecMaxs", vecBombsiteMax);
-                g_SiteMins.PushArray(vecBombsiteMin);
-                g_SiteMaxs.PushArray(vecBombsiteMax);
-            }
+    int entity = -1;
+    while ((entity = FindEntityByClassname(entity, "func_bomb_target")) != -1) {
+        float vecBombsiteMin[3];
+        float vecBombsiteMax[3];
+        if (!GetEntityWorldBounds(entity, vecBombsiteMin, vecBombsiteMax)) {
+            LogError("Could not read the bounds of func_bomb_target (entity %d)", entity);
+            continue;
         }
+        g_SiteMins.PushArray(vecBombsiteMin);
+        g_SiteMaxs.PushArray(vecBombsiteMax);
     }
+
+    if (g_SiteMins.Length == 0) {
+        LogMessage("No bomb targets (func_bomb_target) were found on this map - retakes cannot be played on it");
+    }
+    DebugLog("map: found %d bomb target(s)", g_SiteMins.Length);
 }
 
 /**

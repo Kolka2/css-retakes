@@ -139,6 +139,7 @@ Handle g_OnWeaponsAllocated;
 #include "retakes/editor_menus.sp"
 #include "retakes/natives.sp"
 #include "retakes/spawns.sp"
+#include "retakes/validate.sp"
 
 
 
@@ -207,6 +208,7 @@ public void OnPluginStart() {
     RegAdminCmd("sm_iteratespawns", Command_IterateSpawns, ADMFLAG_CHANGEMAP);
     RegAdminCmd("sm_reloadspawns", Command_ReloadSpawns, ADMFLAG_CHANGEMAP, "Reloads retakes spawns for the current map, discarding changes");
     RegAdminCmd("sm_savespawns", Command_SaveSpawns, ADMFLAG_CHANGEMAP, "Saves retakes spawns for the current map");
+    RegAdminCmd("sm_retakes_validatespawns", Command_ValidateSpawns, ADMFLAG_CHANGEMAP, "Checks the retakes spawns of the current map and prints a report");
 
     /** Player commands **/
     RegConsoleCmd("sm_guns", Command_Guns);
@@ -267,6 +269,7 @@ public void OnMapStart() {
 
     FindSites();
     g_NumSpawns = ParseSpawns();
+    PrecacheEditorSprites();
 
     g_EditMode = false;
     g_InWarmup = false;
@@ -1036,6 +1039,9 @@ public void UpdateTeams() {
         for (int i = 1; i <= MaxClients; i++) {
             if (IsParticipant(i) && IsOnTeam(i) && !IsAssigned(i)) {
                 SwitchPlayerTeam(i, CS_TEAM_SPECTATOR);
+                if (!IsFakeClient(i)) {
+                    Queue_Enqueue(g_hWaitingQueue, i);
+                }
             }
         }
     }
