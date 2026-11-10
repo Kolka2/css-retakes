@@ -8,9 +8,6 @@
 #include "include/restorecvars.inc"
 #include "include/retakes.inc"
 
-#undef REQUIRE_PLUGIN
-#tryinclude <pugsetup>
-
 #pragma semicolon 1
 #pragma newdecls required
 
@@ -924,36 +921,3 @@ public int GetOtherTeam(int team) {
 public Bombsite GetOtherSite(Bombsite site) {
     return (site == BombsiteA) ? BombsiteB : BombsiteA;
 }
-
-// pugsetup (github.com/splewis/csgo-pug-setup) integrations
-#if defined _pugsetup_included
-public Action PugSetup_OnSetupMenuOpen(int client, Menu menu, bool displayOnly) {
-    int leader = PugSetup_GetLeader(false);
-    if (!IsPlayer(leader)) {
-        PugSetup_SetLeader(client);
-    }
-
-    int style = ITEMDRAW_DEFAULT;
-    if (!PugSetup_HasPermissions(client, Permission_Leader) || displayOnly) {
-        style = ITEMDRAW_DISABLED;
-    }
-
-    if (g_Enabled) {
-        menu.AddItem("disable_retakes", "Disable retakes", style);
-    } else {
-        menu.AddItem("enable_retakes", "Enable retakes", style);
-    }
-
-    return Plugin_Continue;
-}
-
-public void PugSetup_OnSetupMenuSelect(Menu menu, int client, const char[] selected_info, int selected_position) {
-    if (StrEqual(selected_info, "disable_retakes")) {
-        g_EnabledCvar.SetInt(0);
-        PugSetup_GiveSetupMenu(client, false, selected_position);
-    } else if (StrEqual(selected_info, "enable_retakes")) {
-        g_EnabledCvar.SetInt(1);
-        PugSetup_GiveSetupMenu(client, false, selected_position);
-    }
-}
-#endif
