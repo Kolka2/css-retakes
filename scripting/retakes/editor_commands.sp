@@ -5,8 +5,8 @@ public Action Command_EditSpawns(int client, int args) {
     }
 
     if (!g_EditMode) {
+        // Свободный режим (респаун, раунд не кончается) включается самим флагом, см. warmup.sp.
         g_EditMode = true;
-        StartPausedWarmup();
         for (int i = 1; i <= MaxClients; i++) {
             if (IsValidClient(i) && !IsFakeClient(i)) {
                 MovePlayerToEditMode(i);

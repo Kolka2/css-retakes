@@ -261,17 +261,3 @@ stock void Colorize(char[] msg, int size, bool strip=false) {
         }
     }
 }
-
-stock void StartPausedWarmup() {
-    ServerCommand("mp_warmup_start");
-    ServerCommand("mp_warmuptime 120");  // this value must be greater than 6 or the warmup countdown will always start
-    ServerCommand("mp_warmup_pausetimer 1");
-}
-
-stock void StartTimedWarmup(int time) {
-    ServerCommand("mp_do_warmup_period 1");
-    ServerCommand("mp_warmup_pausetimer 0");
-    ServerCommand("mp_warmuptime %d", time);
-    ServerCommand("mp_warmup_start");
-    ServerCommand("mp_warmup_start"); // don't ask.
-}

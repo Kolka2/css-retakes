@@ -27,8 +27,7 @@ public int EditorMenuHandler(Menu menu, MenuAction action, int param1, int param
 
         if (StrEqual(choice, "end_edit")) {
             Retakes_MessageToAll("Exiting edit mode.");
-            g_EditMode = false;
-            ServerCommand("mp_warmup_end");
+            GoLive();
 
         } else if (StrEqual(choice, "add_spawn")) {
             GiveNewSpawnMenu(client);

@@ -54,6 +54,9 @@ ConVar g_hUseRandomTeams;
 ConVar g_WarmupTimeCvar;
 ConVar g_MessagePrefix;
 
+/** Plugin-managed warmup (CS:S has no mp_warmup_*) **/
+bool g_InWarmup;
+
 /** Editing global variables **/
 bool g_EditMode;
 bool g_DirtySpawns; // whether the spawns have been edited since loading from the file
@@ -114,6 +117,7 @@ Handle g_OnWeaponsAllocated;
 
 #include "retakes/generic.sp"
 #include "retakes/teams.sp"
+#include "retakes/warmup.sp"
 #include "retakes/editor.sp"
 #include "retakes/editor_commands.sp"
 #include "retakes/editor_menus.sp"
@@ -242,7 +246,9 @@ public void OnMapStart() {
     g_NumSpawns = ParseSpawns();
 
     g_EditMode = false;
+    g_InWarmup = false;
     CreateTimer(1.0, Timer_ShowSpawns, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+    CreateTimer(1.0, Timer_FreePlay, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 
     if (!g_Enabled)
         return;
@@ -250,7 +256,7 @@ public void OnMapStart() {
     ExecConfigs();
 
     // Restart warmup for players to connect.
-    StartTimedWarmup(g_WarmupTimeCvar.IntValue);
+    StartWarmup(g_WarmupTimeCvar.IntValue);
 }
 
 public void OnMapEnd() {
@@ -313,6 +319,7 @@ public void ResetClientVariables(int client) {
     g_Team[client] = CS_TEAM_SPECTATOR;
     g_PluginTeamSwitch[client] = false;
     g_RoundPoints[client] = -POINTS_LOSS;
+    g_LastDeathTime[client] = 0.0;
 }
 
 public Action Command_ScrambleTeams(int client, int args) {
@@ -409,7 +416,7 @@ public Action PlacePlayer(int client) {
     GetTeamsClientCounts(tHumanCount, ctHumanCount);
     nPlayers = tHumanCount + ctHumanCount;
 
-    if (Retakes_InWarmup() && nPlayers < g_hMaxPlayers.IntValue) {
+    if (g_InWarmup && nPlayers < g_hMaxPlayers.IntValue) {
         return Plugin_Continue;
     }
 
@@ -456,7 +463,7 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
     }
 
     int client = GetClientOfUserId(event.GetInt("userid"));
-    if (!IsValidClient(client) || !IsOnTeam(client) || g_EditMode || Retakes_InWarmup())
+    if (!IsValidClient(client) || !IsOnTeam(client) || InFreePlay())
         return Plugin_Continue;
 
     if (!g_RoundSpawnsDecided) {
@@ -480,11 +487,16 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
  * Called when a player dies - gives points to killer, and does database stuff with the kill.
  */
 public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast) {
+    int victim = GetClientOfUserId(event.GetInt("userid"));
+    if (victim > 0) {
+        // для респауна в разминке/редакторе, см. warmup.sp
+        g_LastDeathTime[victim] = GetGameTime();
+    }
+
     if (!Retakes_Live()) {
         return Plugin_Continue;
     }
 
-    int victim = GetClientOfUserId(event.GetInt("userid"));
     int attacker = GetClientOfUserId(event.GetInt("attacker"));
 
     bool validAttacker = IsValidClient(attacker);
