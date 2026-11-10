@@ -552,15 +552,15 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
 }
 
 /**
- * Picks the spawn points for everybody that plays the round.
- */
-/**
  * Returns if the plugin put the client on a team for the current round.
  */
 bool IsAssigned(int client) {
     return g_Team[client] == CS_TEAM_T || g_Team[client] == CS_TEAM_CT;
 }
 
+/**
+ * Picks the spawn points for everybody that plays the round.
+ */
 static void DecideRoundSpawns() {
     if (IsParticipant(g_BombOwner)) {
         g_SpawnIndices[g_BombOwner] = SelectSpawn(CS_TEAM_T, true);
