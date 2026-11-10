@@ -21,6 +21,10 @@ enum SpawnType {
 
 /**
  * Maxmimum length of a nade string. Example: "hfs" is a hegrenade, flashbang, and smoke.
+ *
+ * Counter-Strike: Source only has these three grenades:
+ *   h - weapon_hegrenade, f - weapon_flashbang (may be repeated: "ff"), s - weapon_smokegrenade.
+ * Any other letter (the CS:GO ones: m - molotov, i - incendiary, d - decoy) is silently ignored.
  */
 #define NADE_STRING_LENGTH 8
 

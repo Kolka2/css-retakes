@@ -146,43 +146,105 @@ public void MoveToSpawn(int client, int spawnIndex) {
     TeleportEntity(client, g_SpawnPoints[spawnIndex], g_SpawnAngles[spawnIndex], NULL_VECTOR);
 }
 
+/**
+ * Gives a weapon by its class name. Empty names are skipped (an allocator may leave
+ * the primary weapon empty). Returns the weapon entity or -1.
+ */
+static int GiveWeapon(int client, const char[] weapon) {
+    if (weapon[0] == '\0') {
+        return -1;
+    }
+
+    int entity = GivePlayerItem(client, weapon);
+    if (entity == -1) {
+        // Чаще всего это имя оружия из CS:GO, пришедшее от стороннего аллокатора.
+        LogError("Failed to give \"%s\" to %L: no such weapon in CS:S?", weapon, client);
+    }
+    return entity;
+}
+
+/**
+ * Fills the reserve ammo of every firearm the client carries.
+ */
+static void RefillAmmo(int client) {
+    if (!HasEntProp(client, Prop_Send, "m_hMyWeapons")) {
+        return;
+    }
+
+    int size = GetEntPropArraySize(client, Prop_Send, "m_hMyWeapons");
+    for (int i = 0; i < size; i++) {
+        int weapon = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
+        if (weapon <= MaxClients || !IsValidEntity(weapon)) {
+            continue;
+        }
+
+        // У ножа, гранат и C4 магазина нет (m_iClip1 == -1): их не трогаем,
+        // иначе, например, флешек стало бы две.
+        if (!HasEntProp(weapon, Prop_Send, "m_iClip1") || GetEntProp(weapon, Prop_Send, "m_iClip1") < 0) {
+            continue;
+        }
+        if (!HasEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType")) {
+            continue;
+        }
+
+        int ammoType = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
+        if (ammoType >= 0) {
+            // CSS-VERIFY: GivePlayerAmmo в CS:S обрезает запас до максимума для типа патронов
+            // (AK-47: 30/90, а не 30/999), а оружие от GivePlayerItem приходит с полным магазином.
+            GivePlayerAmmo(client, 999, ammoType, true);
+        }
+    }
+}
+
+/**
+ * Sets the money of a client. Retakes hands out the equipment itself, so nobody
+ * (the bots first of all) should be able to buy on top of it.
+ */
+stock void SetClientMoney(int client, int money) {
+    // CSS-VERIFY: у CCSPlayer есть m_iAccount, при нуле ни люди, ни боты ничего не покупают.
+    if (HasEntProp(client, Prop_Send, "m_iAccount")) {
+        SetEntProp(client, Prop_Send, "m_iAccount", money);
+    }
+}
+
 public void GiveWeapons(int client) {
     if (!IsValidClient(client)) {
         return;
     }
 
+    // CSS-VERIFY: снятие и выдача оружия прямо в player_spawn работают в CS:S: игра не выдаёт
+    // после события стандартный пистолет поверх нашего и не оставляет игрока без ножа.
     RemoveAllWeapons(client);
 
-    if (g_Team[client] == CS_TEAM_T)
-        GivePlayerItem(client, "weapon_knife_t");
-    else
-        GivePlayerItem(client, "weapon_knife");
-
-    GivePlayerItem(client, g_PlayerPrimary[client]);
-    GivePlayerItem(client, g_PlayerSecondary[client]);
+    // В CS:S один нож на обе команды (weapon_knife_t нет).
+    GiveWeapon(client, "weapon_knife");
+    GiveWeapon(client, g_PlayerPrimary[client]);
+    GiveWeapon(client, g_PlayerSecondary[client]);
 
     SetClientArmor(client, g_PlayerArmor[client]);
     SetEntityHealth(client, g_PlayerHealth[client]);
-    SetEntData(client, FindSendPropInfo("CCSPlayer", "m_bHasHelmet"), g_PlayerHelmet[client]);
 
-    if (g_Team[client] == CS_TEAM_CT) {
-        SetEntProp(client, Prop_Send, "m_bHasDefuser", g_PlayerKit[client]);
+    // CSS-VERIFY: у CCSPlayer есть m_bHasHelmet и m_bHasDefuser.
+    if (HasEntProp(client, Prop_Send, "m_bHasHelmet")) {
+        SetEntProp(client, Prop_Send, "m_bHasHelmet", g_PlayerHelmet[client]);
+    }
+    if (HasEntProp(client, Prop_Send, "m_bHasDefuser")) {
+        SetEntProp(client, Prop_Send, "m_bHasDefuser", g_Team[client] == CS_TEAM_CT && g_PlayerKit[client]);
     }
 
+    // В CS:S есть только осколочная, световая и дымовая гранаты.
+    // Остальные буквы (m, i, d из CS:GO) молча пропускаются.
     int len = strlen(g_PlayerNades[client]);
     for (int i = 0; i < len; i++) {
-        char c = g_PlayerNades[client][i];
-        char weapon[32];
-        switch(c) {
-            case 'h': weapon = "weapon_hegrenade";
-            case 'f': weapon = "weapon_flashbang";
-            case 'm': weapon = "weapon_molotov";
-            case 'i': weapon = "weapon_incgrenade";
-            case 's': weapon = "weapon_smokegrenade";
-            case 'd': weapon = "weapon_decoy";
+        switch (g_PlayerNades[client][i]) {
+            case 'h': GiveWeapon(client, "weapon_hegrenade");
+            case 'f': GiveWeapon(client, "weapon_flashbang");
+            case 's': GiveWeapon(client, "weapon_smokegrenade");
         }
-        GivePlayerItem(client, weapon);
     }
+
+    RefillAmmo(client);
+    SetClientMoney(client, 0);
 
     if (g_BombOwner == client) {
         g_bombPlantSignal = false;

@@ -538,6 +538,11 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
     bool validAttacker = IsValidClient(attacker);
     bool validVictim = IsValidClient(victim);
 
+    if (validAttacker) {
+        // награду за убийство не оставляем: закупаться в ретейке нельзя
+        SetClientMoney(attacker, 0);
+    }
+
     if (validAttacker && validVictim) {
         if (HelpfulAttack(attacker, victim)) {
             g_RoundPoints[attacker] += POINTS_KILL;
@@ -958,7 +963,7 @@ public void UpdateTeams() {
             SwitchPlayerTeam(client, CS_TEAM_CT);
             g_Team[client] = CS_TEAM_CT;
             g_PlayerPrimary[client] = "weapon_m4a1";
-            g_PlayerSecondary[client] = "weapon_hkp2000";
+            g_PlayerSecondary[client] = "weapon_usp";
             g_PlayerNades[client] = "";
             g_PlayerKit[client] = true;
             g_PlayerHealth[client] = 100;
