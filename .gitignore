@@ -1,3 +1,2 @@
-*.zip
-*.smx
-buildsbuild/
+builds
+build/
