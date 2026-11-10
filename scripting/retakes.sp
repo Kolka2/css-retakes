@@ -96,7 +96,6 @@ bool g_PlayerHelmet[MAXPLAYERS+1];
 bool g_PlayerKit[MAXPLAYERS+1];
 
 /** Per-round information about the player setup **/
-bool g_bombPlantSignal;
 bool g_bombPlanted;
 int g_BombOwner = -1;
 int g_NumCT;
@@ -255,7 +254,6 @@ public void OnMapStart() {
     g_NoSpawnsLogged = false;
 
     g_bombPlanted = false;
-    g_bombPlantSignal = false;
 
     FindSites();
     g_NumSpawns = ParseSpawns();
@@ -583,7 +581,6 @@ public Action Event_BombPlant(Event event, const char[] name, bool dontBroadcast
     }
 
     g_bombPlanted = true;
-    g_bombPlantSignal = false;
 
     return Plugin_Continue;
 }
@@ -726,6 +723,8 @@ public Action Timer_PostRoundStart(Handle timer, any serial) {
             CS_RespawnPlayer(i);
         }
     }
+
+    FixBomb();
 
     // Раунд начался меньше чем с двумя игроками, а в очереди кто-то ждёт (зашёл между раундами):
     // не ждём конца раунда, а сразу начинаем следующий, уже с ним.

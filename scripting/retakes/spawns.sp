@@ -246,19 +246,108 @@ public void GiveWeapons(int client) {
     RefillAmmo(client);
     SetClientMoney(client, 0);
 
-    if (g_BombOwner == client) {
-        g_bombPlantSignal = false;
-        GivePlayerItem(client, "weapon_c4");
-        CreateTimer(1.0, Timer_StartPlant, client);
+    // C4 здесь не выдаётся: этим после спавна всех игроков занимается FixBomb().
+}
+
+/**
+ * Returns the weapon_c4 entity carried by a client, or -1.
+ */
+stock int GetClientC4(int client) {
+    if (!HasEntProp(client, Prop_Send, "m_hMyWeapons")) {
+        return -1;
+    }
+
+    char classname[32];
+    int size = GetEntPropArraySize(client, Prop_Send, "m_hMyWeapons");
+    for (int i = 0; i < size; i++) {
+        int weapon = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
+        if (weapon > MaxClients && IsValidEntity(weapon)
+            && GetEntityClassname(weapon, classname, sizeof(classname))
+            && StrEqual(classname, "weapon_c4")) {
+            return weapon;
+        }
+    }
+    return -1;
+}
+
+/**
+ * Makes sure there is exactly one C4 in the game and the bomb carrier has it.
+ * CS:S has no mp_give_player_c4: on every round restart the game itself gives a C4 to a
+ * random terrorist (after the players have spawned), so this runs shortly after round_start.
+ */
+public void FixBomb() {
+    // Бомбер мог выйти между подготовкой раунда и его началом - берём другого живого T.
+    if (!IsValidClient(g_BombOwner) || !IsPlayerAlive(g_BombOwner) || GetClientTeam(g_BombOwner) != CS_TEAM_T) {
+        g_BombOwner = -1;
+        ArrayList ts = new ArrayList();
+        for (int i = 1; i <= MaxClients; i++) {
+            if (IsValidClient(i) && IsPlayerAlive(i) && GetClientTeam(i) == CS_TEAM_T && g_Team[i] == CS_TEAM_T) {
+                ts.Push(i);
+            }
+        }
+        if (ts.Length >= 1) {
+            g_BombOwner = RandomElement(ts);
+        }
+        delete ts;
+    }
+
+    int keep = -1;
+    if (g_BombOwner != -1) {
+        keep = GetClientC4(g_BombOwner);
+    }
+
+    // CSS-VERIFY: игра при рестарте раунда сама выдаёт C4 случайному T; удаление лишних weapon_c4
+    // (RemovePlayerItem + Kill) ничего не ломает (радар, боты, условия победы).
+    for (int i = 1; i <= MaxClients; i++) {
+        if (i == g_BombOwner || !IsValidClient(i) || !IsPlayerAlive(i)) {
+            continue;
+        }
+        int c4 = GetClientC4(i);
+        if (c4 != -1) {
+            RemovePlayerItem(i, c4);
+            AcceptEntityInput(c4, "Kill");
+        }
+    }
+
+    // Бомбы, лежащие на земле (выпали в прошлом раунде или при смене команды).
+    int entity = -1;
+    while ((entity = FindEntityByClassname(entity, "weapon_c4")) != -1) {
+        if (entity != keep) {
+            AcceptEntityInput(entity, "Kill");
+        }
+    }
+
+    if (g_BombOwner == -1) {
+        return;
+    }
+
+    if (keep == -1) {
+        keep = GivePlayerItem(g_BombOwner, "weapon_c4");
+        if (keep == -1) {
+            LogError("Failed to give weapon_c4 to %L", g_BombOwner);
+            return;
+        }
+    }
+
+    // Человеку-бомберу через секунду достаём C4 в руки. Ботам не нужно: они ставят бомбу сами.
+    if (!IsFakeClient(g_BombOwner)) {
+        CreateTimer(1.0, Timer_SelectBomb, GetClientSerial(g_BombOwner), TIMER_FLAG_NO_MAPCHANGE);
     }
 }
 
-public Action Timer_StartPlant(Handle timer, int client) {
-    if (IsPlayer(client)) {
-        g_bombPlantSignal = true;
+public Action Timer_SelectBomb(Handle timer, int serial) {
+    int client = GetClientFromSerial(serial);
+    if (client == 0 || client != g_BombOwner || g_bombPlanted || !Retakes_Live()) {
+        return Plugin_Handled;
     }
 
-    return Plugin_Continue;
+    if (IsPlayerAlive(client) && GetClientC4(client) != -1) {
+        // CSS-VERIFY: серверная команда "use weapon_c4" переключает игрока на C4 (в CS:GO для этого
+        // плагин нажимал за игрока IN_USE, в CS:S так не работает). Если нет - попробовать ClientCommand "slot5".
+        FakeClientCommand(client, "use weapon_c4");
+    }
+
+    return Plugin_Handled;
 }
 
 public bool InsideBombSite(float vec[3]) {
@@ -282,18 +371,6 @@ public bool InsideBombSite(float vec[3]) {
 
 public bool SpawnInsideBombSite(int spawnIndex) {
     return InsideBombSite(g_SpawnPoints[spawnIndex]);
-}
-
-public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3],
-                             int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
-    // Forces the player to get the bomb out on their spawn.
-    // The signal is fired by a timer after the bomb-carrier's spawn.
-    if (g_bombPlantSignal && !g_bombPlanted && client == g_BombOwner) {
-        buttons |= IN_USE;
-        g_bombPlantSignal = false;
-    }
-
-    return Plugin_Continue;
 }
 
 public bool CanBombCarrierSpawn(int spawn) {
