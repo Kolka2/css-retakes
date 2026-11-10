@@ -6,12 +6,41 @@
 #define INTEGER_STRING_LENGTH 20 // max number of digits a 64-bit integer can use up as a string
                                  // this is for converting ints to strings when setting menu values/cookies
 
+#include <sdktools>
 #include <cstrike>
-#include <smlib>
 #include <clientprefs>
 
 char g_ColorNames[][] = {"{NORMAL}", "{DARK_RED}", "{PURPLE}", "{GREEN}", "{MOSS_GREEN}", "{LIGHT_GREEN}", "{LIGHT_RED}", "{GRAY}", "{ORANGE}", "{LIGHT_BLUE}", "{DARK_BLUE}", "{PURPLE}"};
 char g_ColorCodes[][] =    {"\x01",     "\x02",      "\x03",   "\x04",         "\x05",     "\x06",          "\x07",        "\x08",   "\x09",     "\x0B",         "\x0C",        "\x0E"};
+
+/**
+ * Removes (and destroys) every weapon the client is carrying.
+ * Замена Client_RemoveAllWeapons из smlib.
+ */
+stock void RemoveAllWeapons(int client) {
+    if (!HasEntProp(client, Prop_Send, "m_hMyWeapons")) {
+        return;
+    }
+
+    int size = GetEntPropArraySize(client, Prop_Send, "m_hMyWeapons");
+    for (int i = 0; i < size; i++) {
+        int weapon = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
+        if (weapon > MaxClients && IsValidEntity(weapon)) {
+            RemovePlayerItem(client, weapon);
+            AcceptEntityInput(weapon, "Kill");
+        }
+    }
+}
+
+/**
+ * Sets the armor value of a client.
+ * Замена Client_SetArmor из smlib.
+ */
+stock void SetClientArmor(int client, int value) {
+    if (HasEntProp(client, Prop_Send, "m_ArmorValue")) {
+        SetEntProp(client, Prop_Send, "m_ArmorValue", value);
+    }
+}
 
 /**
  * Returns if the 2 players should be fighting each other.

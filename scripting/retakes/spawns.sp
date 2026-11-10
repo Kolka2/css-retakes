@@ -151,7 +151,7 @@ public void GiveWeapons(int client) {
         return;
     }
 
-    Client_RemoveAllWeapons(client);
+    RemoveAllWeapons(client);
 
     if (g_Team[client] == CS_TEAM_T)
         GivePlayerItem(client, "weapon_knife_t");
@@ -161,7 +161,7 @@ public void GiveWeapons(int client) {
     GivePlayerItem(client, g_PlayerPrimary[client]);
     GivePlayerItem(client, g_PlayerSecondary[client]);
 
-    Client_SetArmor(client, g_PlayerArmor[client]);
+    SetClientArmor(client, g_PlayerArmor[client]);
     SetEntityHealth(client, g_PlayerHealth[client]);
     SetEntData(client, FindSendPropInfo("CCSPlayer", "m_bHasHelmet"), g_PlayerHelmet[client]);
 

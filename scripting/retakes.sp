@@ -2,7 +2,6 @@
 #include <sdktools>
 #include <sdkhooks>
 #include <cstrike>
-#include <smlib>
 
 #include "include/priorityqueue.inc"
 #include "include/queue.inc"
@@ -593,7 +592,7 @@ public Action Event_RoundPreStart(Event event, const char[] name, bool dontBroad
     ArrayList ts = new ArrayList();
     for (int i = 1; i < MaxClients; i++) {
         if (IsValidClient(i) && IsOnTeam(i)) {
-            Client_RemoveAllWeapons(i);
+            RemoveAllWeapons(i);
             if (GetClientTeam(i) == CS_TEAM_T) {
                 ts.Push(i);
             }
