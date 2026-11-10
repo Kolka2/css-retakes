@@ -476,6 +476,7 @@ public Action PlacePlayer(int client) {
     if (nPlayers < 2) {
         ChangeClientTeam(client, CS_TEAM_SPECTATOR);
         Queue_Enqueue(g_hWaitingQueue, client);
+        DebugLog("join: %L placed in the waiting queue, fewer than 2 players on teams - restarting the round", client);
         // Между раундами следующий раунд уже подготовлен без этого игрока:
         // его подхватит проверка в OnSecondTick.
         UpdateBotQuota(false);
@@ -487,6 +488,7 @@ public Action PlacePlayer(int client) {
 
     ChangeClientTeam(client, CS_TEAM_SPECTATOR);
     Queue_Enqueue(g_hWaitingQueue, client);
+    DebugLog("join: %L placed in the waiting queue (%d on teams)", client, nPlayers);
     Retakes_Message(client, "%t", "JoinedQueueMessage");
     return Plugin_Handled;
 }
@@ -683,6 +685,31 @@ public void PrepareNextRound() {
     RoundEndUpdates();
     UpdateTeams();
     g_BombOwner = PickBombOwner();
+    DebugLogPreparedRound();
+}
+
+/**
+ * Writes the outcome of PrepareNextRound to the debug log.
+ */
+static void DebugLogPreparedRound() {
+    if (!DebugEnabled()) {
+        return;
+    }
+
+    if (!g_TeamsValid) {
+        DebugLog("prepare: teams were NOT set (spawns on the map: %d, sm_retakes_maxplayers: %d)",
+                 g_NumSpawns, g_hMaxPlayers.IntValue);
+        return;
+    }
+
+    DebugLog("prepare: site %s, %d T vs %d CT (active players: %d), waiting queue: %d",
+             SITESTRING(g_Bombsite), g_NumT, g_NumCT, g_ActivePlayers, Queue_Length(g_hWaitingQueue));
+    for (int i = 1; i <= MaxClients; i++) {
+        if (IsParticipant(i) && IsAssigned(i)) {
+            DebugLog("prepare:   %s %L, points %d%s", TEAMSTRING(g_Team[i]), i, g_RoundPoints[i],
+                     (i == g_BombOwner) ? ", BOMB CARRIER" : "");
+        }
+    }
 }
 
 /**
@@ -723,7 +750,10 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
     // Страховка: раунд начался без подготовки (первый раунд после разминки, mp_restartgame).
     bool fallback = !g_RoundPrepared || g_PrepConsumed;
     if (fallback) {
+        DebugLog("round_start: the round was not prepared after round_end, preparing now and respawning the players");
         PrepareNextRound();
+    } else {
+        DebugLog("round_start: using the teams prepared after round_end");
     }
     g_PrepConsumed = true;
 
@@ -766,6 +796,7 @@ public Action Timer_PostRoundStart(Handle timer, any serial) {
     // Если нет - доспауниваем его здесь.
     for (int i = 1; i <= MaxClients; i++) {
         if (IsValidClient(i) && IsOnTeam(i) && g_Team[i] == GetClientTeam(i) && !IsPlayerAlive(i)) {
+            DebugLog("round_start: %L was not spawned by the game, respawning", i);
             CS_RespawnPlayer(i);
         }
     }
@@ -796,10 +827,13 @@ public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
     // Повторный round_end до начала следующего раунда (например, CS_TerminateRound из-за
     // вышедшего игрока): раунд уже посчитан, следующий уже подготовлен.
     if (InIntermission()) {
+        DebugLog("round_end: ignored, the next round is already being prepared");
         return Plugin_Continue;
     }
 
     int winner = event.GetInt("winner");
+    DebugLog("round_end: winner team %d, reason %d, bomb planted: %d, active players: %d",
+             winner, event.GetInt("reason"), g_bombPlanted, g_ActivePlayers);
 
     // winner не T/CT - это ничья или "Game Commencing": очки не трогаем.
     if (g_ActivePlayers >= 2 && g_TeamsValid && (winner == CS_TEAM_T || winner == CS_TEAM_CT)) {

@@ -71,12 +71,14 @@ public void StartWarmup(int time) {
 
     g_InWarmup = true;
     g_WarmupTimeLeft = time;
+    DebugLog("warmup: started, %d seconds", time);
 }
 
 /**
  * Ends the warmup/edit mode and restarts the game, the first retake follows the restart.
  */
 public void GoLive() {
+    DebugLog("warmup: going live (warmup: %d, edit mode: %d), restarting the game", g_InWarmup, g_EditMode);
     g_InWarmup = false;
     g_EditMode = false;
     // Раунд после рестарта подготовит Event_RoundStart: round_end при mp_restartgame может не прийти.

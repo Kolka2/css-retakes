@@ -173,12 +173,17 @@ public void WriteSpawns() {
  */
 public void SetupPlayer(int client) {
     int spawnIndex = g_SpawnIndices[client];
-    if (spawnIndex < 0)
+    if (spawnIndex < 0) {
+        DebugLog("spawn: %L has no retake spawn this round, left at the map spawn", client);
         return;
+    }
 
     SwitchPlayerTeam(client, g_Team[client]);
     MoveToSpawn(client, spawnIndex);
     GiveWeapons(client);
+    DebugLog("spawn: %L -> %s spawn #%d, \"%s\" + \"%s\", nades \"%s\", armor %d, helmet %d, kit %d",
+             client, TEAMSTRING(g_Team[client]), spawnIndex, g_PlayerPrimary[client], g_PlayerSecondary[client],
+             g_PlayerNades[client], g_PlayerArmor[client], g_PlayerHelmet[client], g_PlayerKit[client]);
 }
 
 public void MoveToSpawn(int client, int spawnIndex) {
@@ -337,6 +342,7 @@ public void FixBomb() {
         }
         int c4 = GetClientC4(i);
         if (c4 != -1) {
+            DebugLog("bomb: removing the C4 the game gave to %L", i);
             RemovePlayerItem(i, c4);
             AcceptEntityInput(c4, "Kill");
         }
@@ -351,6 +357,7 @@ public void FixBomb() {
     }
 
     if (g_BombOwner == -1) {
+        DebugLog("bomb: there is nobody to carry the bomb this round");
         return;
     }
 
@@ -360,6 +367,9 @@ public void FixBomb() {
             LogError("Failed to give weapon_c4 to %L", g_BombOwner);
             return;
         }
+        DebugLog("bomb: C4 given to %L", g_BombOwner);
+    } else {
+        DebugLog("bomb: %L already has the C4", g_BombOwner);
     }
 
     // Человеку-бомберу через секунду достаём C4 в руки. Ботам не нужно: они ставят бомбу сами.
