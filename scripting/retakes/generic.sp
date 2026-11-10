@@ -10,8 +10,11 @@
 #include <cstrike>
 #include <clientprefs>
 
-char g_ColorNames[][] = {"{NORMAL}", "{DARK_RED}", "{PURPLE}", "{GREEN}", "{MOSS_GREEN}", "{LIGHT_GREEN}", "{LIGHT_RED}", "{GRAY}", "{ORANGE}", "{LIGHT_BLUE}", "{DARK_BLUE}", "{PURPLE}"};
-char g_ColorCodes[][] =    {"\x01",     "\x02",      "\x03",   "\x04",         "\x05",     "\x06",          "\x07",        "\x08",   "\x09",     "\x0B",         "\x0C",        "\x0E"};
+// Цвета чата CS:S: \x01 - обычный, \x04 - зелёный, \x05 - оливковый, \x07RRGGBB - произвольный.
+// Имена тегов те же, что в CS:GO-версии, поэтому файлы переводов менять не нужно.
+// CSS-VERIFY: чат CS:S понимает \x07RRGGBB в сообщениях PrintToChat (нет "квадратиков", теги раскрашены).
+char g_ColorNames[][] = {"{NORMAL}", "{DARK_RED}", "{PURPLE}", "{GREEN}", "{MOSS_GREEN}", "{LIGHT_GREEN}", "{LIGHT_RED}", "{GRAY}", "{ORANGE}", "{LIGHT_BLUE}", "{DARK_BLUE}"};
+char g_ColorCodes[][] = {"\x01", "\x07CC0000", "\x07B980EF", "\x04", "\x05", "\x0799FF99", "\x07FF4040", "\x07CCCCCC", "\x07FFA500", "\x0799CCFF", "\x074D7AFF"};
 
 /**
  * Removes (and destroys) every weapon the client is carrying.
@@ -251,11 +254,12 @@ stock void GetCleanMapName(char[] buffer, int size) {
 
 /**
  * Applies colorized characters across a string to replace color tags.
+ * With strip=true the tags are simply removed (for the server console).
  */
 stock void Colorize(char[] msg, int size, bool strip=false) {
     for (int i = 0; i < sizeof(g_ColorNames); i ++) {
         if (strip) {
-            ReplaceString(msg, size, g_ColorNames[i], "\x01");
+            ReplaceString(msg, size, g_ColorNames[i], "");
         } else {
             ReplaceString(msg, size, g_ColorNames[i], g_ColorCodes[i]);
         }

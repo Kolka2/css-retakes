@@ -43,8 +43,17 @@ public int Native_IsInQueue(Handle plugin, int numParams) {
     return Queue_Find(g_hWaitingQueue, client) != -1;
 }
 
+// Сообщение в чат CS:S должно начинаться с \x01, иначе цветовые коды в нём не работают.
+#define CHAT_MESSAGE_FORMAT "\x01%s %s"
+#define CONSOLE_MESSAGE_FORMAT "%s %s"
+
 public int Native_RetakeMessage(Handle plugin, int numParams) {
     int client = GetNativeCell(1);
+    if (client != 0 && (!IsValidClient(client) || IsFakeClient(client))) {
+        // ботам и вышедшим игрокам писать незачем
+        return 0;
+    }
+
     SetGlobalTransTarget(client);
     char buffer[1024];
     int bytesWritten = 0;
@@ -52,16 +61,18 @@ public int Native_RetakeMessage(Handle plugin, int numParams) {
 
     char finalMsg[1024];
     char prefix[64];
-    
+
     g_MessagePrefix.GetString(prefix, sizeof(prefix));
-    int finalBytesWritten = Format(finalMsg, sizeof(finalMsg), " %s %s", prefix, buffer);
-  	
+    int finalBytesWritten;
+
     if (client == 0) {
+        finalBytesWritten = Format(finalMsg, sizeof(finalMsg), CONSOLE_MESSAGE_FORMAT, prefix, buffer);
         Colorize(finalMsg, sizeof(finalMsg), true);
-        PrintToConsole(client, finalMsg);
+        PrintToConsole(client, "%s", finalMsg);
     } else {
+        finalBytesWritten = Format(finalMsg, sizeof(finalMsg), CHAT_MESSAGE_FORMAT, prefix, buffer);
         Colorize(finalMsg, sizeof(finalMsg));
-        PrintToChat(client, finalMsg);
+        PrintToChat(client, "%s", finalMsg);
     }
 
     return finalBytesWritten;
@@ -72,20 +83,21 @@ public int Native_RetakeMessageToAll(Handle plugin, int numParams) {
     char finalMsg[1024];
     char prefix[64];
     int bytesWritten = 0;
-    
+
     g_MessagePrefix.GetString(prefix, sizeof(prefix));
+    SetGlobalTransTarget(LANG_SERVER);
     FormatNativeString(0, 1, 2, sizeof(buffer), bytesWritten, buffer);
-    int finalBytesWritten = Format(finalMsg, sizeof(finalMsg), " %s %s", prefix, buffer);
+    int finalBytesWritten = Format(finalMsg, sizeof(finalMsg), CONSOLE_MESSAGE_FORMAT, prefix, buffer);
     Colorize(finalMsg, sizeof(finalMsg), true);
-    PrintToConsole(0, finalMsg);
+    PrintToConsole(0, "%s", finalMsg);
 
     for (int i = 1; i <= MaxClients; i++) {
-        if (IsClientInGame(i)) {
+        if (IsClientInGame(i) && !IsFakeClient(i)) {
             SetGlobalTransTarget(i);
             FormatNativeString(0, 1, 2, sizeof(buffer), bytesWritten, buffer);
-            Format(finalMsg, sizeof(finalMsg), " %s %s", prefix, buffer);
+            Format(finalMsg, sizeof(finalMsg), CHAT_MESSAGE_FORMAT, prefix, buffer);
             Colorize(finalMsg, sizeof(finalMsg));
-            PrintToChat(i, finalMsg);
+            PrintToChat(i, "%s", finalMsg);
         }
     }
 
