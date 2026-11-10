@@ -117,6 +117,7 @@ bool g_PrepConsumed;   // a round_start has already used the prepared data
 bool g_TeamsValid;     // UpdateTeams actually assigned the teams (false if the map has no spawns)
 int g_RoundSerial;     // incremented on every round_start, lets the delayed callbacks detect a new round
 bool g_NoSpawnsLogged;
+bool g_SiteSpawnsLogged;
 
 /** Forwards **/
 Handle g_hOnGunsCommand;
@@ -264,6 +265,7 @@ public void OnMapStart() {
     g_PrepConsumed = false;
     g_TeamsValid = false;
     g_NoSpawnsLogged = false;
+    g_SiteSpawnsLogged = false;
 
     g_bombPlanted = false;
 
@@ -954,11 +956,46 @@ public void UpdateTeams() {
             LogError("This map does not have enough spawns! (%d spawns, sm_retakes_maxplayers is %d)",
                      g_NumSpawns, g_hMaxPlayers.IntValue);
         }
-        Retakes_MessageToAll("%t", "NotEnoughSpawns");
+        if (TranslationPhraseExists("NotEnoughSpawns")) {
+            Retakes_MessageToAll("%t", "NotEnoughSpawns");
+        } else {
+            // на сервере старый файл переводов - не роняем из-за этого подготовку раунда
+            Retakes_MessageToAll("{LIGHT_RED}This map does not have enough retake spawns. {NORMAL}An admin can create them with {GREEN}!edit");
+        }
         return;
     }
 
-    g_Bombsite = GetRandomBool() ? BombsiteA : BombsiteB;
+    // Сайт выбираем только из тех, где хватает спавнов на этот состав: карта может быть
+    // размечена не полностью (например, спавны расставлены только для A).
+    int estPlayers = PQ_GetSize(g_hRankingQueue);
+    if (estPlayers > g_hMaxPlayers.IntValue)
+        estPlayers = g_hMaxPlayers.IntValue;
+    int estT = RoundToNearest(g_hRatioConstant.FloatValue * float(estPlayers));
+    if (estT < 1)
+        estT = 1;
+    int estCT = estPlayers - estT;
+    if (estCT < 0)
+        estCT = 0;
+
+    bool siteAOk = SiteHasSpawns(BombsiteA, estT, estCT);
+    bool siteBOk = SiteHasSpawns(BombsiteB, estT, estCT);
+    if (siteAOk && !siteBOk) {
+        g_Bombsite = BombsiteA;
+    } else if (siteBOk && !siteAOk) {
+        g_Bombsite = BombsiteB;
+    } else {
+        g_Bombsite = GetRandomBool() ? BombsiteA : BombsiteB;
+    }
+
+    if (siteAOk != siteBOk) {
+        DebugLog("prepare: only site %s has enough spawns for %d T + %d CT, using it",
+                 SITESTRING(g_Bombsite), estT, estCT);
+    } else if (!siteAOk && !g_SiteSpawnsLogged) {
+        g_SiteSpawnsLogged = true;
+        LogError("Neither bombsite has enough spawns for %d T + %d CT (run sm_retakes_validatespawns), some players will stay at the map spawns",
+                 estT, estCT);
+    }
+
     Call_StartForward(g_OnSitePicked);
     Call_PushCellRef(g_Bombsite);
     Call_Finish();

@@ -429,11 +429,36 @@ public bool CanRegularPlayerSpawn(int spawn) {
 }
 
 /**
+ * Returns if a bombsite has enough spawns to play a round with the given team sizes:
+ * numT terrorist spawns (at least one of them usable by the bomb carrier) and numCT CT spawns.
+ */
+public bool SiteHasSpawns(Bombsite site, int numT, int numCT) {
+    int tCount = 0, ctCount = 0, bombCount = 0;
+    for (int i = 0; i < g_NumSpawns; i++) {
+        if (g_SpawnDeleted[i] || g_SpawnSites[i] != site) {
+            continue;
+        }
+        if (g_SpawnTeams[i] == CS_TEAM_CT) {
+            ctCount++;
+        } else {
+            tCount++;
+            if (CanBombCarrierSpawn(i)) {
+                bombCount++;
+            }
+        }
+    }
+    return tCount >= numT && ctCount >= numCT && bombCount >= 1;
+}
+
+/**
  * Returns an appropriate spawn index for a player.
  */
 public int SelectSpawn(int team, bool bombSpawn) {
     ArrayList potentialSpawns = new ArrayList();
     for (int i = 0; i < g_NumSpawns; i++) {
+        if (g_SpawnDeleted[i]) {
+            continue;
+        }
         if (g_SpawnTeams[i] == team && !g_SpawnTaken[i] && g_Bombsite == g_SpawnSites[i]) {
             if ((bombSpawn && CanBombCarrierSpawn(i)) || (!bombSpawn && CanRegularPlayerSpawn(i))) {
                 potentialSpawns.Push(i);

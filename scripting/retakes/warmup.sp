@@ -159,9 +159,17 @@ public Action Timer_FreePlay(Handle timer) {
         return Plugin_Continue;
     }
 
+    // Если на сервере остался старый файл переводов без этой фразы, показываем английский текст,
+    // а не сыплем ошибками каждую секунду.
+    bool translated = TranslationPhraseExists("WarmupTimeLeft");
     for (int i = 1; i <= MaxClients; i++) {
-        if (IsPlayer(i)) {
+        if (!IsPlayer(i)) {
+            continue;
+        }
+        if (translated) {
             PrintHintText(i, "%t", "WarmupTimeLeft", g_WarmupTimeLeft);
+        } else {
+            PrintHintText(i, "Warmup: %d sec", g_WarmupTimeLeft);
         }
     }
     g_WarmupTimeLeft--;
