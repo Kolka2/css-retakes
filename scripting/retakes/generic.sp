@@ -59,8 +59,8 @@ stock bool HelpfulAttack(int attacker, int victim) {
 }
 
 /**
- * Returns the Human counts of the T & CT Teams.
- * Use this function for optimization if you have to get the counts of both teams,
+ * Returns the player counts of the T & CT Teams. Despite the parameter names
+ * (kept from the original plugin) this counts everybody on the teams, bots included.
  */
 stock void GetTeamsClientCounts(int &tHumanCount, int &ctHumanCount) {
     for (int client = 1; client <= MaxClients; client++) {
@@ -113,10 +113,20 @@ stock bool IsValidClient(int client) {
 }
 
 /**
- * Function to identify if a client is valid and in game.
+ * Returns if a client is a human player that is in game.
+ * Use this for everything that only makes sense for people:
+ * chat, menus, cookies, the waiting queue messages.
  */
 stock bool IsPlayer(int client) {
     return IsValidClient(client) && !IsFakeClient(client);
+}
+
+/**
+ * Returns if a client can take part in the rounds: a human or a bot,
+ * but not SourceTV/Replay. Use this for the teams, ranking, spawns and the bomb.
+ */
+stock bool IsParticipant(int client) {
+    return IsValidClient(client) && !IsClientSourceTV(client) && !IsClientReplay(client);
 }
 
 stock void AddMenuOption(Menu menu, const char[] info, const char[] display, any ...) {

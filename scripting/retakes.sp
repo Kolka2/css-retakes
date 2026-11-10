@@ -504,13 +504,20 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
 /**
  * Picks the spawn points for everybody that plays the round.
  */
+/**
+ * Returns if the plugin put the client on a team for the current round.
+ */
+bool IsAssigned(int client) {
+    return g_Team[client] == CS_TEAM_T || g_Team[client] == CS_TEAM_CT;
+}
+
 static void DecideRoundSpawns() {
-    if (IsPlayer(g_BombOwner)) {
+    if (IsParticipant(g_BombOwner)) {
         g_SpawnIndices[g_BombOwner] = SelectSpawn(CS_TEAM_T, true);
     }
 
     for (int i = 1; i <= MaxClients; i++) {
-        if (IsPlayer(i) && IsOnTeam(i) && i != g_BombOwner) {
+        if (i != g_BombOwner && IsParticipant(i) && IsAssigned(i)) {
             g_SpawnIndices[i] = SelectSpawn(g_Team[i], false);
         }
     }
@@ -628,7 +635,7 @@ public void PrepareNextRound() {
 
     ArrayList ts = new ArrayList();
     for (int i = 1; i <= MaxClients; i++) {
-        if (IsPlayer(i) && g_Team[i] == CS_TEAM_T) {
+        if (IsParticipant(i) && g_Team[i] == CS_TEAM_T) {
             ts.Push(i);
         }
     }
@@ -770,7 +777,7 @@ public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
         ArrayList cts = new ArrayList();
 
         for (int i = 1; i <= MaxClients; i++) {
-            if (IsPlayer(i)) {
+            if (IsParticipant(i)) {
                 if (GetClientTeam(i) == CS_TEAM_CT)
                     cts.Push(i);
                 else if (GetClientTeam(i) == CS_TEAM_T)
@@ -788,7 +795,7 @@ public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
         delete cts;
 
         for (int i = 1; i <= MaxClients; i++) {
-            if (IsPlayer(i) && GetClientTeam(i) != winner) {
+            if (IsParticipant(i) && IsOnTeam(i) && GetClientTeam(i) != winner) {
                 g_RoundPoints[i] -= POINTS_LOSS;
             }
         }
@@ -826,18 +833,32 @@ public void RoundEndUpdates() {
     Call_PushCell(g_hWaitingQueue);
     Call_Finish();
 
+    int maxPlayers = g_hMaxPlayers.IntValue;
+
+    // Люди всегда в приоритете: сначала те, кто уже играет, ...
     for (int client = 1; client <= MaxClients; client++) {
         if (IsPlayer(client) && IsOnTeam(client)) {
             PQ_Enqueue(g_hRankingQueue, client, g_RoundPoints[client]);
         }
     }
 
-    while (!Queue_IsEmpty(g_hWaitingQueue) && PQ_GetSize(g_hRankingQueue) < g_hMaxPlayers.IntValue) {
+    // ... затем люди из очереди ожидания, ...
+    while (!Queue_IsEmpty(g_hWaitingQueue) && PQ_GetSize(g_hRankingQueue) < maxPlayers) {
         int client = Queue_Dequeue(g_hWaitingQueue);
         if (IsPlayer(client)) {
             PQ_Enqueue(g_hRankingQueue, client, -POINTS_LOSS);
-        } else {
+        }
+    }
+
+    // ... и только на оставшиеся места - боты. Бот никогда не занимает место человека,
+    // а очки у ботов обычные: стороны между людьми и ботами меняются по тем же правилам.
+    for (int client = 1; client <= MaxClients; client++) {
+        if (PQ_GetSize(g_hRankingQueue) >= maxPlayers) {
             break;
+        }
+        if (IsParticipant(client) && IsFakeClient(client)) {
+            int points = IsOnTeam(client) ? g_RoundPoints[client] : -POINTS_LOSS;
+            PQ_Enqueue(g_hRankingQueue, client, points);
         }
     }
 
@@ -976,6 +997,16 @@ public void UpdateTeams() {
         int client = PQ_Dequeue(g_hRankingQueue);
         if (IsPlayer(client)) {
             Queue_EnqueueFront(g_hWaitingQueue, client);
+        }
+    }
+
+    // Все, кто стоит в T/CT, но в раунд не попал (не хватило места, лишний бот), уходят в наблюдатели:
+    // иначе игра заспаунила бы их на стандартном спавне со стандартным оружием.
+    if (g_hAutoTeamsCvar.IntValue != 0) {
+        for (int i = 1; i <= MaxClients; i++) {
+            if (IsParticipant(i) && IsOnTeam(i) && !IsAssigned(i)) {
+                SwitchPlayerTeam(i, CS_TEAM_SPECTATOR);
+            }
         }
     }
 
