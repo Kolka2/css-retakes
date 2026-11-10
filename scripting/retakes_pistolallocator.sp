@@ -9,17 +9,21 @@
 
 #define MENU_TIME_LENGTH 15
 
+// Пистолеты CS:S. Индекс в этом массиве хранится в cookie игрока.
+// Первые NUM_DEFAULT_PISTOLS строк - "стартовые" пистолеты, с ними игрок получает броню.
+#define NUM_DEFAULT_PISTOLS 2
+#define DEFAULT_PISTOL_CHOICE 1
+
 char g_PistolChoices[][][] = {
     // Default pistols:
     { "weapon_glock", "Glock" },
-    { "weapon_usp_silencer", "USP" },
-    { "weapon_hkp2000", "P2000" },
+    { "weapon_usp", "USP" },
 
     // Upgraded pistols:
-    { "weapon_p250", "P250" },
-    { "weapon_tec9", "Tec-9" },
-    { "weapon_fiveseven", "Five-Seven" },
-    { "weapon_deagle", "Deagle" },
+    { "weapon_p228", "P228" },
+    { "weapon_fiveseven", "Five-SeveN" },
+    { "weapon_deagle", "Desert Eagle" },
+    { "weapon_elite", "Dual Elites" },
     // Random pistol, must be last entry in the array
     { "", "Random" },
 };
@@ -28,7 +32,7 @@ int g_PistolChoice[MAXPLAYERS+1];
 Handle g_PistolChoiceCookie;
 
 public Plugin myinfo = {
-    name = "CS:GO Retakes: Pistols and nades",
+    name = "CS:S Retakes: Pistols and nades",
     author = "splewis, BatMen, Ejz",
     description = "Defines a simple weapon allocation policy that gives Pistols and nades",
     version = PLUGIN_VERSION,
@@ -40,7 +44,7 @@ public void OnPluginStart() {
 }
 
 public void OnClientConnected(int client) {
-    g_PistolChoice[client] = 1;
+    g_PistolChoice[client] = DEFAULT_PISTOL_CHOICE;
 }
 
 public void Retakes_OnGunsCommand(int client) {
@@ -51,10 +55,28 @@ public void Retakes_OnWeaponsAllocated(ArrayList tPlayers, ArrayList ctPlayers, 
     PistolAllocator(tPlayers, ctPlayers, bombsite);
 }
 
+/**
+ * Returns a usable index into g_PistolChoices.
+ * Cookies written by the CS:GO version may hold an index that no longer exists.
+ */
+static int ValidatePistolChoice(int choice) {
+    if (choice < 0 || choice >= sizeof(g_PistolChoices)) {
+        return DEFAULT_PISTOL_CHOICE;
+    }
+    return choice;
+}
+
 public void OnClientCookiesCached(int client) {
     if (IsFakeClient(client))
         return;
-    g_PistolChoice[client]  = GetCookieInt(client, g_PistolChoiceCookie);
+
+    char buffer[INTEGER_STRING_LENGTH];
+    GetClientCookie(client, g_PistolChoiceCookie, buffer, sizeof(buffer));
+    if (buffer[0] == '\0') {
+        // cookie ещё не задана - остаётся выбор по умолчанию из OnClientConnected
+        return;
+    }
+    g_PistolChoice[client] = ValidatePistolChoice(StringToInt(buffer));
 }
 
 public void SetNades(char nades[NADE_STRING_LENGTH]) {
@@ -81,8 +103,8 @@ public void PistolAllocator(ArrayList tPlayers, ArrayList ctPlayers, Bombsite bo
 
     for (int i = 0; i < tCount; i++) {
         int client = tPlayers.Get(i);
-        int choice = g_PistolChoice[client];
-        if (IsRandomPistol(choice)) { 
+        int choice = ValidatePistolChoice(g_PistolChoice[client]);
+        if (IsRandomPistol(choice)) {
             choice = GetRandomInt(0, sizeof(g_PistolChoices) - 2);
         }
         strcopy(secondary, sizeof(secondary), g_PistolChoices[choice][0]);
@@ -96,7 +118,7 @@ public void PistolAllocator(ArrayList tPlayers, ArrayList ctPlayers, Bombsite bo
 
     for (int i = 0; i < ctCount; i++) {
         int client = ctPlayers.Get(i);
-        int choice = g_PistolChoice[client];
+        int choice = ValidatePistolChoice(g_PistolChoice[client]);
         if (IsRandomPistol(choice)) {
             choice = GetRandomInt(0, sizeof(g_PistolChoices) - 2);
         }
@@ -122,7 +144,7 @@ public void GiveGunsMenu(int client) {
 public int GunsMenuHandler(Menu menu, MenuAction action, int param1, int param2) {
     if (action == MenuAction_Select) {
         int client = param1;
-        int choice = GetMenuInt(menu, param2);
+        int choice = ValidatePistolChoice(GetMenuInt(menu, param2));
         g_PistolChoice[client] = choice;
         SetCookieInt(client, g_PistolChoiceCookie, choice);
     } else if (action == MenuAction_End) {
@@ -133,7 +155,7 @@ public int GunsMenuHandler(Menu menu, MenuAction action, int param1, int param2)
 }
 
 public bool IsDefaultPistol(int weaponIndex) {
-    return weaponIndex <= 2;
+    return weaponIndex < NUM_DEFAULT_PISTOLS;
 }
 
 public bool IsRandomPistol(int weaponIndex) {
