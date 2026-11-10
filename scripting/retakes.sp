@@ -62,7 +62,6 @@ bool g_DirtySpawns; // whether the spawns have been edited since loading from th
 bool g_ScrambleSignal;
 int g_WinStreak;
 int g_RoundCount;
-bool g_HalfTime;
 
 /** Stored info from the spawns config file **/
 #define MAX_SPAWNS 256
@@ -189,7 +188,6 @@ public void OnPluginStart() {
     RegConsoleCmd("sm_guns", Command_Guns);
 
     /** Event hooks **/
-    HookEvent("player_connect_full", Event_PlayerConnectFull);
     HookEvent("player_team", Event_PlayerTeam, EventHookMode_Pre);
     HookEvent("player_spawn", Event_PlayerSpawn);
     HookEvent("player_hurt", Event_DamageDealt);
@@ -201,7 +199,6 @@ public void OnPluginStart() {
     HookEvent("bomb_exploded", Event_Bomb);
     HookEvent("bomb_defused", Event_Bomb);
     HookEvent("round_end", Event_RoundEnd);
-    HookEvent("announce_phase_end", Event_HalfTime);
 
     g_hOnGunsCommand = CreateGlobalForward("Retakes_OnGunsCommand", ET_Ignore, Param_Cell);
     g_hOnPostRoundEnqueue = CreateGlobalForward("Retakes_OnPostRoundEnqueue", ET_Ignore, Param_Cell, Param_Cell);
@@ -237,7 +234,6 @@ public void OnMapStart() {
     g_WinStreak = 0;
     g_RoundCount = 0;
     g_RoundSpawnsDecided = false;
-    g_HalfTime = false;
 
     g_bombPlanted = false;
     g_bombPlantSignal = false;
@@ -451,23 +447,6 @@ public Action Event_PlayerTeam(Event event, const char[] name, bool dontBroadcas
 }
 
 /**
- * Full connect event right when a player joins.
- * This sets the auto-pick time to a high value because mp_forcepicktime is broken and
- * if a player does not select a team but leaves their mouse over one, they are
- * put on that team and spawned, so we can't allow that.
- */
-public Action Event_PlayerConnectFull(Event event, const char[] name, bool dontBroadcast) {
-    if (!g_Enabled) {
-        return Plugin_Continue;
-    }
-
-    int client = GetClientOfUserId(event.GetInt("userid"));
-    SetEntPropFloat(client, Prop_Send, "m_fForceTeam", 3600.0);
-
-    return Plugin_Continue;
-}
-
-/**
  * Called when a player spawns.
  * Gives default weapons. (better than mp_ct_default_primary since it gives the player the correct skin)
  */
@@ -584,7 +563,6 @@ public Action Event_RoundPreStart(Event event, const char[] name, bool dontBroad
     g_RoundSpawnsDecided = false;
     RoundEndUpdates();
     UpdateTeams();
-    g_HalfTime = false;
 
     ArrayList ts = new ArrayList();
     for (int i = 1; i < MaxClients; i++) {
@@ -676,13 +654,6 @@ public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
             CounterTerroristsWon();
         }
     }
-
-    return Plugin_Continue;
-}
-
-public Action Event_HalfTime(Event event, const char[] name, bool dontBroadcast)
-{
-    g_HalfTime = true;
 
     return Plugin_Continue;
 }
@@ -797,9 +768,10 @@ public void UpdateTeams() {
             if (IsValidClient(i)) {
                 bool ct = GetClientTeam(i) == CS_TEAM_CT;
                 bool t = GetClientTeam(i) == CS_TEAM_T;
-                if ((ct && !g_HalfTime) || (t && g_HalfTime))
+                // В CS:S нет смены сторон (halftime), команды берём как есть.
+                if (ct)
                     cts.Push(i);
-                else if ((t && !g_HalfTime) || (ct && g_HalfTime))
+                else if (t)
                     ts.Push(i);
             }
         }

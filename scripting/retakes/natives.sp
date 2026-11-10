@@ -1,6 +1,12 @@
 #define CHECK_CONNECTED(%1) if (!IsClientConnected(%1)) ThrowNativeError(SP_ERROR_PARAM, "Client %d is not connected", %1)
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {
+    // Это форк только для Counter-Strike: Source (см. PORT/PLAN.md, решение 1).
+    if (GetEngineVersion() != Engine_CSS) {
+        strcopy(error, err_max, "This build of Retakes only supports Counter-Strike: Source");
+        return APLRes_Failure;
+    }
+
     CreateNative("Retakes_IsJoined", Native_IsJoined);
     CreateNative("Retakes_IsInQueue", Native_IsInQueue);
     CreateNative("Retakes_Message", Native_RetakeMessage);
