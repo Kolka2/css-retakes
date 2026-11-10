@@ -6,7 +6,7 @@
 #pragma newdecls required
 
 public Plugin myinfo = {
-    name = "CS:GO Retakes: site picker",
+    name = "CS:S Retakes: site picker",
     author = "splewis",
     description = "Adds admin commands to pick the bombsite being used",
     version = PLUGIN_VERSION,

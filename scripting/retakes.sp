@@ -143,9 +143,9 @@ Handle g_OnWeaponsAllocated;
  ***********************/
 
 public Plugin myinfo = {
-    name = "CS:GO Retakes",
+    name = "CS:S Retakes",
     author = "splewis",
-    description = "CS:GO Retake practice",
+    description = "Retake practice for Counter-Strike: Source (port of splewis/csgo-retakes)",
     version = PLUGIN_VERSION,
     url = "https://github.com/splewis/csgo-retakes"
 };

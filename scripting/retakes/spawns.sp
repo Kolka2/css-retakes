@@ -35,7 +35,8 @@ public int ParseSpawns() {
     GetConfigFileName(configFile, sizeof(configFile));
 
     if (!FileExists(configFile)) {
-        LogError("The retakes config file (%s) does not exist", configFile);
+        // Не ошибка: для CS:S спавны создаются редактором (!edit), см. configs/retakes/README.md.
+        LogMessage("No retakes spawns for this map yet (%s). Create them with the editor: !edit", configFile);
         return 0;
     }
 
@@ -120,12 +121,21 @@ public void WriteSpawns() {
         kv.GoBack();
     }
 
+    // Каталог может отсутствовать на свежем сервере: готовых спавнов для CS:S в комплекте нет.
+    char configDir[PLATFORM_MAX_PATH];
+    BuildPath(Path_SM, configDir, sizeof(configDir), "configs/retakes");
+    if (!DirExists(configDir)) {
+        CreateDirectory(configDir, 511);
+    }
+
     char configFile[PLATFORM_MAX_PATH];
     GetConfigFileName(configFile, sizeof(configFile));
 
     DeleteFile(configFile);
     kv.Rewind();
-    kv.ExportToFile(configFile);
+    if (!kv.ExportToFile(configFile)) {
+        LogError("Failed to write the retakes spawns to %s", configFile);
+    }
     delete kv;
 }
 
