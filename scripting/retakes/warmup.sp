@@ -128,7 +128,13 @@ static int GetHumanCount() {
  * Runs every second for the whole map: drives the warmup countdown and the free play respawns.
  */
 public Action Timer_FreePlay(Handle timer) {
-    if (!g_Enabled || !InFreePlay()) {
+    if (!g_Enabled) {
+        return Plugin_Continue;
+    }
+
+    OnSecondTick();
+
+    if (!InFreePlay()) {
         return Plugin_Continue;
     }
 

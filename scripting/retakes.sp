@@ -53,6 +53,10 @@ ConVar g_hRoundTime;
 ConVar g_hUseRandomTeams;
 ConVar g_WarmupTimeCvar;
 ConVar g_MessagePrefix;
+ConVar g_hBots;
+ConVar g_hBotsTotal;
+ConVar g_hBotsCarryBomb;
+ConVar g_hDebug;
 
 /** Plugin-managed warmup (CS:S has no mp_warmup_*) **/
 bool g_InWarmup;
@@ -126,8 +130,10 @@ Handle g_OnSitePicked;
 Handle g_OnWeaponsAllocated;
 
 #include "retakes/generic.sp"
+#include "retakes/debug.sp"
 #include "retakes/teams.sp"
 #include "retakes/warmup.sp"
+#include "retakes/bots.sp"
 #include "retakes/editor.sp"
 #include "retakes/editor_commands.sp"
 #include "retakes/editor_menus.sp"
@@ -165,6 +171,10 @@ public void OnPluginStart() {
     g_hUseRandomTeams = CreateConVar("sm_retakes_random_teams", "0", "If set to 1, this will randomize the teams every round.");
     g_WarmupTimeCvar = CreateConVar("sm_retakes_warmuptime", "25", "Warmup time on map starts");
     g_MessagePrefix = CreateConVar("sm_retake_message_prefix", "[{GREEN}Retakes{NORMAL}]", "Message prefix used on chat messages.");
+    g_hBots = CreateConVar("sm_retakes_bots", "1", "0 = no bots (retakes keeps bot_quota at 0), 1 = fill the game with bots when there are not enough humans", _, true, 0.0, true, 1.0);
+    g_hBotsTotal = CreateConVar("sm_retakes_bots_total", "6", "How many participants (humans + bots) to keep when there are fewer humans than this. Capped by sm_retakes_maxplayers.", _, true, 0.0);
+    g_hBotsCarryBomb = CreateConVar("sm_retakes_bots_carry_bomb", "1", "Whether a bot can be the bomb carrier. With 0 a bot only gets the bomb if there are no humans on the T team.", _, true, 0.0, true, 1.0);
+    g_hDebug = CreateConVar("sm_retakes_debug", "0", "1 = write the plugin's decisions (teams, bomb carrier, bot quota) to logs/retakes_debug.log", _, true, 0.0, true, 1.0);
 
     g_EnabledCvar.AddChangeHook(EnabledChanged);
 
@@ -322,6 +332,31 @@ public void OnClientDisconnect(int client) {
     CheckRoundDone(client);
 }
 
+public void OnClientDisconnect_Post(int client) {
+    // ушёл человек - его место может занять бот; ушли все люди - боты тоже уходят
+    UpdateBotQuota(false);
+}
+
+/**
+ * Called once a second by Timer_FreePlay (see warmup.sp) while the plugin is enabled.
+ */
+public void OnSecondTick() {
+    UpdateBotQuota(false);
+
+    if (InFreePlay() || InIntermission() || !g_RoundPrepared || !g_TeamsValid || g_hAutoTeamsCvar.IntValue == 0) {
+        return;
+    }
+
+    // В раунде меньше двух участников, а дополнить его есть кем (человек зашёл между раундами,
+    // игра только что добавила ботов): не ждём конца раунда, начинаем следующий.
+    bool humansWaiting = !Queue_IsEmpty(g_hWaitingQueue);
+    bool botsWaiting = GetUnassignedBotCount() > 0 && g_ActivePlayers < GetBotsFillTarget();
+    if (g_ActivePlayers < 2 && (humansWaiting || botsWaiting)) {
+        DebugLog("round: only %d active player(s) while others are waiting, restarting the round", g_ActivePlayers);
+        CS_TerminateRound(1.0, CSRoundEnd_Draw);
+    }
+}
+
 /**
  * Helper functions that resets client variables when they join or leave.
  */
@@ -331,6 +366,7 @@ public void ResetClientVariables(int client) {
     Queue_Drop(g_hWaitingQueue, client);
     g_Team[client] = CS_TEAM_SPECTATOR;
     g_SpawnIndices[client] = -1;
+    g_BotLeaving[client] = false;
     g_PluginTeamSwitch[client] = false;
     g_RoundPoints[client] = -POINTS_LOSS;
     g_LastDeathTime[client] = 0.0;
@@ -438,7 +474,8 @@ public Action PlacePlayer(int client) {
         ChangeClientTeam(client, CS_TEAM_SPECTATOR);
         Queue_Enqueue(g_hWaitingQueue, client);
         // Между раундами следующий раунд уже подготовлен без этого игрока:
-        // его подхватит проверка в Timer_PostRoundStart.
+        // его подхватит проверка в OnSecondTick.
+        UpdateBotQuota(false);
         if (!InIntermission()) {
             CS_TerminateRound(0.0, CSRoundEnd_CTWin);
         }
@@ -492,6 +529,14 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
     // в первом случае Event_RoundStart сам подготовит раунд и переспаунит игроков.
     if (!g_RoundPrepared || !g_TeamsValid)
         return Plugin_Continue;
+
+    if (!IsAssigned(client)) {
+        // Места в этом раунде у него нет: это бот, которого игра добавила посреди раунда.
+        if (g_hAutoTeamsCvar.IntValue != 0) {
+            RequestFrame(Frame_MoveUnassignedToSpectator, GetClientUserId(client));
+        }
+        return Plugin_Continue;
+    }
 
     if (!g_RoundSpawnsDecided) {
         DecideRoundSpawns();
@@ -630,20 +675,11 @@ public void PrepareNextRound() {
         g_Team[i] = CS_TEAM_SPECTATOR;
     }
 
+    // Сначала число ботов: если людей стало больше, лишние боты уходят до расстановки команд.
+    UpdateBotQuota(true);
     RoundEndUpdates();
     UpdateTeams();
-
-    ArrayList ts = new ArrayList();
-    for (int i = 1; i <= MaxClients; i++) {
-        if (IsParticipant(i) && g_Team[i] == CS_TEAM_T) {
-            ts.Push(i);
-        }
-    }
-
-    if (ts.Length >= 1) {
-        g_BombOwner = RandomElement(ts);
-    }
-    delete ts;
+    g_BombOwner = PickBombOwner();
 }
 
 /**
@@ -732,13 +768,6 @@ public Action Timer_PostRoundStart(Handle timer, any serial) {
     }
 
     FixBomb();
-
-    // Раунд начался меньше чем с двумя игроками, а в очереди кто-то ждёт (зашёл между раундами):
-    // не ждём конца раунда, а сразу начинаем следующий, уже с ним.
-    if (g_hAutoTeamsCvar.IntValue != 0 && g_ActivePlayers < 2 && !Queue_IsEmpty(g_hWaitingQueue)) {
-        CS_TerminateRound(1.0, CSRoundEnd_Draw);
-    }
-
     return Plugin_Handled;
 }
 
@@ -850,13 +879,14 @@ public void RoundEndUpdates() {
         }
     }
 
-    // ... и только на оставшиеся места - боты. Бот никогда не занимает место человека,
+    // ... и только на оставшиеся до sm_retakes_bots_total места - боты. Бот никогда не занимает место человека,
     // а очки у ботов обычные: стороны между людьми и ботами меняются по тем же правилам.
+    int fillTarget = GetBotsFillTarget();
     for (int client = 1; client <= MaxClients; client++) {
-        if (PQ_GetSize(g_hRankingQueue) >= maxPlayers) {
+        if (PQ_GetSize(g_hRankingQueue) >= fillTarget) {
             break;
         }
-        if (IsParticipant(client) && IsFakeClient(client)) {
+        if (IsUsableBot(client)) {
             int points = IsOnTeam(client) ? g_RoundPoints[client] : -POINTS_LOSS;
             PQ_Enqueue(g_hRankingQueue, client, points);
         }

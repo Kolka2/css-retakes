@@ -288,17 +288,11 @@ stock int GetClientC4(int client) {
 public void FixBomb() {
     // Бомбер мог выйти между подготовкой раунда и его началом - берём другого живого T.
     if (!IsValidClient(g_BombOwner) || !IsPlayerAlive(g_BombOwner) || GetClientTeam(g_BombOwner) != CS_TEAM_T) {
-        g_BombOwner = -1;
-        ArrayList ts = new ArrayList();
-        for (int i = 1; i <= MaxClients; i++) {
-            if (IsValidClient(i) && IsPlayerAlive(i) && GetClientTeam(i) == CS_TEAM_T && g_Team[i] == CS_TEAM_T) {
-                ts.Push(i);
-            }
+        g_BombOwner = PickBombOwner();
+        if (g_BombOwner != -1 && (!IsPlayerAlive(g_BombOwner) || GetClientTeam(g_BombOwner) != CS_TEAM_T)) {
+            g_BombOwner = -1;
         }
-        if (ts.Length >= 1) {
-            g_BombOwner = RandomElement(ts);
-        }
-        delete ts;
+        DebugLog("bomb: the bomb carrier is gone, new carrier: %d", g_BombOwner);
     }
 
     int keep = -1;
