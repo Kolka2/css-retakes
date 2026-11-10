@@ -14,23 +14,6 @@ char g_ColorNames[][] = {"{NORMAL}", "{DARK_RED}", "{PURPLE}", "{GREEN}", "{MOSS
 char g_ColorCodes[][] =    {"\x01",     "\x02",      "\x03",   "\x04",         "\x05",     "\x06",          "\x07",        "\x08",   "\x09",     "\x0B",         "\x0C",        "\x0E"};
 
 /**
- * Switches a player to a new team.
- */
-stock void SwitchPlayerTeam(int client, int team) {
-    if (GetClientTeam(client) == team)
-        return;
-
-    g_PluginTeamSwitch[client] = true;
-    if (team > CS_TEAM_SPECTATOR) {
-        CS_SwitchTeam(client, team);
-        CS_UpdateClientModel(client);
-    } else {
-        ChangeClientTeam(client, team);
-    }
-    g_PluginTeamSwitch[client] = false;
-}
-
-/**
  * Returns if the 2 players should be fighting each other.
  * Returns false on friendly fire/suicides.
  */

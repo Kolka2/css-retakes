@@ -118,6 +118,7 @@ Handle g_OnSitePicked;
 Handle g_OnWeaponsAllocated;
 
 #include "retakes/generic.sp"
+#include "retakes/teams.sp"
 #include "retakes/editor.sp"
 #include "retakes/editor_commands.sp"
 #include "retakes/editor_menus.sp"

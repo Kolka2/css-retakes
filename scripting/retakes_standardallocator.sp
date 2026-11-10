@@ -151,6 +151,8 @@ public int MenuHandler_CTRifle(Menu menu, MenuAction action, int param1, int par
     } else if (action == MenuAction_End) {
         delete menu;
     }
+
+    return 0;
 }
 
 public void TRifleMenu(int client) {
@@ -172,6 +174,8 @@ public int MenuHandler_TRifle(Menu menu, MenuAction action, int param1, int para
     } else if (action == MenuAction_End) {
         delete menu;
     }
+
+    return 0;
 }
 
 public void GiveAwpMenu(int client) {
@@ -191,4 +195,6 @@ public int MenuHandler_AWP(Menu menu, MenuAction action, int param1, int param2)
     } else if (action == MenuAction_End) {
         delete menu;
     }
+
+    return 0;
 }

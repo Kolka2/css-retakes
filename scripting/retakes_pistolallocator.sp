@@ -128,6 +128,8 @@ public int GunsMenuHandler(Menu menu, MenuAction action, int param1, int param2)
     } else if (action == MenuAction_End) {
         delete menu;
     }
+
+    return 0;
 }
 
 public bool IsDefaultPistol(int weaponIndex) {

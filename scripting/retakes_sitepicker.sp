@@ -39,6 +39,8 @@ public Action Command_Site(int client, int args) {
     } else {
         Retakes_Message(client, "Usage: sm_site [a|b|any]");
     }
+
+    return Plugin_Handled;
 }
 
 public void Retakes_OnSitePicked(Bombsite& site) {
