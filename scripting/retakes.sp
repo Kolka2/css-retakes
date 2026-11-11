@@ -8,6 +8,11 @@
 #include "include/restorecvars.inc"
 #include "include/retakes.inc"
 
+// The warmup plugin is an optional dependency, see retakes/warmup_link.sp.
+#undef REQUIRE_PLUGIN
+#include "include/warmup.inc"
+#define REQUIRE_PLUGIN
+
 #pragma semicolon 1
 #pragma newdecls required
 
@@ -131,7 +136,9 @@ Handle g_OnWeaponsAllocated;
 #include "retakes/generic.sp"
 #include "retakes/debug.sp"
 #include "retakes/teams.sp"
-#include "retakes/warmup.sp"
+#include "retakes/roundtime.sp"
+#include "retakes/warmup_link.sp"
+#include "retakes/editor_freeplay.sp"
 #include "retakes/bots.sp"
 #include "retakes/editor.sp"
 #include "retakes/editor_commands.sp"
@@ -169,7 +176,7 @@ public void OnPluginStart() {
     g_hRoundsToScramble = CreateConVar("sm_retakes_scramble_rounds", "10", "Consecutive terrorist wins to cause a team scramble.");
     g_hRoundTime = CreateConVar("sm_retakes_round_time", "12", "Round time left in seconds.");
     g_hUseRandomTeams = CreateConVar("sm_retakes_random_teams", "0", "If set to 1, this will randomize the teams every round.");
-    g_WarmupTimeCvar = CreateConVar("sm_retakes_warmuptime", "25", "Warmup time on map starts");
+    g_WarmupTimeCvar = CreateConVar("sm_retakes_warmuptime", "25", "Warmup time on map starts, in seconds. Needs the warmup plugin (warmup.smx); 0 or no plugin = no warmup");
     g_MessagePrefix = CreateConVar("sm_retake_message_prefix", "[{GREEN}Retakes{NORMAL}]", "Message prefix used on chat messages.");
     g_hBots = CreateConVar("sm_retakes_bots", "1", "0 = no bots (retakes keeps bot_quota at 0), 1 = fill the game with bots when there are not enough humans", _, true, 0.0, true, 1.0);
     g_hBotsTotal = CreateConVar("sm_retakes_bots_total", "6", "How many participants (humans + bots) to keep when there are fewer humans than this. Capped by sm_retakes_maxplayers.", _, true, 0.0);
@@ -278,9 +285,8 @@ public void OnMapStart() {
     PrecacheEditorSprites();
 
     g_EditMode = false;
-    Warmup_OnMapStart();
     CreateTimer(1.0, Timer_ShowSpawns, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
-    CreateTimer(1.0, Timer_FreePlay, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+    CreateTimer(1.0, Timer_Second, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 
     if (!g_Enabled)
         return;
@@ -288,7 +294,7 @@ public void OnMapStart() {
     ExecConfigs();
 
     // Restart warmup for players to connect.
-    Warmup_Start(g_WarmupTimeCvar.IntValue);
+    StartMapWarmup();
 }
 
 public void OnMapEnd() {
@@ -362,7 +368,18 @@ public Action CS_OnBuyCommand(int client, const char[] weapon) {
 }
 
 /**
- * Called once a second by Timer_FreePlay (see warmup.sp) while the plugin is enabled.
+ * Runs every second for the whole map.
+ */
+public Action Timer_Second(Handle timer) {
+    if (g_Enabled) {
+        OnSecondTick();
+        Editor_OnSecondTick();
+    }
+    return Plugin_Continue;
+}
+
+/**
+ * Called once a second while the plugin is enabled.
  */
 public void OnSecondTick() {
     UpdateBotQuota(false);
@@ -482,6 +499,12 @@ public Action Command_JoinTeam(int client, const char[] command, int argc) {
         return Plugin_Handled;
     }
 
+    // During the warmup the teams are not ours to manage: the game and the warmup plugin
+    // handle joining and switching sides.
+    if (Retakes_InWarmup()) {
+        return Plugin_Continue;
+    }
+
     char arg[4];
     GetCmdArg(1, arg, sizeof(arg));
     int team_to = StringToInt(arg);
@@ -493,23 +516,16 @@ public Action Command_JoinTeam(int client, const char[] command, int argc) {
 
     // note if a player hits autoselect their team_from=team_to=CS_TEAM_NONE
     if (team_from == team_to && team_from != CS_TEAM_NONE) {
-        // Повторный выбор своей команды в CS:S открывает меню модели, а смена модели посреди
-        // раунда убивает игрока. В живой игре это запрещено: из T/CT можно уйти только в наблюдатели.
-        if (IsOnTeam(client) && !Retakes_InWarmup()) {
+        // Picking your own team again opens the model menu in CS:S, and changing the model
+        // mid-round kills the player. Not allowed: T/CT can only be left for spectators.
+        if (IsOnTeam(client)) {
             return Plugin_Handled;
         }
         return Plugin_Continue;
     } else {
         if (   (team_from == CS_TEAM_CT && team_to == CS_TEAM_T )
             || (team_from == CS_TEAM_T  && team_to == CS_TEAM_CT)) {
-            // В разминке сторону можно менять свободно. Делаем это сами, а не отдаём игре:
-            // игра разрешает одну смену команды за раунд, а раунд в разминке не кончается.
-            if (Retakes_InWarmup()) {
-                DebugLog("warmup: %L switches team %d -> %d", client, team_from, team_to);
-                SwitchPlayerTeam(client, team_to);
-                CS_RespawnPlayer(client);
-            }
-            // в живой игре сторону назначает плагин
+            // the plugin decides who plays on which side
             return Plugin_Handled;
 
         } else if (team_to == CS_TEAM_SPECTATOR) {
@@ -556,10 +572,6 @@ public Action PlacePlayer(int client) {
     int tHumanCount=0, ctHumanCount=0, nPlayers=0;
     GetTeamsClientCounts(tHumanCount, ctHumanCount);
     nPlayers = tHumanCount + ctHumanCount;
-
-    if (Retakes_InWarmup() && nPlayers < g_hMaxPlayers.IntValue) {
-        return Plugin_Continue;
-    }
 
     if (nPlayers < 2) {
         ChangeClientTeam(client, CS_TEAM_SPECTATOR);
@@ -619,11 +631,8 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
         ShowGunsHint(client);
     }
 
+    // Nothing to set up in the warmup (the warmup plugin owns it) or in the editor.
     if (InFreePlay()) {
-        // В разминке у всех максимум денег, чтобы не бегать с пистолетами.
-        if (Retakes_InWarmup() && !g_EditMode) {
-            SetClientMoney(client, WARMUP_MONEY);
-        }
         return Plugin_Continue;
     }
 
@@ -849,7 +858,9 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
     }
 
     if (InFreePlay()) {
-        ExtendFreePlayRound();
+        if (g_EditMode) {
+            Editor_KeepRoundEndless();
+        }
         return Plugin_Continue;
     }
 
@@ -1345,12 +1356,18 @@ public void ResetRetakesProgress() {
 }
 
 /**
- * sm_retakes_warmup [seconds]: starts the warmup without changing the map and resets the
+ * sm_retakes_warmup [seconds]: starts a warmup without changing the map and resets the
  * retakes progress. Without an argument sm_retakes_warmuptime is used; 0 ends the warmup.
+ * The warmup itself is run by the warmup plugin.
  */
 public Action Command_Warmup(int client, int args) {
     if (!g_Enabled) {
         ReplyToCommand(client, "[Retakes] The plugin is disabled.");
+        return Plugin_Handled;
+    }
+
+    if (!WarmupAvailable()) {
+        ReplyToCommand(client, "[Retakes] The warmup plugin (warmup.smx) is not loaded.");
         return Plugin_Handled;
     }
 
@@ -1369,7 +1386,8 @@ public Action Command_Warmup(int client, int args) {
     if (time <= 0) {
         if (Retakes_InWarmup()) {
             Retakes_MessageToAll("The warmup was ended by an admin.");
-            GoLive();
+            // Warmup_OnEnd takes it from here and starts the first retake.
+            Warmup_End();
         } else {
             ReplyToCommand(client, "[Retakes] There is no warmup to end. Usage: sm_retakes_warmup [seconds]");
         }
@@ -1378,8 +1396,10 @@ public Action Command_Warmup(int client, int args) {
 
     DebugLog("warmup: restarted by %L", client);
     ResetRetakesProgress();
-    Warmup_Start(time);
-    ExtendFreePlayRound();
+    if (!Warmup_Start(time)) {
+        ReplyToCommand(client, "[Retakes] The warmup plugin refused to start a warmup (sm_warmup_enabled 0?).");
+        return Plugin_Handled;
+    }
     UpdateBotQuota(false);
     Retakes_MessageToAll("Warmup for {GREEN}%d{NORMAL} seconds. Pick any team.", time);
     return Plugin_Handled;

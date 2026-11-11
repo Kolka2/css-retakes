@@ -184,8 +184,8 @@ public int Native_InEditMode(Handle plugin, int numParams) {
 }
 
 public int Native_InWarmup(Handle plugin, int numParams) {
-    // В CS:S нет m_bWarmupPeriod: разминку ведёт сам плагин (см. warmup.sp).
-    return Warmup_IsActive();
+    // CS:S has no m_bWarmupPeriod; the warmup is run by the optional warmup plugin.
+    return InWarmup();
 }
 
 public int Native_Enabled(Handle plugin, int numParams) {

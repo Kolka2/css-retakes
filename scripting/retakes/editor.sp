@@ -13,6 +13,20 @@ public void PrecacheEditorSprites() {
     g_iHaloSprite = PrecacheModel("sprites/halo01.vmt", true);
 }
 
+/**
+ * Closes the editor and starts the retakes. If a warmup is still running (it was kept
+ * alive while the editor was open, see Warmup_OnEnding) it is ended first; its
+ * Warmup_OnEnd then goes live.
+ */
+public void ExitEditMode() {
+    g_EditMode = false;
+    if (Retakes_InWarmup()) {
+        Warmup_End(false);
+    } else {
+        GoLive();
+    }
+}
+
 public void MovePlayerToEditMode(int client) {
     SwitchPlayerTeam(client, CS_TEAM_CT);
     CS_RespawnPlayer(client);

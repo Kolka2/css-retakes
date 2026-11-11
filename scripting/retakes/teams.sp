@@ -31,6 +31,18 @@ static void EnsureClientClass(int client, int team) {
 }
 
 /**
+ * Returns if a player has picked a player class (model). In CS:S a player that joined
+ * a team cannot spawn until the class menu is answered.
+ */
+stock bool HasPickedClass(int client) {
+    // CSS-VERIFY: CCSPlayer has m_iClass, 0 means the class has not been picked yet.
+    if (!HasEntProp(client, Prop_Send, "m_iClass")) {
+        return true;
+    }
+    return GetEntProp(client, Prop_Send, "m_iClass") != 0;
+}
+
+/**
  * Switches a player to a new team.
  */
 stock void SwitchPlayerTeam(int client, int team) {
