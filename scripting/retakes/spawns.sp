@@ -212,35 +212,25 @@ static int GiveWeapon(int client, const char[] weapon) {
 }
 
 /**
- * Fills the reserve ammo of every firearm the client carries.
+ * Fills the reserve ammo of one firearm the client was just given.
+ *
+ * Only the primary weapon and the pistol go through here. Grenades must not: an earlier
+ * version refilled everything the player carried and relied on grenades having no clip,
+ * but on a live CS:S server that gave a second flashbang (the flashbang ammo limit is 2).
  */
-static void RefillAmmo(int client) {
-    if (!HasEntProp(client, Prop_Send, "m_hMyWeapons")) {
+static void RefillWeaponAmmo(int client, int weapon) {
+    if (weapon <= MaxClients || !IsValidEntity(weapon)) {
+        return;
+    }
+    if (!HasEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType")) {
         return;
     }
 
-    int size = GetEntPropArraySize(client, Prop_Send, "m_hMyWeapons");
-    for (int i = 0; i < size; i++) {
-        int weapon = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
-        if (weapon <= MaxClients || !IsValidEntity(weapon)) {
-            continue;
-        }
-
-        // У ножа, гранат и C4 магазина нет (m_iClip1 == -1): их не трогаем,
-        // иначе, например, флешек стало бы две.
-        if (!HasEntProp(weapon, Prop_Send, "m_iClip1") || GetEntProp(weapon, Prop_Send, "m_iClip1") < 0) {
-            continue;
-        }
-        if (!HasEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType")) {
-            continue;
-        }
-
-        int ammoType = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
-        if (ammoType >= 0) {
-            // CSS-VERIFY: GivePlayerAmmo в CS:S обрезает запас до максимума для типа патронов
-            // (AK-47: 30/90, а не 30/999), а оружие от GivePlayerItem приходит с полным магазином.
-            GivePlayerAmmo(client, 999, ammoType, true);
-        }
+    int ammoType = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
+    if (ammoType >= 0) {
+        // CSS-VERIFY: GivePlayerAmmo в CS:S обрезает запас до максимума для типа патронов
+        // (AK-47: 30/90, а не 30/999), а оружие от GivePlayerItem приходит с полным магазином.
+        GivePlayerAmmo(client, 999, ammoType, true);
     }
 }
 
@@ -266,8 +256,8 @@ public void GiveWeapons(int client) {
 
     // В CS:S один нож на обе команды (weapon_knife_t нет).
     GiveWeapon(client, "weapon_knife");
-    GiveWeapon(client, g_PlayerPrimary[client]);
-    GiveWeapon(client, g_PlayerSecondary[client]);
+    RefillWeaponAmmo(client, GiveWeapon(client, g_PlayerPrimary[client]));
+    RefillWeaponAmmo(client, GiveWeapon(client, g_PlayerSecondary[client]));
 
     SetClientArmor(client, g_PlayerArmor[client]);
     SetEntityHealth(client, g_PlayerHealth[client]);
@@ -291,7 +281,6 @@ public void GiveWeapons(int client) {
         }
     }
 
-    RefillAmmo(client);
     SetClientMoney(client, 0);
 
     // C4 здесь не выдаётся: этим после спавна всех игроков занимается FixBomb().
