@@ -40,6 +40,10 @@
 	{
 		"ru"			"{LIGHT_RED}На этой карте не хватает спавнов для Retakes. {NORMAL}Админ может создать их командой {GREEN}!edit"
 	}
+	"GunsHint"
+	{
+		"ru"			"Напишите {GREEN}!guns{NORMAL} в чат, чтобы выбрать оружие."
+	}
 	"FailedToPlant"
 	{
 		"ru"		"{PURPLE}{1} {NORMAL}не установил бомбу..."

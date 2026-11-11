@@ -67,7 +67,7 @@ Retakes для Counter-Strike: Source
 - **Разминка.** После старта карты идёт разминка (`sm_retakes_warmuptime` секунд): свободный выбор и смена команды, у всех 16000 денег и закупка открыта всё время, респаун через пару секунд после смерти, раунд не заканчивается. Отсчёт идёт, только когда на сервере есть хотя бы один человек. В CS:S нет встроенной разминки, её ведёт сам плагин.
 - **Команды.** После разминки командами управляет плагин. Зашедший игрок попадает в очередь (наблюдатели) и входит в игру со следующего раунда. Доля T задаётся `sm_retakes_ratio_constant`. За раунд начисляются очки (урон, убийства, бомба, победа); лучшие по очкам играют следующий раунд за T. После `sm_retakes_scramble_rounds` побед T подряд команды перемешиваются.
 - **Раунд.** Плагин выбирает сайт, ставит игроков на спавны, выдаёт оружие, броню и кусачки и обнуляет деньги — закупаться нельзя. Бомба у одного T, который стоит на бомбплейсе; на установку даётся `sm_retakes_round_time` секунд, иначе побеждают CT.
-- **Оружие.** Без аллокатора: T — AK-47 и Glock, CT — M4A1 и USP, у всех броня с каской. Команда `!guns` открывает меню аллокатора, если он установлен.
+- **Оружие.** Без аллокатора: T — AK-47 и Glock, CT — M4A1 и USP, у всех броня с каской. Команда `!guns` открывает меню аллокатора, если он установлен; в этом случае зашедшему игроку один раз за подключение показывается подсказка о ней.
 
 ## Боты
 
@@ -219,7 +219,7 @@ Leave the editor with "Exit edit mode" in the `!edit` menu; the game restarts. S
 - **Warmup.** A warmup of `sm_retakes_warmuptime` seconds follows the map start: players freely pick and change teams, everybody has $16000 and can buy the whole time, respawn a couple of seconds after death, the round never ends. The countdown only runs while at least one human is on the server. CS:S has no built-in warmup, the plugin runs its own.
 - **Teams.** After the warmup the plugin manages the teams. A joining player is put in the waiting queue (spectators) and enters the game on the next round. The share of terrorists is `sm_retakes_ratio_constant`. Players earn round points (damage, kills, bomb, winning); the top scorers play the next round as T. After `sm_retakes_scramble_rounds` T wins in a row the teams are scrambled.
 - **Round.** The plugin picks a site, moves the players to the spawns, gives weapons, armor and defuse kits and zeroes the money — there is no buying. One T standing in the bombsite has the bomb and `sm_retakes_round_time` seconds to plant it, otherwise the CTs win.
-- **Weapons.** Without an allocator: T — AK-47 and Glock, CT — M4A1 and USP, armor and helmet for everybody. `!guns` opens the allocator menu if one is installed.
+- **Weapons.** Without an allocator: T — AK-47 and Glock, CT — M4A1 and USP, armor and helmet for everybody. `!guns` opens the allocator menu if one is installed; in that case a joining player is told about it once per connection.
 
 ## Bots
 

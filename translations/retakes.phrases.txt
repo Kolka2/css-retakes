@@ -48,6 +48,10 @@
 	{
 		"en"			"{LIGHT_RED}This map does not have enough retake spawns. {NORMAL}An admin can create them with {GREEN}!edit"
 	}
+	"GunsHint"
+	{
+		"en"			"Type {GREEN}!guns{NORMAL} in chat to choose your weapons."
+	}
 	"FailedToPlant"
 	{
 		"#format"		"{1:N}"

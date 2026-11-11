@@ -35,6 +35,7 @@ ArrayList g_SavedCvars;
 int g_SpawnIndices[MAXPLAYERS+1];
 int g_RoundPoints[MAXPLAYERS+1];
 bool g_PluginTeamSwitch[MAXPLAYERS+1];
+bool g_GunsHintShown[MAXPLAYERS+1]; // the !guns hint is shown once per connection
 int g_Team[MAXPLAYERS+1];
 
 /** Queue Handles **/
@@ -402,6 +403,7 @@ public void ResetClientVariables(int client) {
     g_PluginTeamSwitch[client] = false;
     g_RoundPoints[client] = -POINTS_LOSS;
     g_LastDeathTime[client] = 0.0;
+    g_GunsHintShown[client] = false;
 }
 
 public Action Command_ScrambleTeams(int client, int args) {
@@ -411,6 +413,30 @@ public Action Command_ScrambleTeams(int client, int args) {
     }
 
     return Plugin_Continue;
+}
+
+/**
+ * Tells a player about the !guns menu. Shown once per connection, when the player first
+ * gets into the game (first spawn or the waiting queue), and only if a weapon allocator
+ * is loaded: without one the command does nothing.
+ * Этой подсказки нет в оригинальном плагине, добавлена по решению владельца.
+ */
+void ShowGunsHint(int client) {
+    if (g_GunsHintShown[client] || !IsPlayer(client) || g_EditMode) {
+        return;
+    }
+    g_GunsHintShown[client] = true;
+
+    // Аллокатор загружен, если кто-то подписан на форвард Retakes_OnGunsCommand.
+    if (GetForwardFunctionCount(g_hOnGunsCommand) == 0) {
+        return;
+    }
+
+    if (TranslationPhraseExists("GunsHint")) {
+        Retakes_Message(client, "%t", "GunsHint");
+    } else {
+        Retakes_Message(client, "Type {GREEN}!guns{NORMAL} in chat to choose your weapons.");
+    }
 }
 
 public Action Command_Guns(int client, int args) {
@@ -556,6 +582,7 @@ public Action PlacePlayer(int client) {
     Queue_Enqueue(g_hWaitingQueue, client);
     DebugLog("join: %L placed in the waiting queue (%d on teams)", client, nPlayers);
     Retakes_Message(client, "%t", "JoinedQueueMessage");
+    ShowGunsHint(client);
     return Plugin_Handled;
 }
 
@@ -591,6 +618,10 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
     int client = GetClientOfUserId(event.GetInt("userid"));
     if (!IsValidClient(client) || !IsOnTeam(client))
         return Plugin_Continue;
+
+    if (IsPlayerAlive(client)) {
+        ShowGunsHint(client);
+    }
 
     if (InFreePlay()) {
         // В разминке у всех максимум денег, чтобы не бегать с пистолетами.
