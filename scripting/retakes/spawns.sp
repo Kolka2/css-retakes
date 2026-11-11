@@ -491,30 +491,13 @@ public bool SiteHasSpawns(Bombsite site, int numT, int numCT) {
  */
 public int SelectSpawn(int team, bool bombSpawn) {
     ArrayList potentialSpawns = new ArrayList();
-
-    // Если на сайте есть свободные спавны "только для бомбера", бомбер появляется именно на них.
-    // Обычные T-спавны внутри зоны закладки тоже годятся для бомбера (так в оригинале),
-    // но используются для него, только когда выделенных спавнов нет.
-    if (bombSpawn) {
-        for (int i = 0; i < g_NumSpawns; i++) {
-            if (g_SpawnDeleted[i] || g_SpawnTaken[i] || g_SpawnTeams[i] != team || g_SpawnSites[i] != g_Bombsite) {
-                continue;
-            }
-            if (g_SpawnTypes[i] == SpawnType_OnlyWithBomb && CanBombCarrierSpawn(i)) {
-                potentialSpawns.Push(i);
-            }
+    for (int i = 0; i < g_NumSpawns; i++) {
+        if (g_SpawnDeleted[i]) {
+            continue;
         }
-    }
-
-    if (potentialSpawns.Length == 0) {
-        for (int i = 0; i < g_NumSpawns; i++) {
-            if (g_SpawnDeleted[i]) {
-                continue;
-            }
-            if (g_SpawnTeams[i] == team && !g_SpawnTaken[i] && g_Bombsite == g_SpawnSites[i]) {
-                if ((bombSpawn && CanBombCarrierSpawn(i)) || (!bombSpawn && CanRegularPlayerSpawn(i))) {
-                    potentialSpawns.Push(i);
-                }
+        if (g_SpawnTeams[i] == team && !g_SpawnTaken[i] && g_Bombsite == g_SpawnSites[i]) {
+            if ((bombSpawn && CanBombCarrierSpawn(i)) || (!bombSpawn && CanRegularPlayerSpawn(i))) {
+                potentialSpawns.Push(i);
             }
         }
     }
