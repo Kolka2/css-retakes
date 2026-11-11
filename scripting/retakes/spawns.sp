@@ -162,7 +162,11 @@ public void WriteSpawns() {
 
     DeleteFile(configFile);
     kv.Rewind();
-    if (!kv.ExportToFile(configFile)) {
+    if (kv.ExportToFile(configFile)) {
+        // Всё записано: несохранённых изменений больше нет (в оригинале флаг здесь не
+        // сбрасывался, из-за чего sm_retakes_validatespawns и после сохранения сообщал о них).
+        g_DirtySpawns = false;
+    } else {
         LogError("Failed to write the retakes spawns to %s", configFile);
     }
     delete kv;
