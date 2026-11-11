@@ -10,6 +10,12 @@ enum Bombsite {
 
 // Spawn types. These only apply to T-side spawns, all
 // CT-spawns are considered SpawnType_Normal since they have no bomb.
+//
+// The bomb carrier is put on a T spawn that is inside a bomb target area and is not
+// SpawnType_NeverWithBomb. Note that this includes SpawnType_Normal spawns:
+//   SpawnType_Normal        - anybody; the bomb carrier too if the spawn is inside a bomb target area
+//   SpawnType_OnlyWithBomb  - the bomb carrier only (never the other terrorists)
+//   SpawnType_NeverWithBomb - never the bomb carrier
 enum SpawnType {
     SpawnType_Normal = 0,
     SpawnType_OnlyWithBomb = 1,

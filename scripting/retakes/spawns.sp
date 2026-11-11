@@ -452,12 +452,30 @@ public bool SpawnInsideBombSite(int spawnIndex) {
     return InsideBombSite(g_SpawnPoints[spawnIndex]);
 }
 
+/**
+ * Returns if the bomb carrier may be put on a spawn.
+ *
+ * Правило оригинального плагина, менять его не нужно (см. PORT/PROGRESS.md):
+ * бомберу годится любой T-спавн ВНУТРИ зоны закладки, кроме помеченных "никогда бомбер".
+ * То есть не только SpawnType_OnlyWithBomb, но и обычный SpawnType_Normal. Тип "только
+ * бомбер" не привязывает бомбера к этому спавну, а лишь закрывает спавн для остальных T
+ * (см. CanRegularPlayerSpawn). Чтобы бомбер появлялся только на выделенных точках,
+ * остальные T-спавны внутри зоны закладки помечают SpawnType_NeverWithBomb.
+ *
+ * Если подходящего спавна на сайте нет, SelectSpawn ставит бомбера на любой обычный
+ * T-спавн и пишет ошибку в лог.
+ */
 public bool CanBombCarrierSpawn(int spawn) {
     if (g_SpawnTeams[spawn] == CS_TEAM_CT)
         return false;
     return (g_SpawnTypes[spawn] != SpawnType_NeverWithBomb) && SpawnInsideBombSite(spawn);
 }
 
+/**
+ * Returns if a player without the bomb may be put on a spawn.
+ * Для CT - на любой CT-спавн; для T - на любой T-спавн, кроме "только бомбер".
+ * Находится ли спавн в зоне закладки, здесь значения не имеет.
+ */
 public bool CanRegularPlayerSpawn(int spawn) {
     if (g_SpawnTeams[spawn] == CS_TEAM_CT)
         return true;

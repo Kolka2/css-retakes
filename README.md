@@ -50,6 +50,16 @@ Retakes для Counter-Strike: Source
 - ещё несколько T-спавнов рядом и CT-спавны на путях подхода;
 - всего на карте не меньше `sm_retakes_maxplayers` спавнов, иначе плагин не расставляет команды.
 
+Типы T-спавнов (как в оригинальном плагине):
+
+| Тип | Кольцо | Кто появляется |
+|---|---|---|
+| обычный (Normal) | красное | любой T; **в том числе бомбер**, если спавн стоит внутри зоны закладки |
+| только бомбер (Bomb-carrier only) | зелёное | только бомбер; имеет смысл только внутри зоны закладки |
+| никогда бомбер (Never bomb-carrier) | жёлтое | любой T, кроме бомбера |
+
+Тип «только бомбер» не привязывает бомбера к этой точке: он лишь закрывает её для остальных. Бомбер выбирается случайно среди всех зелёных **и красных** спавнов внутри зоны закладки. Если нужно, чтобы бомбер появлялся только на выделенных точках, пометьте остальные T-спавны внутри зоны закладки как «никогда бомбер». Тип существующего спавна не редактируется: удалите его (`!delete`) и создайте заново через меню `!edit` → «Add a spawn».
+
 Выход из редактора — пункт «Exit edit mode» в меню `!edit`, игра при этом перезапускается. Спавны лежат в `addons/sourcemod/configs/retakes/<карта>.cfg` (формат — в [configs/retakes/README.md](configs/retakes/README.md)); несохранённые изменения записываются при смене карты.
 
 ## Как идёт игра
@@ -191,6 +201,16 @@ Each site needs:
 - T spawns **inside the bomb target area** — the bomb carrier only spawns on such a spawn;
 - a few more T spawns around it and CT spawns on the rotation routes;
 - the map needs at least `sm_retakes_maxplayers` spawns in total, otherwise the plugin does not set the teams.
+
+T spawn types (same as in the original plugin):
+
+| Type | Ring | Who spawns there |
+|---|---|---|
+| Normal | red | any terrorist, **the bomb carrier included** if the spawn is inside the bomb target area |
+| Bomb-carrier only | green | the bomb carrier only; only makes sense inside the bomb target area |
+| Never bomb-carrier | yellow | any terrorist except the bomb carrier |
+
+"Bomb-carrier only" does not tie the bomb carrier to that spot, it only closes the spot for everybody else. The bomb carrier is picked at random among all green **and red** spawns inside the bomb target area. To make the bomb carrier spawn on dedicated spots only, mark the other T spawns inside the bomb target area as "Never bomb-carrier". The type of an existing spawn cannot be edited: delete it (`!delete`) and create it again through `!edit` → "Add a spawn".
 
 Leave the editor with "Exit edit mode" in the `!edit` menu; the game restarts. Spawns are stored in `addons/sourcemod/configs/retakes/<map>.cfg`; unsaved changes are written on map change.
 
