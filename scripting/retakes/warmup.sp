@@ -221,8 +221,6 @@ public void GoLive() {
     DebugLog("warmup: going live (warmup: %d, edit mode: %d), restarting the game", Retakes_InWarmup(), g_EditMode);
     Warmup_End();
     g_EditMode = false;
-    // В редакторе ботов нет: возвращаем их сразу, чтобы они успели зайти до рестарта.
-    UpdateBotQuota(false);
     // Раунд после рестарта подготовит Event_RoundStart: round_end при mp_restartgame может не прийти.
     g_PreparePending = false;
     g_RoundPrepared = false;

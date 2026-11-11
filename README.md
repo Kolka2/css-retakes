@@ -137,7 +137,7 @@ Retakes для Counter-Strike: Source
 - Автозакладки бомбы нет: бомбу ставит бомбер (человек или бот), как в оригинале.
 - Между концом раунда и началом следующего игроки уже переведены в новые команды: в CS:S нет события «перед началом раунда», и это единственный момент, когда команды можно сменить до респауна.
 - Первый раунд после разминки и после `mp_restartgame` игроки появляются дважды подряд (игра спаунит, затем плагин переспаунивает на спавнах ретейка).
-- Если игра добавила бота посреди раунда, он до следующего раунда сидит в наблюдателях.
+- Если игра добавила бота посреди раунда, он до следующего раунда сидит в наблюдателях. Из-за этого после выхода из редактора спавнов и при входе на пустой сервер первый раунд может пройти 1 на 1: игра добавляет ботов по одному, и команды собираются, когда зашёл только первый.
 - В CS:S только три гранаты: осколочная, световая и дымовая. Буквы `m`, `i`, `d` в раскладках сторонних аллокаторов игнорируются; имена оружия CS:GO не выдаются (ошибка в логе).
 - Кваров тайм-аутов, halftime и т. п. в CS:S нет; интеграция с PugSetup удалена.
 
@@ -303,7 +303,7 @@ Spawns are stored separately, in `addons/sourcemod/configs/retakes/<map>.cfg` �
 - There is no auto-plant: the bomb carrier (human or bot) plants the bomb, as in the original.
 - Between the end of a round and the start of the next one the players are already on their new teams: CS:S has no "before round start" event, and this is the only moment the teams can be changed before the respawn.
 - On the first round after the warmup and after `mp_restartgame` the players spawn twice in a row (the game spawns them, then the plugin respawns them on the retake spawns).
-- A bot added by the game in the middle of a round sits in spectators until the next round.
+- A bot added by the game in the middle of a round sits in spectators until the next round. Because of this the first round after leaving the spawn editor, or after joining an empty server, may be played 1 vs 1: the game adds bots one at a time and the teams are set when only the first one has joined.
 - CS:S only has three grenades: HE, flashbang and smoke. The letters `m`, `i`, `d` in third-party allocator loadouts are ignored; CS:GO weapon class names are not given (an error is logged).
 - The PugSetup integration was removed.
 

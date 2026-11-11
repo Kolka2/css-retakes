@@ -114,7 +114,6 @@ bool g_RoundPrepared;  // PrepareNextRound has run and its data (teams, spawns) 
 bool g_PrepConsumed;   // a round_start has already used the prepared data
 bool g_TeamsValid;     // UpdateTeams actually assigned the teams (false if the map has no spawns)
 int g_RoundSerial;     // incremented on every round_start, lets the delayed callbacks detect a new round
-float g_RoundStartTime; // game time of the last round_start
 bool g_NoSpawnsLogged;
 bool g_SiteSpawnsLogged;
 
@@ -362,8 +361,6 @@ public Action CS_OnBuyCommand(int client, const char[] weapon) {
     return Plugin_Handled;
 }
 
-#define SHORT_ROUND_RESTART_WINDOW 5.0   // секунд от начала раунда, пока неполный раунд ещё можно перезапустить
-
 /**
  * Called once a second by Timer_FreePlay (see warmup.sp) while the plugin is enabled.
  */
@@ -381,17 +378,11 @@ public void OnSecondTick() {
     if (g_ActivePlayers < 2 && (humansWaiting || botsWaiting)) {
         DebugLog("round: only %d active player(s) while others are waiting, restarting the round", g_ActivePlayers);
         CS_TerminateRound(1.0, CSRoundEnd_Draw);
-        return;
     }
 
-    // Раунд только что начался неполным составом, а боты для него появились уже после round_start
-    // (тех, кто успел зайти до него, подхватывает сам Event_RoundStart): перезапускаем раунд,
-    // пока он не разыгрался. Позже начала раунда этого не делаем, чтобы не рвать игру.
-    if (botsWaiting && GetGameTime() - g_RoundStartTime <= SHORT_ROUND_RESTART_WINDOW) {
-        DebugLog("round: started with %d of %d players while bots are waiting, restarting the round",
-                 g_ActivePlayers, GetBotsFillTarget());
-        CS_TerminateRound(1.0, CSRoundEnd_Draw);
-    }
+    // Раунд из двух и более участников не трогаем, даже если часть ботов ждёт в наблюдателях:
+    // игра добавляет ботов по одному, и после выхода из редактора или входа на пустой сервер
+    // первый раунд может пройти 1 на 1. Это известное и принятое поведение (см. PORT/PROGRESS.md).
 }
 
 /**
@@ -851,7 +842,6 @@ public void Frame_PrepareNextRound(any serial) {
  */
 public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast) {
     g_RoundSerial++;
-    g_RoundStartTime = GetGameTime();
     g_bombPlanted = false;
 
     if (!g_Enabled) {
@@ -865,22 +855,9 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
 
     // Страховка: раунд начался без подготовки (первый раунд после разминки, mp_restartgame).
     bool fallback = !g_RoundPrepared || g_PrepConsumed;
-
-    // Раунд подготовлен, но неполным составом, а недостающие боты уже на сервере: игра добавляет
-    // ботов по одному, и первый же зашедший бот вызывает конец раунда ("Game Commencing"), по
-    // которому команды собираются, когда остальные ещё не зашли (выход из редактора, вход на
-    // пустой сервер). Собираем команды заново тем же путём, что и при неподготовленном раунде.
-    bool shortHanded = !fallback && g_TeamsValid && g_hAutoTeamsCvar.IntValue != 0
-        && GetUnassignedBotCount() > 0 && g_ActivePlayers < GetBotsFillTarget();
-
     if (fallback) {
         DebugLog("round_start: the round was not prepared after round_end, preparing now and respawning the players");
         PrepareNextRound();
-    } else if (shortHanded) {
-        DebugLog("round_start: the round was prepared with %d of %d players but more bots have joined since, preparing again",
-                 g_ActivePlayers, GetBotsFillTarget());
-        PrepareNextRound();
-        fallback = true;
     } else {
         DebugLog("round_start: using the teams prepared after round_end");
     }
