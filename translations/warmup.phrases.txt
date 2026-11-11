@@ -1,0 +1,13 @@
+"Phrases"
+{
+	"WarmupTimeLeft"
+	{
+		"#format"		"{1:d},{2:d}"
+		"en"			"Warmup: {1} sec"
+	}
+	"WarmupWaitingForPlayers"
+	{
+		"#format"		"{1:d},{2:d}"
+		"en"			"Warmup: waiting for players ({1}/{2})"
+	}
+}

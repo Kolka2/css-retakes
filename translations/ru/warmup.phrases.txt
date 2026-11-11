@@ -1,0 +1,11 @@
+"Phrases"
+{
+	"WarmupTimeLeft"
+	{
+		"ru"			"Разминка: {1} сек"
+	}
+	"WarmupWaitingForPlayers"
+	{
+		"ru"			"Разминка: ждём игроков ({1}/{2})"
+	}
+}
