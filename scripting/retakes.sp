@@ -113,6 +113,7 @@ bool g_RoundPrepared;  // PrepareNextRound has run and its data (teams, spawns) 
 bool g_PrepConsumed;   // a round_start has already used the prepared data
 bool g_TeamsValid;     // UpdateTeams actually assigned the teams (false if the map has no spawns)
 int g_RoundSerial;     // incremented on every round_start, lets the delayed callbacks detect a new round
+float g_RoundStartTime; // game time of the last round_start
 bool g_NoSpawnsLogged;
 bool g_SiteSpawnsLogged;
 
@@ -356,6 +357,8 @@ public Action CS_OnBuyCommand(int client, const char[] weapon) {
     return Plugin_Handled;
 }
 
+#define SHORT_ROUND_RESTART_WINDOW 5.0   // секунд от начала раунда, пока неполный раунд ещё можно перезапустить
+
 /**
  * Called once a second by Timer_FreePlay (see warmup.sp) while the plugin is enabled.
  */
@@ -372,6 +375,16 @@ public void OnSecondTick() {
     bool botsWaiting = GetUnassignedBotCount() > 0 && g_ActivePlayers < GetBotsFillTarget();
     if (g_ActivePlayers < 2 && (humansWaiting || botsWaiting)) {
         DebugLog("round: only %d active player(s) while others are waiting, restarting the round", g_ActivePlayers);
+        CS_TerminateRound(1.0, CSRoundEnd_Draw);
+        return;
+    }
+
+    // Раунд только что начался неполным составом, а боты для него уже на сервере (игра добавила
+    // их, когда раунд был уже подготовлен - например, сразу после выхода из редактора): перезапускаем
+    // раунд, пока он не разыгрался. Позже начала раунда этого не делаем, чтобы не рвать игру.
+    if (botsWaiting && GetGameTime() - g_RoundStartTime <= SHORT_ROUND_RESTART_WINDOW) {
+        DebugLog("round: started with %d of %d players while bots are waiting, restarting the round",
+                 g_ActivePlayers, GetBotsFillTarget());
         CS_TerminateRound(1.0, CSRoundEnd_Draw);
     }
 }
@@ -802,6 +815,7 @@ public void Frame_PrepareNextRound(any serial) {
  */
 public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast) {
     g_RoundSerial++;
+    g_RoundStartTime = GetGameTime();
     g_bombPlanted = false;
 
     if (!g_Enabled) {
