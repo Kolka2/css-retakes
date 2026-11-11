@@ -8,7 +8,47 @@
 #define FREEPLAY_RESPAWN_DELAY 1.5   // через сколько секунд после смерти респаунить
 #define MAX_ROUND_TIME 30000         // m_iRoundTime передаётся по сети 16 битами
 
+#define WARMUP_MONEY 16000           // деньги в разминке (максимум CS:S)
+#define WARMUP_BUYTIME 1440.0        // mp_buytime на время разминки, минуты
+
 int g_WarmupTimeLeft;
+ConVar g_hBuyTimeCvar;
+bool g_BuyTimeSaved;
+float g_SavedBuyTime;
+
+/**
+ * Keeps the buy time open during the warmup: the warmup is one endless round, and with
+ * the normal mp_buytime buying would stop a few seconds after it began.
+ * Called every second, because retakes_game.cfg sets mp_buytime after the warmup has started.
+ */
+static void ExtendWarmupBuyTime() {
+    if (g_hBuyTimeCvar == null) {
+        // CSS-VERIFY: mp_buytime (в минутах) принимает большое значение, и с ним в разминке
+        // можно закупаться в зоне закупки всё время, а не только первые секунды раунда.
+        g_hBuyTimeCvar = FindConVar("mp_buytime");
+        if (g_hBuyTimeCvar == null) {
+            return;
+        }
+    }
+
+    if (g_hBuyTimeCvar.FloatValue < WARMUP_BUYTIME) {
+        if (!g_BuyTimeSaved) {
+            g_BuyTimeSaved = true;
+            g_SavedBuyTime = g_hBuyTimeCvar.FloatValue;
+        }
+        g_hBuyTimeCvar.SetFloat(WARMUP_BUYTIME);
+    }
+}
+
+/**
+ * Puts mp_buytime back after the warmup.
+ */
+stock void RestoreBuyTime() {
+    if (g_BuyTimeSaved && g_hBuyTimeCvar != null) {
+        g_hBuyTimeCvar.SetFloat(g_SavedBuyTime);
+    }
+    g_BuyTimeSaved = false;
+}
 float g_LastDeathTime[MAXPLAYERS+1];
 bool g_RoundTimePropMissingLogged;
 
@@ -71,6 +111,13 @@ public void StartWarmup(int time) {
 
     g_InWarmup = true;
     g_WarmupTimeLeft = time;
+
+    // Тем, кто уже в игре (разминка запущена командой), деньги выдаём сразу.
+    for (int i = 1; i <= MaxClients; i++) {
+        if (IsValidClient(i) && IsOnTeam(i)) {
+            SetClientMoney(i, WARMUP_MONEY);
+        }
+    }
     DebugLog("warmup: started, %d seconds", time);
 }
 
@@ -81,6 +128,7 @@ public void GoLive() {
     DebugLog("warmup: going live (warmup: %d, edit mode: %d), restarting the game", g_InWarmup, g_EditMode);
     g_InWarmup = false;
     g_EditMode = false;
+    RestoreBuyTime();
     // Раунд после рестарта подготовит Event_RoundStart: round_end при mp_restartgame может не прийти.
     g_PreparePending = false;
     g_RoundPrepared = false;
@@ -147,6 +195,8 @@ public Action Timer_FreePlay(Handle timer) {
         // В редакторе отсчёт разминки стоит на паузе.
         return Plugin_Continue;
     }
+
+    ExtendWarmupBuyTime();
 
     if (GetHumanCount() == 0) {
         // Без людей разминка не заканчивается: первый зашедший получает её целиком.

@@ -276,6 +276,7 @@ public void OnMapStart() {
 
     g_EditMode = false;
     g_InWarmup = false;
+    g_BuyTimeSaved = false;
     CreateTimer(1.0, Timer_ShowSpawns, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
     CreateTimer(1.0, Timer_FreePlay, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 
@@ -444,9 +445,16 @@ public Action Command_JoinTeam(int client, const char[] command, int argc) {
     if ((team_from == team_to && team_from != CS_TEAM_NONE) || g_PluginTeamSwitch[client] || IsFakeClient(client)) {
         return Plugin_Continue;
     } else {
-        // ignore switches between T/CT team
         if (   (team_from == CS_TEAM_CT && team_to == CS_TEAM_T )
             || (team_from == CS_TEAM_T  && team_to == CS_TEAM_CT)) {
+            // В разминке сторону можно менять свободно. Делаем это сами, а не отдаём игре:
+            // игра разрешает одну смену команды за раунд, а раунд в разминке не кончается.
+            if (g_InWarmup) {
+                DebugLog("warmup: %L switches team %d -> %d", client, team_from, team_to);
+                SwitchPlayerTeam(client, team_to);
+                CS_RespawnPlayer(client);
+            }
+            // в живой игре сторону назначает плагин
             return Plugin_Handled;
 
         } else if (team_to == CS_TEAM_SPECTATOR) {
@@ -526,8 +534,16 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
     }
 
     int client = GetClientOfUserId(event.GetInt("userid"));
-    if (!IsValidClient(client) || !IsOnTeam(client) || InFreePlay())
+    if (!IsValidClient(client) || !IsOnTeam(client))
         return Plugin_Continue;
+
+    if (InFreePlay()) {
+        // В разминке у всех максимум денег, чтобы не бегать с пистолетами.
+        if (g_InWarmup && !g_EditMode) {
+            SetClientMoney(client, WARMUP_MONEY);
+        }
+        return Plugin_Continue;
+    }
 
     // В CS:S player_spawn приходит и при входе на сервер, когда игрок ещё мёртв.
     if (!IsPlayerAlive(client))
