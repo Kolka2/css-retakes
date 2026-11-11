@@ -209,6 +209,7 @@ public void OnPluginStart() {
     RegAdminCmd("sm_iteratespawns", Command_IterateSpawns, ADMFLAG_CHANGEMAP);
     RegAdminCmd("sm_reloadspawns", Command_ReloadSpawns, ADMFLAG_CHANGEMAP, "Reloads retakes spawns for the current map, discarding changes");
     RegAdminCmd("sm_savespawns", Command_SaveSpawns, ADMFLAG_CHANGEMAP, "Saves retakes spawns for the current map");
+    RegAdminCmd("sm_retakes_warmup", Command_Warmup, ADMFLAG_CHANGEMAP, "Starts the retakes warmup (sm_retakes_warmup [seconds], 0 ends it) and resets the retakes progress");
     RegAdminCmd("sm_retakes_validatespawns", Command_ValidateSpawns, ADMFLAG_CHANGEMAP, "Checks the retakes spawns of the current map and prints a report");
 
     /** Player commands **/
@@ -1209,4 +1210,72 @@ public int GetOtherTeam(int team) {
 
 public Bombsite GetOtherSite(Bombsite site) {
     return (site == BombsiteA) ? BombsiteB : BombsiteA;
+}
+
+/**
+ * Forgets everything the plugin has accumulated on this map: round points, the T win
+ * streak, a pending scramble, the round counter and the prepared round. The waiting
+ * queue, the spawns and the cvars are left alone.
+ */
+public void ResetRetakesProgress() {
+    for (int i = 1; i <= MaxClients; i++) {
+        g_RoundPoints[i] = 0;
+        g_SpawnIndices[i] = -1;
+        g_Team[i] = CS_TEAM_SPECTATOR;
+    }
+
+    g_WinStreak = 0;
+    g_RoundCount = 0;
+    g_ScrambleSignal = false;
+
+    g_PreparePending = false;
+    g_RoundPrepared = false;
+    g_PrepConsumed = false;
+    g_TeamsValid = false;
+    g_RoundSpawnsDecided = false;
+
+    g_BombOwner = -1;
+    g_SelectBombClient = -1;
+    g_bombPlanted = false;
+}
+
+/**
+ * sm_retakes_warmup [seconds]: starts the warmup without changing the map and resets the
+ * retakes progress. Without an argument sm_retakes_warmuptime is used; 0 ends the warmup.
+ */
+public Action Command_Warmup(int client, int args) {
+    if (!g_Enabled) {
+        ReplyToCommand(client, "[Retakes] The plugin is disabled.");
+        return Plugin_Handled;
+    }
+
+    if (g_EditMode) {
+        ReplyToCommand(client, "[Retakes] Exit the spawn editor first (\"Exit edit mode\" in the !edit menu).");
+        return Plugin_Handled;
+    }
+
+    int time = g_WarmupTimeCvar.IntValue;
+    if (args >= 1) {
+        char buffer[16];
+        GetCmdArg(1, buffer, sizeof(buffer));
+        time = StringToInt(buffer);
+    }
+
+    if (time <= 0) {
+        if (g_InWarmup) {
+            Retakes_MessageToAll("The warmup was ended by an admin.");
+            GoLive();
+        } else {
+            ReplyToCommand(client, "[Retakes] There is no warmup to end. Usage: sm_retakes_warmup [seconds]");
+        }
+        return Plugin_Handled;
+    }
+
+    DebugLog("warmup: restarted by %L", client);
+    ResetRetakesProgress();
+    StartWarmup(time);
+    ExtendFreePlayRound();
+    UpdateBotQuota(false);
+    Retakes_MessageToAll("Warmup for {GREEN}%d{NORMAL} seconds. Pick any team.", time);
+    return Plugin_Handled;
 }

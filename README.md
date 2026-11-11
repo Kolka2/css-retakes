@@ -93,7 +93,11 @@ Retakes для Counter-Strike: Source
 | `sm_retakes_bots_carry_bomb` | `1` | **новый.** может ли бот быть бомбером; при `0` бот несёт бомбу, только если среди T нет людей |
 | `sm_retakes_debug` | `0` | **новый.** `1` — подробный лог решений плагина в `addons/sourcemod/logs/retakes_debug.log` |
 
-Прочие команды: `sm_scramble` — перемешать команды со следующего раунда (админ), `sm_guns` / `!guns` — меню оружия.
+Прочие команды:
+
+- `sm_guns` / `!guns` — меню оружия;
+- `sm_scramble` — перемешать команды со следующего раунда (админ);
+- `sm_retakes_warmup [секунды]` — запустить разминку без смены карты и обнулить прогресс: очки, серию побед, счётчик раундов (админ). Без числа берётся `sm_retakes_warmuptime`, `0` — сразу закончить разминку. В редакторе спавнов не работает.
 
 ## Аддоны
 
@@ -231,7 +235,11 @@ Stored in `cfg/sourcemod/retakes/retakes.cfg`.
 | `sm_retakes_bots_carry_bomb` | `1` | **new.** whether a bot can carry the bomb; with `0` a bot only carries it when there are no humans among the terrorists |
 | `sm_retakes_debug` | `0` | **new.** `1` — detailed log of the plugin's decisions in `addons/sourcemod/logs/retakes_debug.log` |
 
-Other commands: `sm_scramble` — scramble the teams on the next round (admin), `sm_guns` / `!guns` — weapon menu.
+Other commands:
+
+- `sm_guns` / `!guns` — weapon menu;
+- `sm_scramble` — scramble the teams on the next round (admin);
+- `sm_retakes_warmup [seconds]` — start the warmup without changing the map and reset the progress: round points, win streak, round counter (admin). Without a number `sm_retakes_warmuptime` is used, `0` ends the warmup right away. Does not work in the spawn editor.
 
 ## Addon plugins
 
