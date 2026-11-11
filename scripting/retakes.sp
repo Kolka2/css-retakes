@@ -185,6 +185,7 @@ public void OnPluginStart() {
 
     /** Command hooks **/
     AddCommandListener(Command_JoinTeam, "jointeam");
+    AddCommandListener(Command_JoinClass, "joinclass");
 
     /** Admin/editor commands **/
     RegAdminCmd("sm_scramble", Command_ScrambleTeams, ADMFLAG_CHANGEMAP, "Sets teams to scramble on the next round");
@@ -436,9 +437,17 @@ public Action Command_JoinTeam(int client, const char[] command, int argc) {
     int team_to = StringToInt(arg);
     int team_from = GetClientTeam(client);
 
-    // if same team, teamswitch controlled by the plugin
+    if (g_PluginTeamSwitch[client] || IsFakeClient(client)) {
+        return Plugin_Continue;
+    }
+
     // note if a player hits autoselect their team_from=team_to=CS_TEAM_NONE
-    if ((team_from == team_to && team_from != CS_TEAM_NONE) || g_PluginTeamSwitch[client] || IsFakeClient(client)) {
+    if (team_from == team_to && team_from != CS_TEAM_NONE) {
+        // Повторный выбор своей команды в CS:S открывает меню модели, а смена модели посреди
+        // раунда убивает игрока. В живой игре это запрещено: из T/CT можно уйти только в наблюдатели.
+        if (IsOnTeam(client) && !Retakes_InWarmup()) {
+            return Plugin_Handled;
+        }
         return Plugin_Continue;
     } else {
         if (   (team_from == CS_TEAM_CT && team_to == CS_TEAM_T )
@@ -466,6 +475,28 @@ public Action Command_JoinTeam(int client, const char[] command, int argc) {
             return PlacePlayer(client);
         }
     }
+}
+
+/**
+ * Blocks changing the player model (class) while the game is live: in CS:S it kills the
+ * player. The plugin sets the class itself when it puts a player on a team, so nobody
+ * needs the class menu outside of the warmup and the editor.
+ */
+public Action Command_JoinClass(int client, const char[] command, int argc) {
+    if (!g_Enabled || g_hAutoTeamsCvar.IntValue == 0 || InFreePlay()) {
+        return Plugin_Continue;
+    }
+
+    if (!IsValidClient(client) || IsFakeClient(client)) {
+        return Plugin_Continue;
+    }
+
+    // Игрок без модели (такого быть не должно) всё же должен иметь возможность её выбрать.
+    if (IsOnTeam(client) && HasPickedClass(client)) {
+        return Plugin_Handled;
+    }
+
+    return Plugin_Continue;
 }
 
 /**
