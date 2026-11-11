@@ -384,9 +384,9 @@ public void OnSecondTick() {
         return;
     }
 
-    // Раунд только что начался неполным составом, а боты для него уже на сервере (игра добавила
-    // их, когда раунд был уже подготовлен - например, сразу после выхода из редактора): перезапускаем
-    // раунд, пока он не разыгрался. Позже начала раунда этого не делаем, чтобы не рвать игру.
+    // Раунд только что начался неполным составом, а боты для него появились уже после round_start
+    // (тех, кто успел зайти до него, подхватывает сам Event_RoundStart): перезапускаем раунд,
+    // пока он не разыгрался. Позже начала раунда этого не делаем, чтобы не рвать игру.
     if (botsWaiting && GetGameTime() - g_RoundStartTime <= SHORT_ROUND_RESTART_WINDOW) {
         DebugLog("round: started with %d of %d players while bots are waiting, restarting the round",
                  g_ActivePlayers, GetBotsFillTarget());
@@ -865,9 +865,22 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
 
     // Страховка: раунд начался без подготовки (первый раунд после разминки, mp_restartgame).
     bool fallback = !g_RoundPrepared || g_PrepConsumed;
+
+    // Раунд подготовлен, но неполным составом, а недостающие боты уже на сервере: игра добавляет
+    // ботов по одному, и первый же зашедший бот вызывает конец раунда ("Game Commencing"), по
+    // которому команды собираются, когда остальные ещё не зашли (выход из редактора, вход на
+    // пустой сервер). Собираем команды заново тем же путём, что и при неподготовленном раунде.
+    bool shortHanded = !fallback && g_TeamsValid && g_hAutoTeamsCvar.IntValue != 0
+        && GetUnassignedBotCount() > 0 && g_ActivePlayers < GetBotsFillTarget();
+
     if (fallback) {
         DebugLog("round_start: the round was not prepared after round_end, preparing now and respawning the players");
         PrepareNextRound();
+    } else if (shortHanded) {
+        DebugLog("round_start: the round was prepared with %d of %d players but more bots have joined since, preparing again",
+                 g_ActivePlayers, GetBotsFillTarget());
+        PrepareNextRound();
+        fallback = true;
     } else {
         DebugLog("round_start: using the teams prepared after round_end");
     }
