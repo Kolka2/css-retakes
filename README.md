@@ -111,7 +111,7 @@ Retakes для Counter-Strike: Source
 
 - Не проверено на живом сервере — см. статус в начале и [PORT/TEST_CHECKLIST.md](PORT/TEST_CHECKLIST.md).
 - Автозакладки бомбы нет: бомбу ставит бомбер (человек или бот), как в оригинале.
-- Команды меняются за долю секунды до рестарта раунда (в CS:S нет события «перед началом раунда»), поэтому в самом конце паузы между раундами игроки на мгновение уже стоят в новых командах.
+- Между концом раунда и началом следующего игроки уже переведены в новые команды: в CS:S нет события «перед началом раунда», и это единственный момент, когда команды можно сменить до респауна.
 - Первый раунд после разминки и после `mp_restartgame` игроки появляются дважды подряд (игра спаунит, затем плагин переспаунивает на спавнах ретейка).
 - Если игра добавила бота посреди раунда, он до следующего раунда сидит в наблюдателях.
 - В CS:S только три гранаты: осколочная, световая и дымовая. Буквы `m`, `i`, `d` в раскладках сторонних аллокаторов игнорируются; имена оружия CS:GO не выдаются (ошибка в логе).
@@ -253,7 +253,7 @@ Optional plugins, installed next to `retakes.smx`. Use only one allocator.
 
 - Not tested on a live server yet — see the status note above.
 - There is no auto-plant: the bomb carrier (human or bot) plants the bomb, as in the original.
-- The teams are switched a fraction of a second before the round restarts (CS:S has no "before round start" event), so at the very end of the pause between rounds the players are already on their new teams for a moment.
+- Between the end of a round and the start of the next one the players are already on their new teams: CS:S has no "before round start" event, and this is the only moment the teams can be changed before the respawn.
 - On the first round after the warmup and after `mp_restartgame` the players spawn twice in a row (the game spawns them, then the plugin respawns them on the retake spawns).
 - A bot added by the game in the middle of a round sits in spectators until the next round.
 - CS:S only has three grenades: HE, flashbang and smoke. The letters `m`, `i`, `d` in third-party allocator loadouts are ignored; CS:GO weapon class names are not given (an error is logged).

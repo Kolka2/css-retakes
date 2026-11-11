@@ -114,15 +114,6 @@ bool g_PrepConsumed;   // a round_start has already used the prepared data
 bool g_TeamsValid;     // UpdateTeams actually assigned the teams (false if the map has no spawns)
 int g_RoundSerial;     // incremented on every round_start, lets the delayed callbacks detect a new round
 bool g_NoSpawnsLogged;
-
-/**
- * Delay of the last round termination (seconds until the game restarts the round) and the
- * game time it was reported at, see CS_OnTerminateRound. Lets the plugin switch the teams
- * at the very end of the pause between the rounds instead of right after round_end.
- */
-#define PREPARE_LEAD_TIME 0.3     // за сколько секунд до рестарта раунда расставлять команды
-float g_TerminateDelay;
-float g_TerminateTime = -1.0;
 bool g_SiteSpawnsLogged;
 
 /** Forwards **/
@@ -806,12 +797,6 @@ public void Frame_PrepareNextRound(any serial) {
     PrepareNextRound();
 }
 
-public Action Timer_PrepareNextRound(Handle timer, any serial) {
-    // Если таймер опоздал и раунд уже начался, serial не совпадёт: раунд подготовил Event_RoundStart.
-    Frame_PrepareNextRound(serial);
-    return Plugin_Handled;
-}
-
 /**
  * Round start. In CS:S the players have already been respawned when this event fires.
  */
@@ -954,26 +939,12 @@ public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
         }
     }
 
-    // Команды следующего раунда нужно выставить до рестарта раунда, но как можно позже:
-    // пока идёт пауза между раундами, выжившие ещё бегают и стреляют, и если поменять
-    // стороны сразу, игрок на несколько секунд оказывается среди врагов из нового состава.
-    // Задержку до рестарта сообщает CS_OnTerminateRound (round_end приходит в том же кадре).
+    // Команды следующего раунда выставляем на следующем кадре, до рестарта раунда.
+    // Не таймер: при CS_TerminateRound с задержкой 0.0-0.1 таймер мог бы опоздать.
+    // (Вариант "за 0.3 с до рестарта" пробовали: он давал заметный рывок перед началом
+    // раунда - смена команд и респаун шли подряд, - и был отменён.)
     g_PreparePending = true;
-    float wait = -1.0;
-    if (g_TerminateTime == GetGameTime()) {
-        wait = g_TerminateDelay - PREPARE_LEAD_TIME;
-    }
-
-    if (wait >= 0.2) {
-        // CSS-VERIFY: игра перезапускает раунд не раньше, чем через delay секунд после round_end
-        // (в debug-логе после "prepare:" идёт "round_start: using the teams prepared after round_end").
-        DebugLog("round_end: the round restarts in %.1f s, the teams will be set in %.1f s", g_TerminateDelay, wait);
-        CreateTimer(wait, Timer_PrepareNextRound, g_RoundSerial, TIMER_FLAG_NO_MAPCHANGE);
-    } else {
-        // Задержка неизвестна или слишком мала для таймера (CS_TerminateRound с 0.0-0.1 с):
-        // готовим раунд на следующем кадре.
-        RequestFrame(Frame_PrepareNextRound, g_RoundSerial);
-    }
+    RequestFrame(Frame_PrepareNextRound, g_RoundSerial);
 
     return Plugin_Continue;
 }

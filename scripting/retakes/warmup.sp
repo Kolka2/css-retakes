@@ -287,14 +287,7 @@ public Action Timer_FreePlay(Handle timer) {
  * Blocks the end of the round in free play, so the map is never reset under the players.
  */
 public Action CS_OnTerminateRound(float &delay, CSRoundEndReason &reason) {
-    if (!g_Enabled) {
-        return Plugin_Continue;
-    }
-
-    if (!InFreePlay()) {
-        // Живая игра: раунд заканчивается как обычно, запоминаем только, через сколько будет рестарт.
-        g_TerminateDelay = delay;
-        g_TerminateTime = GetGameTime();
+    if (!g_Enabled || !InFreePlay()) {
         return Plugin_Continue;
     }
 
