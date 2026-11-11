@@ -30,7 +30,7 @@ Retakes для Counter-Strike: Source
 
 ## Спавны
 
-Готовых спавнов нет: файлы оригинала сделаны для карт CS:GO и к картам CS:S не подходят. Их нужно один раз расставить встроенным редактором (нужен админ-флаг смены карты, `g`):
+В комплекте есть спавны только для de_dust2 (`configs/retakes/de_dust2.cfg`, тестовый набор). Для остальных карт их нет: файлы оригинала сделаны для карт CS:GO и к картам CS:S не подходят. Их нужно один раз расставить встроенным редактором (нужен админ-флаг смены карты, `g`):
 
 | Команда | Что делает |
 |---|---|
@@ -182,7 +182,7 @@ The plugin refuses to load on any other game.
 
 ## Spawns
 
-No spawn files are shipped: the original ones were made for the CS:GO maps and do not fit the CS:S maps. Create them once with the built-in editor (map-change admin flag, `g`):
+Spawns are shipped for de_dust2 only (`configs/retakes/de_dust2.cfg`, a test set). There are none for other maps: the original files were made for the CS:GO maps and do not fit the CS:S maps. Create them once with the built-in editor (map-change admin flag, `g`):
 
 | Command | What it does |
 |---|---|

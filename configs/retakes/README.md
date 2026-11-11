@@ -2,7 +2,7 @@
 
 **RU.** Здесь лежат файлы спавнов: по одному на карту, `<имя_карты>.cfg` (на сервере — `addons/sourcemod/configs/retakes/`).
 
-Готовых файлов в комплекте нет. Спавны из оригинального csgo-retakes сделаны для карт CS:GO, и к картам Counter-Strike: Source их координаты не подходят (даже у de_dust2, de_inferno, de_nuke, de_train, de_aztec геометрия другая), поэтому они удалены. Спавны для своих карт нужно расставить встроенным редактором:
+В комплекте есть только `de_dust2.cfg` (тестовый набор для CS:S). Для остальных карт готовых файлов нет. Спавны из оригинального csgo-retakes сделаны для карт CS:GO, и к картам Counter-Strike: Source их координаты не подходят (даже у de_dust2, de_inferno, de_nuke, de_train, de_aztec геометрия другая), поэтому они удалены. Спавны для своих карт нужно расставить встроенным редактором:
 
 1. Зайдите на сервер админом с флагом смены карты (`g`) и напишите в чат `!edit`.
 2. `!show a` / `!show b` — какой бомбплейс редактируется; кольца показывают уже созданные спавны.
@@ -14,7 +14,7 @@
 
 **EN.** One spawn file per map lives here: `<mapname>.cfg` (`addons/sourcemod/configs/retakes/` on the server).
 
-No spawn files are shipped. The ones from the original csgo-retakes were made for the CS:GO maps and do not fit the Counter-Strike: Source maps, so they were removed. Create your own with the built-in editor: `!edit` in chat (map-change admin flag), `!show a|b`, `!new <ct|t> <a|b>` where you stand, `!savespawns`, then `sm_retakes_validatespawns`. Each site needs T spawns inside the bomb target area (the bomb carrier only spawns there), a few more T spawns around it and CT spawns on the rotation routes; the map needs at least `sm_retakes_maxplayers` spawns in total.
+Only `de_dust2.cfg` (a test set for CS:S) is shipped; there are no files for other maps. The ones from the original csgo-retakes were made for the CS:GO maps and do not fit the Counter-Strike: Source maps, so they were removed. Create your own with the built-in editor: `!edit` in chat (map-change admin flag), `!show a|b`, `!new <ct|t> <a|b>` where you stand, `!savespawns`, then `sm_retakes_validatespawns`. Each site needs T spawns inside the bomb target area (the bomb carrier only spawns there), a few more T spawns around it and CT spawns on the rotation routes; the map needs at least `sm_retakes_maxplayers` spawns in total.
 
 ## Формат файла / File format
 
