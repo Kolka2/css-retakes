@@ -350,11 +350,41 @@ public void OnClientDisconnect_Post(int client) {
     UpdateBotQuota(false);
 }
 
+public void Frame_ZeroMoney(int userid) {
+    int client = GetClientOfUserId(userid);
+    if (IsValidClient(client) && g_Enabled && !InFreePlay()) {
+        SetClientMoney(client, 0);
+    }
+}
+
+/**
+ * Blocks every purchase while the game is live: retakes hands out the equipment itself.
+ * Buying stays available in the warmup (and in the spawn editor).
+ */
+public Action CS_OnBuyCommand(int client, const char[] weapon) {
+    if (!g_Enabled || InFreePlay()) {
+        return Plugin_Continue;
+    }
+
+    // CSS-VERIFY: Plugin_Handled в CS_OnBuyCommand отменяет покупку в CS:S (и через меню, и через
+    // консольную команду buy, и у ботов); в раунде ничего купить нельзя, даже стоя в зоне закупки.
+    return Plugin_Handled;
+}
+
 /**
  * Called once a second by Timer_FreePlay (see warmup.sp) while the plugin is enabled.
  */
 public void OnSecondTick() {
     UpdateBotQuota(false);
+
+    // В живой игре денег быть не должно, откуда бы они ни взялись (награды за бомбу, за раунд).
+    if (!InFreePlay()) {
+        for (int i = 1; i <= MaxClients; i++) {
+            if (IsValidClient(i) && IsOnTeam(i)) {
+                SetClientMoney(i, 0);
+            }
+        }
+    }
 
     if (InFreePlay() || InIntermission() || !g_RoundPrepared || !g_TeamsValid || g_hAutoTeamsCvar.IntValue == 0) {
         return;
@@ -659,8 +689,9 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
     }
 
     if (validAttacker) {
-        // награду за убийство не оставляем: закупаться в ретейке нельзя
-        SetClientMoney(attacker, 0);
+        // Награду за убийство не оставляем. Игра начисляет её уже после этого события
+        // (проверено на сервере: $300 оставались), поэтому обнуляем на следующем кадре.
+        RequestFrame(Frame_ZeroMoney, GetClientUserId(attacker));
     }
 
     if (validAttacker && validVictim) {
