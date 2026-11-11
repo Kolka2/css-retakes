@@ -117,6 +117,19 @@ Retakes для Counter-Strike: Source
 - `retakes_pistolallocator` — пистолетные раунды: Glock и USP (с бронёй), P228, Five-SeveN, Desert Eagle, Dual Elites (без брони) или случайный.
 - `retakes_sitepicker` — админ-команда `sm_site a|b|any`: играть только на одном сайте.
 
+### Где хранится выбор оружия
+
+Выбор, сделанный в меню `!guns`, сохраняется штатным механизмом SourceMod — clientprefs (cookie). Он привязан к Steam ID игрока и переживает переподключение, смену карты и перезапуск сервера.
+
+- Данные лежат в базе clientprefs. По умолчанию это файл SQLite `addons/sourcemod/data/sqlite/clientprefs-sqlite.sq3`; другую базу можно указать в `addons/sourcemod/configs/databases.cfg`, секция `clientprefs`.
+- `retakes_standardallocator` хранит три значения: `retakes_ctriflechoice` (винтовка CT), `retakes_triflechoice` (винтовка T), `retakes_awpchoice` (согласие на AWP).
+- `retakes_pistolallocator` хранит одно: `retakes_pistolchoice` (номер пистолета в меню).
+- Значение, которого в CS:S нет (например, оставшееся от CS:GO-версии плагина), заменяется оружием по умолчанию.
+- У ботов сохранённого выбора нет: они всегда получают вариант по умолчанию.
+- Если расширение clientprefs не загружено или база недоступна, выбор действует только до отключения игрока.
+
+Спавны хранятся отдельно, в файлах `addons/sourcemod/configs/retakes/<карта>.cfg` — см. раздел [Спавны](#спавны).
+
 ## Известные ограничения
 
 - Не проверено на живом сервере — см. статус в начале и [PORT/TEST_CHECKLIST.md](PORT/TEST_CHECKLIST.md).
@@ -268,6 +281,19 @@ Optional plugins, installed next to `retakes.smx`. Use only one allocator.
 - `retakes_standardallocator` — rifle choice through `!guns`: CT — M4A1 / AUG / FAMAS, T — AK-47 / SG 552 / Galil; players may opt in for the AWP (one per team at most); armor, helmet and a random grenade for everybody.
 - `retakes_pistolallocator` — pistol rounds: Glock and USP (with armor), P228, Five-SeveN, Desert Eagle, Dual Elites (no armor) or random.
 - `retakes_sitepicker` — admin command `sm_site a|b|any` to play a single site.
+
+### Where weapon choices are stored
+
+A choice made in the `!guns` menu is saved with SourceMod's stock clientprefs mechanism (cookies). It is tied to the player's Steam ID and survives reconnects, map changes and server restarts.
+
+- The data lives in the clientprefs database. By default this is the SQLite file `addons/sourcemod/data/sqlite/clientprefs-sqlite.sq3`; another database can be set in `addons/sourcemod/configs/databases.cfg`, section `clientprefs`.
+- `retakes_standardallocator` stores three values: `retakes_ctriflechoice` (CT rifle), `retakes_triflechoice` (T rifle), `retakes_awpchoice` (AWP opt-in).
+- `retakes_pistolallocator` stores one: `retakes_pistolchoice` (index of the pistol in the menu).
+- A value that does not exist in CS:S (for example one left over from the CS:GO version of the plugin) is replaced by the default weapon.
+- Bots have no saved choice: they always get the default.
+- If the clientprefs extension is not loaded or its database is unavailable, a choice only lasts until the player disconnects.
+
+Spawns are stored separately, in `addons/sourcemod/configs/retakes/<map>.cfg` — see [Spawns](#spawns).
 
 ## Known limitations
 
