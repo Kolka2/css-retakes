@@ -350,13 +350,6 @@ public void OnClientDisconnect_Post(int client) {
     UpdateBotQuota(false);
 }
 
-public void Frame_ZeroMoney(int userid) {
-    int client = GetClientOfUserId(userid);
-    if (IsValidClient(client) && g_Enabled && !InFreePlay()) {
-        SetClientMoney(client, 0);
-    }
-}
-
 /**
  * Blocks every purchase while the game is live: retakes hands out the equipment itself.
  * Buying stays available in the warmup (and in the spawn editor).
@@ -366,8 +359,9 @@ public Action CS_OnBuyCommand(int client, const char[] weapon) {
         return Plugin_Continue;
     }
 
-    // CSS-VERIFY: Plugin_Handled в CS_OnBuyCommand отменяет покупку в CS:S (и через меню, и через
-    // консольную команду buy, и у ботов); в раунде ничего купить нельзя, даже стоя в зоне закупки.
+    // Проверено на сервере CS:S (11.11.2026): покупка отменяется и через меню, и через команду buy.
+    // Поэтому награды за убийства и раунды не обнуляются: они копятся до начала следующего
+    // раунда (там их сбрасывает GiveWeapons), но потратить их не на что.
     return Plugin_Handled;
 }
 
@@ -677,12 +671,6 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
             DebugLog("kill: %N (team %d) died%s", victim, GetClientTeam(victim),
                      InIntermission() ? ", between rounds" : "");
         }
-    }
-
-    if (validAttacker) {
-        // Награду за убийство не оставляем. Игра начисляет её уже после этого события
-        // (проверено на сервере: $300 оставались), поэтому обнуляем на следующем кадре.
-        RequestFrame(Frame_ZeroMoney, GetClientUserId(attacker));
     }
 
     if (validAttacker && validVictim) {
