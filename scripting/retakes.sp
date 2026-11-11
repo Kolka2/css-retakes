@@ -377,15 +377,6 @@ public Action CS_OnBuyCommand(int client, const char[] weapon) {
 public void OnSecondTick() {
     UpdateBotQuota(false);
 
-    // В живой игре денег быть не должно, откуда бы они ни взялись (награды за бомбу, за раунд).
-    if (!InFreePlay()) {
-        for (int i = 1; i <= MaxClients; i++) {
-            if (IsValidClient(i) && IsOnTeam(i)) {
-                SetClientMoney(i, 0);
-            }
-        }
-    }
-
     if (InFreePlay() || InIntermission() || !g_RoundPrepared || !g_TeamsValid || g_hAutoTeamsCvar.IntValue == 0) {
         return;
     }
