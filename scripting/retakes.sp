@@ -58,9 +58,6 @@ ConVar g_hBotsTotal;
 ConVar g_hBotsCarryBomb;
 ConVar g_hDebug;
 
-/** Plugin-managed warmup (CS:S has no mp_warmup_*) **/
-bool g_InWarmup;
-
 /** Editing global variables **/
 bool g_EditMode;
 bool g_DirtySpawns; // whether the spawns have been edited since loading from the file
@@ -275,8 +272,7 @@ public void OnMapStart() {
     PrecacheEditorSprites();
 
     g_EditMode = false;
-    g_InWarmup = false;
-    g_BuyTimeSaved = false;
+    Warmup_OnMapStart();
     CreateTimer(1.0, Timer_ShowSpawns, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
     CreateTimer(1.0, Timer_FreePlay, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 
@@ -286,7 +282,7 @@ public void OnMapStart() {
     ExecConfigs();
 
     // Restart warmup for players to connect.
-    StartWarmup(g_WarmupTimeCvar.IntValue);
+    Warmup_Start(g_WarmupTimeCvar.IntValue);
 }
 
 public void OnMapEnd() {
@@ -449,7 +445,7 @@ public Action Command_JoinTeam(int client, const char[] command, int argc) {
             || (team_from == CS_TEAM_T  && team_to == CS_TEAM_CT)) {
             // В разминке сторону можно менять свободно. Делаем это сами, а не отдаём игре:
             // игра разрешает одну смену команды за раунд, а раунд в разминке не кончается.
-            if (g_InWarmup) {
+            if (Retakes_InWarmup()) {
                 DebugLog("warmup: %L switches team %d -> %d", client, team_from, team_to);
                 SwitchPlayerTeam(client, team_to);
                 CS_RespawnPlayer(client);
@@ -480,7 +476,7 @@ public Action PlacePlayer(int client) {
     GetTeamsClientCounts(tHumanCount, ctHumanCount);
     nPlayers = tHumanCount + ctHumanCount;
 
-    if (g_InWarmup && nPlayers < g_hMaxPlayers.IntValue) {
+    if (Retakes_InWarmup() && nPlayers < g_hMaxPlayers.IntValue) {
         return Plugin_Continue;
     }
 
@@ -539,7 +535,7 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
 
     if (InFreePlay()) {
         // В разминке у всех максимум денег, чтобы не бегать с пистолетами.
-        if (g_InWarmup && !g_EditMode) {
+        if (Retakes_InWarmup() && !g_EditMode) {
             SetClientMoney(client, WARMUP_MONEY);
         }
         return Plugin_Continue;
@@ -1278,7 +1274,7 @@ public Action Command_Warmup(int client, int args) {
     }
 
     if (time <= 0) {
-        if (g_InWarmup) {
+        if (Retakes_InWarmup()) {
             Retakes_MessageToAll("The warmup was ended by an admin.");
             GoLive();
         } else {
@@ -1289,7 +1285,7 @@ public Action Command_Warmup(int client, int args) {
 
     DebugLog("warmup: restarted by %L", client);
     ResetRetakesProgress();
-    StartWarmup(time);
+    Warmup_Start(time);
     ExtendFreePlayRound();
     UpdateBotQuota(false);
     Retakes_MessageToAll("Warmup for {GREEN}%d{NORMAL} seconds. Pick any team.", time);

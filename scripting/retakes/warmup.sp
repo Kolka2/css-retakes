@@ -1,8 +1,18 @@
-// Своя разминка и "свободный режим" редактора.
-// В CS:S нет mp_warmup_* и m_bWarmupPeriod, поэтому разминка - это флаг плагина
-// (g_InWarmup) плюс секундный таймер. Тот же механизм (респаун после смерти,
-// раунд не заканчивается) использует редактор спавнов (g_EditMode), только без отсчёта.
-// Подключается только из retakes.sp.
+// Своя разминка и "свободный режим" редактора. Подключается только из retakes.sp.
+//
+// В CS:S нет mp_warmup_* и m_bWarmupPeriod, поэтому разминку ведёт сам плагин.
+// Файл состоит из двух частей:
+//
+//  1. Разминка. Всё её состояние (флаг, отсчёт, сохранённый mp_buytime) объявлено static
+//     и снаружи недоступно. Интерфейс - три функции:
+//       Warmup_Start(seconds)  - начать разминку;
+//       Warmup_End()           - закончить её (без рестарта игры, это делает GoLive);
+//       Warmup_IsActive()      - идёт ли разминка.
+//     Весь остальной код плагина узнаёт о разминке только через натив Retakes_InWarmup().
+//     Warmup_OnMapStart() - служебный сброс состояния при смене карты.
+//
+//  2. Свободный режим: респаун после смерти и раунд, который не заканчивается.
+//     Им пользуются и разминка, и редактор спавнов (g_EditMode).
 
 #define FREEPLAY_ROUND_TIME 3600     // запас времени раунда в свободном режиме, секунды
 #define FREEPLAY_RESPAWN_DELAY 1.5   // через сколько секунд после смерти респаунить
@@ -11,10 +21,63 @@
 #define WARMUP_MONEY 16000           // деньги в разминке (максимум CS:S)
 #define WARMUP_BUYTIME 1440.0        // mp_buytime на время разминки, минуты
 
-int g_WarmupTimeLeft;
-ConVar g_hBuyTimeCvar;
-bool g_BuyTimeSaved;
-float g_SavedBuyTime;
+/***********************
+ *                     *
+ *      Разминка       *
+ *                     *
+ ***********************/
+
+static bool g_WarmupActive;
+static int g_WarmupTimeLeft;
+static ConVar g_hBuyTimeCvar;
+static bool g_BuyTimeSaved;
+static float g_SavedBuyTime;
+
+/**
+ * Returns if the plugin-managed warmup is running.
+ * Code outside of this file should use the Retakes_InWarmup() native instead.
+ */
+bool Warmup_IsActive() {
+    return g_WarmupActive;
+}
+
+/**
+ * Starts the plugin-managed warmup. A non-positive time skips the warmup.
+ */
+void Warmup_Start(int time) {
+    if (time <= 0) {
+        g_WarmupActive = false;
+        return;
+    }
+
+    g_WarmupActive = true;
+    g_WarmupTimeLeft = time;
+
+    // Тем, кто уже в игре (разминка запущена командой), деньги выдаём сразу.
+    for (int i = 1; i <= MaxClients; i++) {
+        if (IsValidClient(i) && IsOnTeam(i)) {
+            SetClientMoney(i, WARMUP_MONEY);
+        }
+    }
+    DebugLog("warmup: started, %d seconds", time);
+}
+
+/**
+ * Ends the warmup and puts back what it changed. Does not restart the game: see GoLive().
+ */
+void Warmup_End() {
+    g_WarmupActive = false;
+    RestoreBuyTime();
+}
+
+/**
+ * Forgets the warmup state on a map change. Unlike Warmup_End() this leaves mp_buytime
+ * alone: retakes_game.cfg is about to be executed and sets it anyway.
+ */
+void Warmup_OnMapStart() {
+    g_WarmupActive = false;
+    g_BuyTimeSaved = false;
+}
 
 /**
  * Keeps the buy time open during the warmup: the warmup is one endless round, and with
@@ -43,12 +106,63 @@ static void ExtendWarmupBuyTime() {
 /**
  * Puts mp_buytime back after the warmup.
  */
-stock void RestoreBuyTime() {
+static void RestoreBuyTime() {
     if (g_BuyTimeSaved && g_hBuyTimeCvar != null) {
         g_hBuyTimeCvar.SetFloat(g_SavedBuyTime);
     }
     g_BuyTimeSaved = false;
 }
+
+static int GetHumanCount() {
+    int count = 0;
+    for (int i = 1; i <= MaxClients; i++) {
+        if (IsPlayer(i)) {
+            count++;
+        }
+    }
+    return count;
+}
+
+/**
+ * One second of the warmup: keeps buying open and drives the countdown.
+ * Called by Timer_FreePlay while the warmup is active and the editor is closed.
+ */
+static void Warmup_Tick() {
+    ExtendWarmupBuyTime();
+
+    if (GetHumanCount() == 0) {
+        // Без людей разминка не заканчивается: первый зашедший получает её целиком.
+        g_WarmupTimeLeft = g_WarmupTimeCvar.IntValue;
+        return;
+    }
+
+    if (g_WarmupTimeLeft <= 0) {
+        GoLive();
+        return;
+    }
+
+    // Если на сервере остался старый файл переводов без этой фразы, показываем английский текст,
+    // а не сыплем ошибками каждую секунду.
+    bool translated = TranslationPhraseExists("WarmupTimeLeft");
+    for (int i = 1; i <= MaxClients; i++) {
+        if (!IsPlayer(i)) {
+            continue;
+        }
+        if (translated) {
+            PrintHintText(i, "%t", "WarmupTimeLeft", g_WarmupTimeLeft);
+        } else {
+            PrintHintText(i, "Warmup: %d sec", g_WarmupTimeLeft);
+        }
+    }
+    g_WarmupTimeLeft--;
+}
+
+/***********************
+ *                     *
+ *   Свободный режим   *
+ *                     *
+ ***********************/
+
 float g_LastDeathTime[MAXPLAYERS+1];
 bool g_RoundTimePropMissingLogged;
 
@@ -57,7 +171,7 @@ bool g_RoundTimePropMissingLogged;
  * Players respawn after dying and the round never ends.
  */
 stock bool InFreePlay() {
-    return g_InWarmup || g_EditMode;
+    return Retakes_InWarmup() || g_EditMode;
 }
 
 /**
@@ -101,34 +215,12 @@ stock void ExtendFreePlayRound() {
 }
 
 /**
- * Starts the plugin-managed warmup. A non-positive time skips the warmup.
- */
-public void StartWarmup(int time) {
-    if (time <= 0) {
-        g_InWarmup = false;
-        return;
-    }
-
-    g_InWarmup = true;
-    g_WarmupTimeLeft = time;
-
-    // Тем, кто уже в игре (разминка запущена командой), деньги выдаём сразу.
-    for (int i = 1; i <= MaxClients; i++) {
-        if (IsValidClient(i) && IsOnTeam(i)) {
-            SetClientMoney(i, WARMUP_MONEY);
-        }
-    }
-    DebugLog("warmup: started, %d seconds", time);
-}
-
-/**
  * Ends the warmup/edit mode and restarts the game, the first retake follows the restart.
  */
 public void GoLive() {
-    DebugLog("warmup: going live (warmup: %d, edit mode: %d), restarting the game", g_InWarmup, g_EditMode);
-    g_InWarmup = false;
+    DebugLog("warmup: going live (warmup: %d, edit mode: %d), restarting the game", Retakes_InWarmup(), g_EditMode);
+    Warmup_End();
     g_EditMode = false;
-    RestoreBuyTime();
     // Раунд после рестарта подготовит Event_RoundStart: round_end при mp_restartgame может не прийти.
     g_PreparePending = false;
     g_RoundPrepared = false;
@@ -164,16 +256,6 @@ static void RespawnDeadPlayers() {
     }
 }
 
-static int GetHumanCount() {
-    int count = 0;
-    for (int i = 1; i <= MaxClients; i++) {
-        if (IsPlayer(i)) {
-            count++;
-        }
-    }
-    return count;
-}
-
 /**
  * Runs every second for the whole map: drives the warmup countdown and the free play respawns.
  */
@@ -196,34 +278,8 @@ public Action Timer_FreePlay(Handle timer) {
         return Plugin_Continue;
     }
 
-    ExtendWarmupBuyTime();
-
-    if (GetHumanCount() == 0) {
-        // Без людей разминка не заканчивается: первый зашедший получает её целиком.
-        g_WarmupTimeLeft = g_WarmupTimeCvar.IntValue;
-        return Plugin_Continue;
-    }
-
-    if (g_WarmupTimeLeft <= 0) {
-        GoLive();
-        return Plugin_Continue;
-    }
-
-    // Если на сервере остался старый файл переводов без этой фразы, показываем английский текст,
-    // а не сыплем ошибками каждую секунду.
-    bool translated = TranslationPhraseExists("WarmupTimeLeft");
-    for (int i = 1; i <= MaxClients; i++) {
-        if (!IsPlayer(i)) {
-            continue;
-        }
-        if (translated) {
-            PrintHintText(i, "%t", "WarmupTimeLeft", g_WarmupTimeLeft);
-        } else {
-            PrintHintText(i, "Warmup: %d sec", g_WarmupTimeLeft);
-        }
-    }
-    g_WarmupTimeLeft--;
-
+    // Свободный режим без редактора - это разминка.
+    Warmup_Tick();
     return Plugin_Continue;
 }
 
