@@ -39,6 +39,7 @@ Retakes для Counter-Strike: Source
 | `!new ct a`, `!new t b` … | создать спавн там, где стоите (взгляд сохраняется); через меню можно выбрать тип T-спавна |
 | `!delete` | удалить ближайший спавн |
 | `!goto 10`, `!nearest` | телепорт к спавну по номеру / к ближайшему |
+| `!next`, `!prev` | телепорт к следующему / предыдущему спавну по порядку номеров, по кругу; то же есть в меню `!edit` |
 | `sm_iteratespawns` | по очереди облететь все спавны |
 | `!savespawns`, `!reloadspawns` | сохранить / перечитать из файла, отбросив изменения |
 | `sm_deletemapspawns` | удалить все спавны карты |
@@ -204,6 +205,7 @@ Spawns are shipped for de_dust2 only (`configs/retakes/de_dust2.cfg`, a test set
 | `!new ct a`, `!new t b` … | create a spawn where you stand (the view angle is saved); the menu also lets you pick the T spawn type |
 | `!delete` | delete the nearest spawn |
 | `!goto 10`, `!nearest` | teleport to a spawn by index / to the nearest one |
+| `!next`, `!prev` | teleport to the next / previous spawn in index order, wrapping around; also in the `!edit` menu |
 | `sm_iteratespawns` | visit every spawn in turn |
 | `!savespawns`, `!reloadspawns` | save / reload from the file, discarding changes |
 | `sm_deletemapspawns` | delete all spawns of the map |

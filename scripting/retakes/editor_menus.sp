@@ -6,6 +6,8 @@ stock void GiveEditorMenu(int client, int menuPosition=-1) {
     AddMenuOption(menu, "change_site", "Showing bombsite: %s", SITESTRING(g_EditingSite));
     AddMenuOption(menu, "add_spawn", "Add a spawn");
     AddMenuOption(menu, "goto_nearest_spawn", "Go to nearest spawn");
+    AddMenuOption(menu, "goto_next_spawn", "Go to next spawn");
+    AddMenuOption(menu, "goto_prev_spawn", "Go to previous spawn");
     AddMenuOption(menu, "delete_nearest_spawn", "Delete nearest spawn");
     AddMenuOption(menu, "save_spawns", "Save spawns");
     AddMenuOption(menu, "delete_map_spawns", "Delete all map spawns");
@@ -43,6 +45,14 @@ public int EditorMenuHandler(Menu menu, MenuAction action, int param1, int param
             } else {
                 Retakes_Message(client, "No spawns found");
             }
+            GiveEditorMenu(client, menuPosition);
+
+        } else if (StrEqual(choice, "goto_next_spawn")) {
+            StepToSpawnInEditor(client, 1);
+            GiveEditorMenu(client, menuPosition);
+
+        } else if (StrEqual(choice, "goto_prev_spawn")) {
+            StepToSpawnInEditor(client, -1);
             GiveEditorMenu(client, menuPosition);
 
         }else if (StrEqual(choice, "delete_nearest_spawn")) {

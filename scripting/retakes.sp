@@ -205,6 +205,10 @@ public void OnPluginStart() {
     RegAdminCmd("sm_show", Command_Show, ADMFLAG_CHANGEMAP, "Shows all retakes spawns in a bombsite");
     RegAdminCmd("sm_goto", Command_GotoSpawn, ADMFLAG_CHANGEMAP, "Goes to a retakes spawn");
     RegAdminCmd("sm_nearest", Command_GotoNearestSpawn, ADMFLAG_CHANGEMAP, "Goes to nearest retakes spawn");
+    RegAdminCmd("sm_next", Command_NextSpawn, ADMFLAG_CHANGEMAP, "Goes to the next retakes spawn (by number)");
+    RegAdminCmd("sm_nextspawn", Command_NextSpawn, ADMFLAG_CHANGEMAP, "Goes to the next retakes spawn (by number)");
+    RegAdminCmd("sm_prev", Command_PrevSpawn, ADMFLAG_CHANGEMAP, "Goes to the previous retakes spawn (by number)");
+    RegAdminCmd("sm_prevspawn", Command_PrevSpawn, ADMFLAG_CHANGEMAP, "Goes to the previous retakes spawn (by number)");
 
     RegAdminCmd("sm_iteratespawns", Command_IterateSpawns, ADMFLAG_CHANGEMAP);
     RegAdminCmd("sm_reloadspawns", Command_ReloadSpawns, ADMFLAG_CHANGEMAP, "Reloads retakes spawns for the current map, discarding changes");
@@ -404,6 +408,7 @@ public void ResetClientVariables(int client) {
     g_RoundPoints[client] = -POINTS_LOSS;
     g_LastDeathTime[client] = 0.0;
     g_GunsHintShown[client] = false;
+    g_EditorCursor[client] = -1;
 }
 
 public Action Command_ScrambleTeams(int client, int args) {

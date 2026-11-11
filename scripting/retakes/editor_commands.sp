@@ -235,3 +235,28 @@ public Action Command_GotoNearestSpawn(int client, int args) {
 
     return Plugin_Handled;
 }
+
+static Action StepSpawnCommand(int client, int direction) {
+    if (g_hEditorEnabled.IntValue == 0) {
+        Retakes_Message(client, "The editor is currently disabled.");
+        return Plugin_Handled;
+    }
+
+    if (!g_EditMode) {
+        Retakes_Message(client, "You are not in edit mode.");
+        return Plugin_Handled;
+    }
+
+    if (IsPlayer(client)) {
+        StepToSpawnInEditor(client, direction);
+    }
+    return Plugin_Handled;
+}
+
+public Action Command_NextSpawn(int client, int args) {
+    return StepSpawnCommand(client, 1);
+}
+
+public Action Command_PrevSpawn(int client, int args) {
+    return StepSpawnCommand(client, -1);
+}

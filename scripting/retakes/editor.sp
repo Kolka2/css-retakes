@@ -1,6 +1,7 @@
 int g_iBeamSprite = 0;
 int g_iHaloSprite = 0;
 Bombsite g_EditingSite = BombsiteA;
+int g_EditorCursor[MAXPLAYERS+1] = {-1, ...}; // спавн, у которого редактор был последним (для !next / !prev)
 
 /**
  * Precaches the sprites the editor draws the spawns with. Called on every map start.
@@ -216,8 +217,46 @@ public void DeleteMapSpawns() {
 }
 
 public void MoveToSpawnInEditor(int client, int spawnIndex) {
+    g_EditorCursor[client] = spawnIndex;
     TeleportEntity(client, g_SpawnPoints[spawnIndex], g_SpawnAngles[spawnIndex], NULL_VECTOR);
     Retakes_Message(client, "Teleporting to spawn {GREEN}%d", spawnIndex);
     Retakes_Message(client, "   Team: {MOSS_GREEN}%s", TEAMSTRING(g_SpawnTeams[spawnIndex]));
     Retakes_Message(client, "   Site: {MOSS_GREEN}%s", SITESTRING(g_SpawnSites[spawnIndex]));
+}
+
+/**
+ * Teleports the editor to the next (direction 1) or the previous (direction -1) spawn,
+ * simply by spawn number, wrapping around at the ends. Deleted spawns are skipped.
+ * The walk starts from the spawn the client visited last (any teleport command sets it).
+ * Этой команды нет в оригинальном плагине, добавлена по просьбе владельца.
+ */
+public void StepToSpawnInEditor(int client, int direction) {
+    if (g_NumSpawns <= 0) {
+        Retakes_Message(client, "No spawns found");
+        return;
+    }
+
+    int index = g_EditorCursor[client];
+    if (index < 0 || index >= g_NumSpawns) {
+        // ещё нигде не были: "следующий" - это первый спавн, "предыдущий" - последний
+        index = (direction > 0) ? -1 : 0;
+    }
+
+    for (int step = 0; step < g_NumSpawns; step++) {
+        index += direction;
+        if (index >= g_NumSpawns) {
+            index = 0;
+        } else if (index < 0) {
+            index = g_NumSpawns - 1;
+        }
+
+        if (IsValidSpawn(index)) {
+            // показываем кольца того сайта, к которому относится спавн
+            g_EditingSite = g_SpawnSites[index];
+            MoveToSpawnInEditor(client, index);
+            return;
+        }
+    }
+
+    Retakes_Message(client, "No spawns found");
 }
