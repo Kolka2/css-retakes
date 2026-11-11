@@ -293,6 +293,11 @@ public void GiveWeapons(int client) {
     // C4 здесь не выдаётся: этим после спавна всех игроков занимается FixBomb().
 }
 
+#define SELECT_BOMB_WINDOW 3.0   // сколько секунд после выдачи бомбы пытаться дать её в руки
+
+int g_SelectBombClient = -1;     // человек-бомбер, которому нужно достать C4
+float g_SelectBombUntil;
+
 /**
  * Returns the weapon_c4 entity carried by a client, or -1.
  */
@@ -320,6 +325,8 @@ stock int GetClientC4(int client) {
  * random terrorist (after the players have spawned), so this runs shortly after round_start.
  */
 public void FixBomb() {
+    g_SelectBombClient = -1;
+
     // Бомбер мог выйти между подготовкой раунда и его началом - берём другого живого T.
     if (!IsValidClient(g_BombOwner) || !IsPlayerAlive(g_BombOwner) || GetClientTeam(g_BombOwner) != CS_TEAM_T) {
         g_BombOwner = PickBombOwner();
@@ -372,25 +379,54 @@ public void FixBomb() {
         DebugLog("bomb: %L already has the C4", g_BombOwner);
     }
 
-    // Человеку-бомберу через секунду достаём C4 в руки. Ботам не нужно: они ставят бомбу сами.
+    // Человеку-бомберу сразу достаём C4 в руки. Ботам не нужно: они ставят бомбу сами.
     if (!IsFakeClient(g_BombOwner)) {
-        CreateTimer(1.0, Timer_SelectBomb, GetClientSerial(g_BombOwner), TIMER_FLAG_NO_MAPCHANGE);
+        g_SelectBombClient = g_BombOwner;
+        g_SelectBombUntil = GetGameTime() + SELECT_BOMB_WINDOW;
     }
 }
 
-public Action Timer_SelectBomb(Handle timer, int serial) {
-    int client = GetClientFromSerial(serial);
-    if (client == 0 || client != g_BombOwner || g_bombPlanted || !Retakes_Live()) {
-        return Plugin_Handled;
+/**
+ * Puts the C4 into the hands of the human bomb carrier.
+ *
+ * Weapon selection in Source is driven by the client: the "use"/"slotN" commands are
+ * client-side, so FakeClientCommand(client, "use weapon_c4") does nothing on the server
+ * (checked on a live CS:S server). The supported server-side way is to fill the
+ * weapon-select field of the player's user command, which is what this hook does for
+ * a short time after the bomb was handed out.
+ */
+public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3],
+                             int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2]) {
+    if (client != g_SelectBombClient) {
+        return Plugin_Continue;
     }
 
-    if (IsPlayerAlive(client) && GetClientC4(client) != -1) {
-        // CSS-VERIFY: серверная команда "use weapon_c4" переключает игрока на C4 (в CS:GO для этого
-        // плагин нажимал за игрока IN_USE, в CS:S так не работает). Если нет - попробовать ClientCommand "slot5".
-        FakeClientCommand(client, "use weapon_c4");
+    if (GetGameTime() > g_SelectBombUntil || g_bombPlanted || client != g_BombOwner || !IsPlayerAlive(client)) {
+        g_SelectBombClient = -1;
+        return Plugin_Continue;
     }
 
-    return Plugin_Handled;
+    int c4 = GetClientC4(client);
+    if (c4 == -1) {
+        g_SelectBombClient = -1;
+        return Plugin_Continue;
+    }
+
+    if (GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon") == c4) {
+        DebugLog("bomb: %L now holds the C4", client);
+        g_SelectBombClient = -1;
+        return Plugin_Continue;
+    }
+
+    // Если игрок в этот же тик сам выбирает оружие, не мешаем ему.
+    if (weapon != 0) {
+        return Plugin_Continue;
+    }
+
+    // CSS-VERIFY: подстановка weapon в OnPlayerRunCmd переключает человека на C4 в начале раунда
+    // (в том числе во время фризтайма), после чего он может свободно менять оружие.
+    weapon = c4;
+    return Plugin_Changed;
 }
 
 public bool InsideBombSite(float vec[3]) {
