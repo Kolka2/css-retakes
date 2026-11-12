@@ -20,6 +20,7 @@ Retakes для Counter-Strike: Source
 1. Соберите плагины (`./build.sh`, см. [Сборка](#сборка)) или возьмите готовые `build/*.smx`.
 2. Скопируйте на сервер, в каталог `cstrike/`:
    - `build/retakes.smx` → `addons/sourcemod/plugins/`
+   - `build/warmup.smx` → `addons/sourcemod/plugins/` (необязательно: без него не будет разминки, см. [Плагин разминки](#плагин-разминки-warmup))
    - `translations/` → `addons/sourcemod/translations/`
    - `cfg/sourcemod/retakes/` → `cfg/sourcemod/retakes/`
    - `configs/retakes/` → `addons/sourcemod/configs/retakes/`
@@ -65,7 +66,7 @@ Retakes для Counter-Strike: Source
 
 ## Как идёт игра
 
-- **Разминка.** После старта карты идёт разминка (`sm_retakes_warmuptime` секунд): свободный выбор и смена команды, у всех 16000 денег и закупка открыта всё время, респаун через пару секунд после смерти, раунд не заканчивается. Отсчёт идёт, только когда на сервере есть хотя бы один человек. В CS:S нет встроенной разминки, её ведёт сам плагин.
+- **Разминка.** После старта карты идёт разминка (`sm_retakes_warmuptime` секунд). Её ведёт отдельный плагин `warmup.smx` (см. [Плагин разминки](#плагин-разминки-warmup)); Retakes только запускает её и, пока она идёт, ни во что не вмешивается: не расставляет команды и спавны, не ведёт очередь, не трогает деньги и бомбу, не выдаёт оружие. Когда разминка заканчивается, начинается первый ретейк. Без `warmup.smx` разминки нет.
 - **Команды.** После разминки командами управляет плагин. Зашедший игрок попадает в очередь (наблюдатели) и входит в игру со следующего раунда. Доля T задаётся `sm_retakes_ratio_constant`. За раунд начисляются очки (урон, убийства, бомба, победа); лучшие по очкам играют следующий раунд за T. После `sm_retakes_scramble_rounds` побед T подряд команды перемешиваются.
 - **Раунд.** Плагин выбирает сайт, ставит игроков на спавны, выдаёт оружие, броню и кусачки и обнуляет деньги — закупаться нельзя. Бомба у одного T, который стоит на бомбплейсе; на установку даётся `sm_retakes_round_time` секунд, иначе побеждают CT.
 - **Оружие.** Без аллокатора: T — AK-47 и Glock, CT — M4A1 и USP, у всех броня с каской. Команда `!guns` открывает меню аллокатора, если он установлен; в этом случае зашедшему игроку один раз за подключение показывается подсказка о ней.
@@ -93,7 +94,7 @@ Retakes для Counter-Strike: Source
 | `sm_retakes_maxplayers` | `9` | максимум участников раунда (люди + боты) |
 | `sm_retakes_ratio_constant` | `0.425` | доля участников, играющих за T |
 | `sm_retakes_round_time` | `12` | сколько секунд у T на установку бомбы |
-| `sm_retakes_warmuptime` | `25` | длительность разминки на старте карты, секунды; `0` — без разминки |
+| `sm_retakes_warmuptime` | `25` | длительность разминки на старте карты, секунды; `0` — без разминки. Нужен `warmup.smx`; остальные настройки разминки — его квары `sm_warmup_*` |
 | `sm_retakes_scramble_rounds` | `10` | после скольких побед T подряд перемешать команды; `0` — никогда |
 | `sm_retakes_random_teams` | `0` | `1` — случайные команды каждый раунд |
 | `sm_retakes_auto_set_teams` | `1` | `0` — плагин не трогает команды (игроки и боты остаются там, куда зашли) |
@@ -108,7 +109,7 @@ Retakes для Counter-Strike: Source
 
 - `sm_guns` / `!guns` — меню оружия;
 - `sm_scramble` — перемешать команды со следующего раунда (админ);
-- `sm_retakes_warmup [секунды]` — запустить разминку без смены карты и обнулить прогресс: очки, серию побед, счётчик раундов (админ). Без числа берётся `sm_retakes_warmuptime`, `0` — сразу закончить разминку. В редакторе спавнов не работает.
+- `sm_retakes_warmup [секунды]` — запустить разминку без смены карты и обнулить прогресс Retakes: очки, серию побед, счётчик раундов (админ). Без числа берётся `sm_retakes_warmuptime`, `0` — сразу закончить разминку. Нужен `warmup.smx`; в редакторе спавнов не работает.
 
 ## Аддоны
 
@@ -131,6 +132,46 @@ Retakes для Counter-Strike: Source
 
 Спавны хранятся отдельно, в файлах `addons/sourcemod/configs/retakes/<карта>.cfg` — см. раздел [Спавны](#спавны).
 
+## Плагин разминки (warmup)
+
+`warmup.smx` — отдельный общий плагин разминки для CS:S. Он не привязан к Retakes: его может использовать любой режим через `scripting/include/warmup.inc`, и он работает сам по себе (`sm_warmup_autostart 1`). Retakes использует его как необязательную зависимость: без `warmup.smx` разминки просто нет и карта начинается сразу с ретейка.
+
+Что происходит в разминке:
+
+- раунд не заканчивается, убитые появляются снова через `sm_warmup_respawn_time` секунд;
+- у всех $16000 при появлении и снова после каждой покупки, закупка открыта всё время (плагин на время разминки поднимает `mp_buytime`);
+- бомбы нет: C4 убирается у игроков, с земли и установленная;
+- команду можно выбирать и менять свободно, в том числе переходить между T и CT;
+- разминка заканчивается по таймеру и/или когда набралось нужное число людей, после чего игра перезапускается.
+
+Все игровые квары, которые плагин меняет на время разминки, запоминаются при её старте и возвращаются при её конце, при смене карты и при выгрузке плагина.
+
+Квары лежат в `cfg/sourcemod/warmup.cfg` (создаётся при первом запуске):
+
+| Квар | По умолчанию | Описание |
+|---|---|---|
+| `sm_warmup_enabled` | `1` | можно ли вообще запускать разминку; `0` также завершает идущую |
+| `sm_warmup_autostart` | `0` | `1` — запускать разминку на старте каждой карты. Оставьте `0`, если разминку запускает режим (Retakes делает это сам по `sm_retakes_warmuptime`) |
+| `sm_warmup_time` | `25` | длительность по умолчанию, секунды; `0` — без ограничения по времени. Используется автозапуском и командой `sm_warmup` без аргумента |
+| `sm_warmup_min_players` | `1` | сколько людей нужно на сервере. Если время ограничено, отсчёт идёт только пока их не меньше (и начинается заново, если стало меньше). Если время не ограничено, разминка заканчивается, как только их набралось. `0` — людей не ждать |
+| `sm_warmup_respawn_time` | `1.5` | через сколько секунд после смерти игрок появляется снова |
+| `sm_warmup_infinite_money` | `1` | `1` — $16000 при появлении и после каждой покупки; `0` — деньги не трогать |
+| `sm_warmup_buy_anywhere` | `0` | `1` — покупать можно в любой точке карты, а не только в зоне закупки. На живом сервере не проверено |
+| `sm_warmup_restart_delay` | `1` | через сколько секунд после конца разминки перезапускается игра (`mp_restartgame`); `0` — не перезапускать |
+
+Время и число людей сочетаются так:
+
+| `sm_warmup_time` | `sm_warmup_min_players` | Когда заканчивается разминка |
+|---|---|---|
+| > 0 | > 0 | через заданное время, которое идёт только пока людей достаточно |
+| > 0 | 0 | через заданное время, которое идёт пока на сервере есть хотя бы один человек |
+| 0 | > 0 | как только набралось нужное число людей |
+| 0 | 0 | только по команде `sm_warmup_end` или по вызову режима |
+
+Админ-команды (флаг смены карты): `sm_warmup [секунды]` — начать или перезапустить разминку (`0` — без ограничения по времени, без аргумента — `sm_warmup_time`); `sm_warmup_end` — закончить.
+
+Для разработчиков режимов — `scripting/include/warmup.inc`: нативы `Warmup_IsActive()`, `Warmup_Start(seconds)`, `Warmup_End(restartGame)` и форварды `Warmup_OnStart`, `Warmup_OnEnding` (верните `Plugin_Handled`, чтобы продлить разминку; спрашивается заново каждую секунду), `Warmup_OnEnd(reason)`.
+
 ## Известные ограничения
 
 - Не проверено на живом сервере — см. статус в начале и [PORT/TEST_CHECKLIST.md](PORT/TEST_CHECKLIST.md).
@@ -145,7 +186,7 @@ Retakes для Counter-Strike: Source
 
 API аддонов описан в [scripting/include/retakes.inc](scripting/include/retakes.inc) и совпадает с оригинальным (имена нативов, форвардов и кваров не менялись). Отличия:
 
-- `Retakes_InWarmup()` возвращает флаг разминки плагина, а не состояние игры;
+- `Retakes_InWarmup()` возвращает `Warmup_IsActive()` плагина `warmup`, если он загружен, иначе всегда `false` (а не состояние игры, как в CS:GO);
 - списки игроков в форвардах (`Retakes_OnTeamsSet`, `Retakes_OnWeaponsAllocated`, `Retakes_OnRoundWon`) и очередь рангов содержат ботов; `Retakes_IsJoined()` для бота в команде возвращает `true`;
 - оружие — классы CS:S (`weapon_usp`, `weapon_p228`, `weapon_sg552`, `weapon_galil`, `weapon_famas`, …), гранаты — только `h`, `f`, `s`.
 
@@ -186,6 +227,7 @@ The plugin refuses to load on any other game.
 1. Build the plugins (`./build.sh`) or take the prebuilt `build/*.smx`.
 2. Copy to the server's `cstrike/` directory:
    - `build/retakes.smx` → `addons/sourcemod/plugins/`
+   - `build/warmup.smx` → `addons/sourcemod/plugins/` (optional: without it there is no warmup, see [Warmup plugin](#warmup-plugin))
    - `translations/` → `addons/sourcemod/translations/`
    - `cfg/sourcemod/retakes/` → `cfg/sourcemod/retakes/`
    - `configs/retakes/` → `addons/sourcemod/configs/retakes/`
@@ -231,7 +273,7 @@ Leave the editor with "Exit edit mode" in the `!edit` menu; the game restarts. S
 
 ## How it plays
 
-- **Warmup.** A warmup of `sm_retakes_warmuptime` seconds follows the map start: players freely pick and change teams, everybody has $16000 and can buy the whole time, respawn a couple of seconds after death, the round never ends. The countdown only runs while at least one human is on the server. CS:S has no built-in warmup, the plugin runs its own.
+- **Warmup.** A warmup of `sm_retakes_warmuptime` seconds follows the map start. It is run by the separate `warmup.smx` plugin (see [Warmup plugin](#warmup-plugin)); Retakes only starts it and stays out of the way while it runs: no teams or spawns, no waiting queue, no money or bomb handling, no weapon allocation. When the warmup ends the first retake begins. Without `warmup.smx` there is no warmup.
 - **Teams.** After the warmup the plugin manages the teams. A joining player is put in the waiting queue (spectators) and enters the game on the next round. The share of terrorists is `sm_retakes_ratio_constant`. Players earn round points (damage, kills, bomb, winning); the top scorers play the next round as T. After `sm_retakes_scramble_rounds` T wins in a row the teams are scrambled.
 - **Round.** The plugin picks a site, moves the players to the spawns, gives weapons, armor and defuse kits and zeroes the money — there is no buying. One T standing in the bombsite has the bomb and `sm_retakes_round_time` seconds to plant it, otherwise the CTs win.
 - **Weapons.** Without an allocator: T — AK-47 and Glock, CT — M4A1 and USP, armor and helmet for everybody. `!guns` opens the allocator menu if one is installed; in that case a joining player is told about it once per connection.
@@ -259,7 +301,7 @@ Stored in `cfg/sourcemod/retakes/retakes.cfg`.
 | `sm_retakes_maxplayers` | `9` | maximum number of participants in a round (humans + bots) |
 | `sm_retakes_ratio_constant` | `0.425` | share of the participants that play as T |
 | `sm_retakes_round_time` | `12` | seconds the terrorists have to plant the bomb |
-| `sm_retakes_warmuptime` | `25` | warmup length on map start, seconds; `0` disables the warmup |
+| `sm_retakes_warmuptime` | `25` | warmup length on map start, seconds; `0` disables the warmup. Needs `warmup.smx`; everything else about the warmup is set with its `sm_warmup_*` cvars |
 | `sm_retakes_scramble_rounds` | `10` | consecutive T wins that cause a team scramble; `0` — never |
 | `sm_retakes_random_teams` | `0` | `1` — random teams every round |
 | `sm_retakes_auto_set_teams` | `1` | `0` — the plugin does not touch the teams |
@@ -274,7 +316,7 @@ Other commands:
 
 - `sm_guns` / `!guns` — weapon menu;
 - `sm_scramble` — scramble the teams on the next round (admin);
-- `sm_retakes_warmup [seconds]` — start the warmup without changing the map and reset the progress: round points, win streak, round counter (admin). Without a number `sm_retakes_warmuptime` is used, `0` ends the warmup right away. Does not work in the spawn editor.
+- `sm_retakes_warmup [seconds]` — start a warmup without changing the map and reset the Retakes progress: round points, win streak, round counter (admin). Without a number `sm_retakes_warmuptime` is used, `0` ends the warmup right away. Needs `warmup.smx`; does not work in the spawn editor.
 
 ## Addon plugins
 
@@ -297,6 +339,46 @@ A choice made in the `!guns` menu is saved with SourceMod's stock clientprefs me
 
 Spawns are stored separately, in `addons/sourcemod/configs/retakes/<map>.cfg` — see [Spawns](#spawns).
 
+## Warmup plugin
+
+`warmup.smx` is a separate, general-purpose warmup plugin for CS:S. It is not tied to Retakes: any game mode can use it through `scripting/include/warmup.inc`, and it also works on its own (`sm_warmup_autostart 1`). Retakes uses it as an optional dependency: without `warmup.smx` there is simply no warmup and the map starts with a retake round.
+
+During a warmup:
+
+- the round never ends, the dead respawn after `sm_warmup_respawn_time` seconds;
+- everybody has $16000 on spawn and again after every purchase, and buying stays open the whole time (the plugin raises `mp_buytime` for the duration);
+- there is no bomb: the C4 is removed from players, from the ground and when planted;
+- players pick and change teams freely, including T <-> CT;
+- the warmup ends by time and/or when enough humans have joined, then the game restarts.
+
+Every game cvar the plugin changes for the warmup is remembered when the warmup starts and restored when it ends, on a map change and when the plugin is unloaded.
+
+The cvars are stored in `cfg/sourcemod/warmup.cfg` (generated on the first run):
+
+| Cvar | Default | Description |
+|---|---|---|
+| `sm_warmup_enabled` | `1` | whether warmups can be started at all; `0` also ends a running one |
+| `sm_warmup_autostart` | `0` | `1` — start a warmup on every map start. Leave at `0` when a game mode starts it (Retakes does, using `sm_retakes_warmuptime`) |
+| `sm_warmup_time` | `25` | default length in seconds; `0` — no time limit. Used by the autostart and by `sm_warmup` without an argument |
+| `sm_warmup_min_players` | `1` | humans needed on the server. With a time limit the countdown only runs while at least this many are present (and starts over if there are fewer). Without a time limit the warmup ends as soon as this many are present. `0` — do not wait for players |
+| `sm_warmup_respawn_time` | `1.5` | seconds between a death and the respawn |
+| `sm_warmup_infinite_money` | `1` | `1` — $16000 on spawn and after every purchase; `0` — leave the money alone |
+| `sm_warmup_buy_anywhere` | `0` | `1` — players can buy anywhere on the map, not only in the buy zones. Not verified on a live server |
+| `sm_warmup_restart_delay` | `1` | seconds until the game restarts after the warmup (`mp_restartgame`); `0` — do not restart |
+
+How the time and the player count combine:
+
+| `sm_warmup_time` | `sm_warmup_min_players` | When the warmup ends |
+|---|---|---|
+| > 0 | > 0 | after the given time, which only runs while enough humans are present |
+| > 0 | 0 | after the given time, which runs while at least one human is on the server |
+| 0 | > 0 | as soon as enough humans are present |
+| 0 | 0 | only by `sm_warmup_end` or when the game mode ends it |
+
+Admin commands (map-change flag): `sm_warmup [seconds]` — start or restart the warmup (`0` — no time limit, no argument — `sm_warmup_time`); `sm_warmup_end` — end it.
+
+For game mode developers — `scripting/include/warmup.inc`: natives `Warmup_IsActive()`, `Warmup_Start(seconds)`, `Warmup_End(restartGame)` and forwards `Warmup_OnStart`, `Warmup_OnEnding` (return `Plugin_Handled` to extend the warmup; asked again every second), `Warmup_OnEnd(reason)`.
+
 ## Known limitations
 
 - Not tested on a live server yet — see the status note above.
@@ -311,7 +393,7 @@ Spawns are stored separately, in `addons/sourcemod/configs/retakes/<map>.cfg` �
 
 The addon API is described in [scripting/include/retakes.inc](scripting/include/retakes.inc) and matches the original (native, forward and cvar names are unchanged). Differences:
 
-- `Retakes_InWarmup()` returns the plugin's own warmup flag instead of the game state;
+- `Retakes_InWarmup()` returns `Warmup_IsActive()` of the `warmup` plugin if it is loaded and `false` otherwise (not the game state, as it did in CS:GO);
 - the player lists in the forwards (`Retakes_OnTeamsSet`, `Retakes_OnWeaponsAllocated`, `Retakes_OnRoundWon`) and the ranking queue contain bots; `Retakes_IsJoined()` returns `true` for a bot on a team;
 - weapons are CS:S classes (`weapon_usp`, `weapon_p228`, `weapon_sg552`, `weapon_galil`, `weapon_famas`, …), grenades are `h`, `f`, `s` only.
 
