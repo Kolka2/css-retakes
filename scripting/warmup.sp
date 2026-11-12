@@ -24,6 +24,7 @@
 #define ENDLESS_ROUND_TIME 3600      // seconds kept on the round clock
 #define MAX_ROUND_TIME 30000         // m_iRoundTime is networked with 16 bits
 #define CVAR_VALUE_LENGTH 64
+#define HINT_SOUND "UI/hint.wav"      // played by the game with every hint message
 
 // CS:S player classes (models): 1-4 belong to the terrorists, 5-8 to the CTs.
 #define CSS_FIRST_T_CLASS 1
@@ -254,6 +255,11 @@ static void HintToAll(const char[] phrase, int arg1, int arg2 = 0) {
     for (int i = 1; i <= MaxClients; i++) {
         if (IsClientInGame(i) && !IsFakeClient(i)) {
             PrintHintText(i, "%t", phrase, arg1, arg2);
+            // CS:S plays a sound with every hint message; with a countdown that is a beep
+            // every second. Cut it right away.
+            // CSS-VERIFY: the hint sound is UI/hint.wav on the static channel, and stopping it
+            // here silences the countdown without hiding the text.
+            StopSound(i, SNDCHAN_STATIC, HINT_SOUND);
         }
     }
 }
