@@ -610,8 +610,15 @@ public Action Event_PlayerTeam(Event event, const char[] name, bool dontBroadcas
         return Plugin_Continue;
     }
 
+    // The original plugin only set "silent" here. The CS:S client ignores that field and
+    // prints "<player> is joining the ... force" for every switch (checked on a live server:
+    // the chat filled up on every round), so the event is also kept from the clients.
+    // Server-side listeners (other plugins) still receive it.
+    // CSS-VERIFY: with player_team not broadcast, the scoreboard, the team counters and the
+    // spectator UI still show the right teams (they are driven by networked properties).
     SetEventBool(event, "silent", true);
-    return Plugin_Continue;
+    event.BroadcastDisabled = true;
+    return Plugin_Changed;
 }
 
 /**
