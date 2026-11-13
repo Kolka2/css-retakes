@@ -108,16 +108,21 @@ int g_BombOwner = -1;
 int g_NumCT;
 int g_NumT;
 int g_ActivePlayers;
-bool g_RoundSpawnsDecided; // spawns are lazily decided on the first player spawn event
 
 /**
- * Round preparation state. CS:S has no round_prestart event, so the teams for the next
- * round are set right after round_end (see PrepareNextRound), before the game respawns the players.
+ * Round state. CS:S has no round_prestart event, so a round goes through these steps:
+ *  1. round_end: the points are counted, g_PreparePending is set;
+ *  2. one frame later PrepareNextRound() builds the teams and switches the players, so
+ *     that the game respawns them on the right side; g_RoundPrepared is set;
+ *  3. round_start (the game has respawned everybody): PlacePlayers() puts the players on
+ *     the retake spawns and gives the weapons; g_RoundPrepared is cleared;
+ *  4. 0.1 s later FixBomb() hands out the C4.
+ * If a round starts without steps 1-2 (first round, mp_restartgame), step 3 runs
+ * PrepareNextRound() itself. Players are placed in step 3 only.
  */
 bool g_PreparePending; // round_end was seen, PrepareNextRound runs on the next frame
-bool g_RoundPrepared;  // PrepareNextRound has run and its data (teams, spawns) is usable
-bool g_PrepConsumed;   // a round_start has already used the prepared data
-bool g_TeamsValid;     // UpdateTeams actually assigned the teams (false if the map has no spawns)
+bool g_RoundPrepared;  // the next round is prepared and waits for its round_start
+bool g_TeamsValid;     // the plugin assigned the teams of the current/prepared round (false if the map has no spawns)
 int g_RoundSerial;     // incremented on every round_start, lets the delayed callbacks detect a new round
 bool g_NoSpawnsLogged;
 bool g_SiteSpawnsLogged;
@@ -277,10 +282,8 @@ public void OnMapStart() {
     g_ScrambleSignal = false;
     g_WinStreak = 0;
     g_RoundCount = 0;
-    g_RoundSpawnsDecided = false;
     g_PreparePending = false;
     g_RoundPrepared = false;
-    g_PrepConsumed = false;
     g_TeamsValid = false;
     g_NoSpawnsLogged = false;
     g_SiteSpawnsLogged = false;
@@ -396,7 +399,7 @@ public Action Timer_Second(Handle timer) {
 public void OnSecondTick() {
     UpdateBotQuota(false);
 
-    if (InFreePlay() || InIntermission() || !g_RoundPrepared || !g_TeamsValid || g_hAutoTeamsCvar.IntValue == 0) {
+    if (InFreePlay() || InIntermission() || !g_TeamsValid || g_hAutoTeamsCvar.IntValue == 0) {
         return;
     }
 
@@ -634,8 +637,8 @@ public Action Event_PlayerTeam(Event event, const char[] name, bool dontBroadcas
 }
 
 /**
- * Called when a player spawns.
- * Moves the player to the retake spawn and gives the weapons.
+ * Called when a player spawns. The players of a round are placed by PlacePlayers() at
+ * round_start, not here: a spawn in the middle of a round never moves or re-equips anybody.
  */
 public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast) {
     if (!g_Enabled) {
@@ -646,37 +649,22 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
     if (!IsValidClient(client) || !IsOnTeam(client))
         return Plugin_Continue;
 
-    if (IsPlayerAlive(client)) {
-        ShowGunsHint(client);
-    }
+    // In CS:S player_spawn also fires when a player joins the server and is still dead.
+    if (!IsPlayerAlive(client))
+        return Plugin_Continue;
 
-    // Nothing to set up in the warmup (the warmup plugin owns it) or in the editor.
+    ShowGunsHint(client);
+
+    // Nothing to do in the warmup (the warmup plugin owns it) or in the editor.
     if (InFreePlay()) {
         return Plugin_Continue;
     }
 
-    // В CS:S player_spawn приходит и при входе на сервер, когда игрок ещё мёртв.
-    if (!IsPlayerAlive(client))
-        return Plugin_Continue;
-
-    // Раунд не подготовлен (первый раунд, mp_restartgame) или на карте нет спавнов:
-    // в первом случае Event_RoundStart сам подготовит раунд и переспаунит игроков.
-    if (!g_RoundPrepared || !g_TeamsValid)
-        return Plugin_Continue;
-
-    if (!IsAssigned(client)) {
-        // Места в этом раунде у него нет: это бот, которого игра добавила посреди раунда.
-        if (g_hAutoTeamsCvar.IntValue != 0) {
-            RequestFrame(Frame_MoveUnassignedToSpectator, GetClientUserId(client));
-        }
-        return Plugin_Continue;
+    // No slot in this round: a bot the game added in the middle of a round.
+    if (g_TeamsValid && !IsAssigned(client) && g_hAutoTeamsCvar.IntValue != 0) {
+        RequestFrame(Frame_MoveUnassignedToSpectator, GetClientUserId(client));
     }
 
-    if (!g_RoundSpawnsDecided) {
-        DecideRoundSpawns();
-    }
-
-    SetupPlayer(client);
     return Plugin_Continue;
 }
 
@@ -688,19 +676,43 @@ bool IsAssigned(int client) {
 }
 
 /**
- * Picks the spawn points for everybody that plays the round.
+ * Puts everybody that plays the round on a retake spawn and gives the weapons.
+ * Called once per round, from round_start, when the game has respawned the players.
  */
-static void DecideRoundSpawns() {
-    if (IsParticipant(g_BombOwner)) {
-        g_SpawnIndices[g_BombOwner] = SelectSpawn(CS_TEAM_T, true);
+static void PlacePlayers() {
+    // Somebody who left the team after the round was prepared (went to spectators)
+    // does not play it.
+    for (int i = 1; i <= MaxClients; i++) {
+        if (IsAssigned(i) && (!IsParticipant(i) || GetClientTeam(i) != g_Team[i])) {
+            g_Team[i] = CS_TEAM_SPECTATOR;
+        }
     }
 
+    // The bomb carrier picks first: there are fewer spawns that suit it.
+    if (IsParticipant(g_BombOwner) && IsAssigned(g_BombOwner)) {
+        g_SpawnIndices[g_BombOwner] = SelectSpawn(CS_TEAM_T, true);
+    }
     for (int i = 1; i <= MaxClients; i++) {
-        if (i != g_BombOwner && IsParticipant(i) && IsAssigned(i)) {
+        if (i != g_BombOwner && IsAssigned(i)) {
             g_SpawnIndices[i] = SelectSpawn(g_Team[i], false);
         }
     }
-    g_RoundSpawnsDecided = true;
+
+    for (int i = 1; i <= MaxClients; i++) {
+        if (!IsAssigned(i)) {
+            continue;
+        }
+
+        // The game respawns everybody on a team at round restart, including the players
+        // the plugin moved in from spectators (seen on a live server). This is a safety net.
+        if (!IsPlayerAlive(i)) {
+            DebugLog("round_start: %L was not spawned by the game, respawning", i);
+            CS_RespawnPlayer(i);
+        }
+        if (IsPlayerAlive(i)) {
+            SetupPlayer(i);
+        }
+    }
 }
 
 /**
@@ -797,15 +809,13 @@ public Action Event_Bomb(Event event, const char[] name, bool dontBroadcast) {
  * the bomb carrier. This is what round_prestart did in CS:GO; CS:S has no such event, so:
  *  - normally this runs one frame after round_end (see Event_RoundEnd), i.e. before the
  *    game restarts the round and respawns the players in their new teams;
- *  - if a round starts without it (first round, mp_restartgame), Event_RoundStart runs it
- *    and respawns the players.
- * It never runs twice for the same round.
+ *  - if a round starts without it (first round, mp_restartgame), Event_RoundStart runs it.
+ * It never runs twice for the same round, and it does not move or equip anybody:
+ * that is PlacePlayers().
  */
 public void PrepareNextRound() {
     g_PreparePending = false;
     g_RoundPrepared = true;
-    g_PrepConsumed = false;
-    g_RoundSpawnsDecided = false;
     g_TeamsValid = false;
     g_BombOwner = -1;
     g_BombHandedOut = false;
@@ -851,7 +861,7 @@ static void DebugLogPreparedRound() {
  * Returns if a round has ended and the next one has not started yet.
  */
 bool InIntermission() {
-    return g_PreparePending || (g_RoundPrepared && !g_PrepConsumed);
+    return g_PreparePending || g_RoundPrepared;
 }
 
 public void Frame_PrepareNextRound(any serial) {
@@ -884,15 +894,17 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
         return Plugin_Continue;
     }
 
-    // Страховка: раунд начался без подготовки (первый раунд после разминки, mp_restartgame).
-    bool fallback = !g_RoundPrepared || g_PrepConsumed;
-    if (fallback) {
-        DebugLog("round_start: the round was not prepared after round_end, preparing now and respawning the players");
-        PrepareNextRound();
-    } else {
+    // A round_end handled in this very frame has not been prepared yet, and never will be.
+    g_PreparePending = false;
+
+    if (g_RoundPrepared) {
         DebugLog("round_start: using the teams prepared after round_end");
+    } else {
+        // First round after the warmup or the editor, mp_restartgame: there was no round_end.
+        DebugLog("round_start: the round was not prepared after round_end, preparing now");
+        PrepareNextRound();
     }
-    g_PrepConsumed = true;
+    g_RoundPrepared = false;
 
     for (int i = 1; i <= MaxClients; i++) {
         g_RoundPoints[i] = 0;
@@ -905,43 +917,28 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
         return Plugin_Continue;
     }
 
-    if (fallback) {
-        // Игроки уже заспаунены игрой в старых командах и на стандартных спавнах.
-        // CSS-VERIFY: CS_RespawnPlayer внутри обработчика round_start переспаунивает игроков без побочных эффектов.
-        for (int i = 1; i <= MaxClients; i++) {
-            if (IsValidClient(i) && IsOnTeam(i) && g_Team[i] == GetClientTeam(i)) {
-                CS_RespawnPlayer(i);
-            }
-        }
-    }
+    // CSS-VERIFY: teleporting and re-equipping the players inside the round_start handler
+    // works like it did in player_spawn: everybody starts on the retake spawn with the
+    // right weapons, and a player whose team was switched right here (unprepared round)
+    // needs no respawn.
+    PlacePlayers();
 
-    // CSS-VERIFY: по истечении m_iRoundTime без установленной бомбы побеждают CT (Target Saved),
-    // а после установки бомбы раунд по этому таймеру уже не заканчивается.
+    // CSS-VERIFY: when m_iRoundTime runs out with no bomb planted the CTs win (Target Saved),
+    // and once the bomb is planted this timer no longer ends the round.
     SetRoundTime(g_hRoundTime.IntValue);
     Retakes_MessageToAll("%t", "RetakeSiteMessage", SITESTRING(g_Bombsite), g_NumT, g_NumCT);
 
-    CreateTimer(0.1, Timer_PostRoundStart, g_RoundSerial, TIMER_FLAG_NO_MAPCHANGE);
+    CreateTimer(0.1, Timer_FixBomb, g_RoundSerial, TIMER_FLAG_NO_MAPCHANGE);
     return Plugin_Continue;
 }
 
 /**
- * Runs shortly after the round start, when every player has been spawned by the game.
+ * Hands out the bomb shortly after the round start, when the game has given its own C4.
  */
-public Action Timer_PostRoundStart(Handle timer, any serial) {
-    if (serial != g_RoundSerial || !Retakes_Live() || !g_TeamsValid) {
-        return Plugin_Handled;
+public Action Timer_FixBomb(Handle timer, any serial) {
+    if (serial == g_RoundSerial && Retakes_Live() && g_TeamsValid) {
+        FixBomb();
     }
-
-    // CSS-VERIFY: игрок, переведённый плагином из наблюдателей в команду, спаунится игрой при рестарте раунда.
-    // Если нет - доспауниваем его здесь.
-    for (int i = 1; i <= MaxClients; i++) {
-        if (IsValidClient(i) && IsOnTeam(i) && g_Team[i] == GetClientTeam(i) && !IsPlayerAlive(i)) {
-            DebugLog("round_start: %L was not spawned by the game, respawning", i);
-            CS_RespawnPlayer(i);
-        }
-    }
-
-    FixBomb();
     return Plugin_Handled;
 }
 
@@ -1369,9 +1366,7 @@ public void ResetRetakesProgress() {
 
     g_PreparePending = false;
     g_RoundPrepared = false;
-    g_PrepConsumed = false;
     g_TeamsValid = false;
-    g_RoundSpawnsDecided = false;
 
     g_BombOwner = -1;
     g_BombHandedOut = false;

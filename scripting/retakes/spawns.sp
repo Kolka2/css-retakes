@@ -182,7 +182,6 @@ public void SetupPlayer(int client) {
         return;
     }
 
-    SwitchPlayerTeam(client, g_Team[client]);
     MoveToSpawn(client, spawnIndex);
     GiveWeapons(client);
     DebugLog("spawn: %L -> %s spawn #%d, \"%s\" + \"%s\", nades \"%s\", armor %d, helmet %d, kit %d",
@@ -250,9 +249,9 @@ public void GiveWeapons(int client) {
         return;
     }
 
-    // CSS-VERIFY: снятие и выдача оружия прямо в player_spawn работают в CS:S: игра не выдаёт
-    // после события стандартный пистолет поверх нашего и не оставляет игрока без ножа.
-    RemoveAllWeapons(client);
+    // The C4 is left alone: the game may already have given it to this player, and
+    // FixBomb() sorts the bombs out after everybody is equipped.
+    RemoveAllWeapons(client, GetClientC4(client));
 
     // В CS:S один нож на обе команды (weapon_knife_t нет).
     GiveWeapon(client, "weapon_knife");

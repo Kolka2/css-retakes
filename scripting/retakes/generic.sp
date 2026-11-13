@@ -17,10 +17,11 @@ char g_ColorNames[][] = {"{NORMAL}", "{DARK_RED}", "{PURPLE}", "{GREEN}", "{MOSS
 char g_ColorCodes[][] = {"\x01", "\x07CC0000", "\x07B980EF", "\x04", "\x05", "\x0799FF99", "\x07FF4040", "\x07CCCCCC", "\x07FFA500", "\x0799CCFF", "\x074D7AFF"};
 
 /**
- * Removes (and destroys) every weapon the client is carrying.
+ * Removes (and destroys) every weapon the client is carrying, apart from the
+ * weapon entity passed as "except".
  * Замена Client_RemoveAllWeapons из smlib.
  */
-stock void RemoveAllWeapons(int client) {
+stock void RemoveAllWeapons(int client, int except = -1) {
     if (!HasEntProp(client, Prop_Send, "m_hMyWeapons")) {
         return;
     }
@@ -28,7 +29,7 @@ stock void RemoveAllWeapons(int client) {
     int size = GetEntPropArraySize(client, Prop_Send, "m_hMyWeapons");
     for (int i = 0; i < size; i++) {
         int weapon = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
-        if (weapon > MaxClients && IsValidEntity(weapon)) {
+        if (weapon > MaxClients && weapon != except && IsValidEntity(weapon)) {
             RemovePlayerItem(client, weapon);
             AcceptEntityInput(weapon, "Kill");
         }
