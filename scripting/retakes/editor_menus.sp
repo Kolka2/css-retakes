@@ -1,4 +1,6 @@
-stock void GiveEditorMenu(int client, int menuPosition=-1) {
+// Menus of the spawn editor. Included only from retakes.sp.
+
+void GiveEditorMenu(int client, int menuPosition=-1) {
     Menu menu = new Menu(EditorMenuHandler);
     menu.ExitButton = true;
     menu.SetTitle("Retakes spawn editor");
@@ -21,80 +23,82 @@ stock void GiveEditorMenu(int client, int menuPosition=-1) {
 }
 
 public int EditorMenuHandler(Menu menu, MenuAction action, int param1, int param2) {
-    if (action == MenuAction_Select) {
-        int client = param1;
-        char choice[64];
-        menu.GetItem(param2, choice, sizeof(choice));
-        int menuPosition = GetMenuSelectionPosition();
-
-        if (StrEqual(choice, "end_edit")) {
-            Retakes_MessageToAll("Exiting edit mode.");
-            ExitEditMode();
-
-        } else if (StrEqual(choice, "add_spawn")) {
-            GiveNewSpawnMenu(client);
-
-        } else if (StrEqual(choice, "change_site")) {
-            ShowSpawns(GetOtherSite(g_EditingSite));
-            GiveEditorMenu(client, menuPosition);
-
-        } else if (StrEqual(choice, "goto_nearest_spawn")) {
-            int spawn = FindClosestSpawn(client);
-            if (IsValidSpawn(spawn)) {
-                MoveToSpawnInEditor(client, spawn);
-            } else {
-                Retakes_Message(client, "No spawns found");
-            }
-            GiveEditorMenu(client, menuPosition);
-
-        } else if (StrEqual(choice, "goto_next_spawn")) {
-            StepToSpawnInEditor(client, 1);
-            GiveEditorMenu(client, menuPosition);
-
-        } else if (StrEqual(choice, "goto_prev_spawn")) {
-            StepToSpawnInEditor(client, -1);
-            GiveEditorMenu(client, menuPosition);
-
-        }else if (StrEqual(choice, "delete_nearest_spawn")) {
-            DeleteClosestSpawn(client);
-            GiveEditorMenu(client, menuPosition);
-
-        } else if (StrEqual(choice, "delete_map_spawns")) {
-            DeleteMapSpawns();
-            GiveEditorMenu(client, menuPosition);
-
-        } else if (StrEqual(choice, "save_spawns")) {
-            SaveSpawns();
-            GiveEditorMenu(client, menuPosition);
-
-        }  else if (StrEqual(choice, "reload_spawns")) {
-            ReloadSpawns();
-            GiveEditorMenu(client, menuPosition);
-
-        } else {
-            LogError("unknown menu info string = %s", choice);
-        }
-    } else if (action == MenuAction_End) {
+    if (action == MenuAction_End) {
         delete menu;
+        return 0;
+    }
+    if (action != MenuAction_Select) {
+        return 0;
     }
 
+    int client = param1;
+    char choice[64];
+    menu.GetItem(param2, choice, sizeof(choice));
+    int menuPosition = GetMenuSelectionPosition();
+
+    // These two leave the editor menu; every other item brings it back.
+    if (StrEqual(choice, "end_edit")) {
+        Retakes_MessageToAll("Exiting edit mode.");
+        ExitEditMode();
+        return 0;
+    }
+    if (StrEqual(choice, "add_spawn")) {
+        GiveNewSpawnMenu(client);
+        return 0;
+    }
+
+    if (StrEqual(choice, "change_site")) {
+        ShowSpawns(GetOtherSite(g_EditingSite));
+
+    } else if (StrEqual(choice, "goto_nearest_spawn")) {
+        int spawn = FindClosestSpawn(client);
+        if (IsValidSpawn(spawn)) {
+            MoveToSpawnInEditor(client, spawn);
+        } else {
+            Retakes_Message(client, "No spawns found");
+        }
+
+    } else if (StrEqual(choice, "goto_next_spawn")) {
+        StepToSpawnInEditor(client, 1);
+
+    } else if (StrEqual(choice, "goto_prev_spawn")) {
+        StepToSpawnInEditor(client, -1);
+
+    } else if (StrEqual(choice, "delete_nearest_spawn")) {
+        DeleteClosestSpawn(client);
+
+    } else if (StrEqual(choice, "delete_map_spawns")) {
+        DeleteMapSpawns();
+
+    } else if (StrEqual(choice, "save_spawns")) {
+        SaveSpawns();
+
+    } else if (StrEqual(choice, "reload_spawns")) {
+        ReloadSpawns();
+
+    } else {
+        LogError("unknown menu info string = %s", choice);
+        return 0;
+    }
+
+    GiveEditorMenu(client, menuPosition);
     return 0;
 }
 
-public void GiveNewSpawnMenu(int client) {
+void GiveNewSpawnMenu(int client) {
     Menu menu = new Menu(GiveNewSpawnMenuHandler);
     menu.SetTitle("Add a spawn");
     AddMenuOption(menu, "finish", "Finish spawn");
     AddMenuOption(menu, "team", "Team: %s", TEAMSTRING(g_EditingSpawnTeams[client]));
     AddMenuOption(menu, "site", "Bombsite: %s", SITESTRING(g_EditingSite));
 
-    char typeString[128];
+    char typeString[32];
     if (g_EditingSpawnTypes[client] == SpawnType_Normal) {
-        Format(typeString, sizeof(typeString), "Normal");
+        typeString = "Normal";
     } else if (g_EditingSpawnTypes[client] == SpawnType_OnlyWithBomb) {
-        Format(typeString, sizeof(typeString), "Bomb-carrier only");
+        typeString = "Bomb-carrier only";
     } else {
-        Format(typeString, sizeof(typeString), "Never bomb-carrier");
+        typeString = "Never bomb-carrier";
     }
     if (g_EditingSpawnTeams[client] == CS_TEAM_CT) {
         AddMenuOptionDisabled(menu, "type", "Spawn type: %s", typeString);
@@ -115,19 +119,17 @@ public int GiveNewSpawnMenuHandler(Menu menu, MenuAction action, int param1, int
         menu.GetItem(param2, choice, sizeof(choice));
         if (StrEqual(choice, "finish")) {
             AddSpawn(client);
-            GiveNewSpawnMenu(client);
         } else if (StrEqual(choice, "team")) {
             g_EditingSpawnTeams[client] = GetOtherTeam(g_EditingSpawnTeams[client]);
-            GiveNewSpawnMenu(client);
         } else if (StrEqual(choice, "site")) {
             g_EditingSite = GetOtherSite(g_EditingSite);
-            GiveNewSpawnMenu(client);
         } else if (StrEqual(choice, "type")) {
             g_EditingSpawnTypes[client] = NextSpawnType(g_EditingSpawnTypes[client]);
-            GiveNewSpawnMenu(client);
         } else {
             LogError("unknown menu info string = %s", choice);
+            return 0;
         }
+        GiveNewSpawnMenu(client);
     } else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack) {
         int client = param1;
         GiveEditorMenu(client);
@@ -138,7 +140,7 @@ public int GiveNewSpawnMenuHandler(Menu menu, MenuAction action, int param1, int
     return 0;
 }
 
-public SpawnType NextSpawnType(SpawnType type) {
+static SpawnType NextSpawnType(SpawnType type) {
     if (type == SpawnType_Normal) {
         return SpawnType_OnlyWithBomb;
     } else if (type == SpawnType_OnlyWithBomb) {

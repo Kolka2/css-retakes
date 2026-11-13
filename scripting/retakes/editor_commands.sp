@@ -1,16 +1,36 @@
-public Action Command_EditSpawns(int client, int args) {
+// Admin commands of the spawn editor. Included only from retakes.sp.
+
+/**
+ * Common checks of the editor commands. Returns false, after telling the client why,
+ * if the editor is disabled or (with needEditMode) edit mode is not on.
+ */
+static bool CheckEditorCommand(int client, bool needEditMode) {
     if (g_hEditorEnabled.IntValue == 0) {
         Retakes_Message(client, "The editor is currently disabled.");
+        return false;
+    }
+
+    if (needEditMode && !g_EditMode) {
+        Retakes_Message(client, "You are not in edit mode.");
+        return false;
+    }
+
+    return true;
+}
+
+public Action Command_EditSpawns(int client, int args) {
+    if (!CheckEditorCommand(client, false)) {
         return Plugin_Handled;
     }
 
     if (!g_EditMode) {
-        // Свободный режим (респаун, раунд не кончается) включается самим флагом, см. warmup.sp.
+        // The flag itself turns on the editor's free play (respawn, endless round),
+        // see editor_freeplay.sp.
         g_EditMode = true;
-        // Ботов из редактора убираем сразу, не дожидаясь секундного таймера.
+        // The bots leave the editor right away, without waiting for the one-second timer.
         UpdateBotQuota(false);
         for (int i = 1; i <= MaxClients; i++) {
-            if (IsValidClient(i) && !IsFakeClient(i)) {
+            if (IsPlayer(i)) {
                 MovePlayerToEditMode(i);
             }
         }
@@ -27,34 +47,22 @@ public Action Command_EditSpawns(int client, int args) {
 }
 
 public Action Command_ReloadSpawns(int client, int args) {
-    if (g_hEditorEnabled.IntValue == 0) {
-        Retakes_Message(client, "The editor is currently disabled.");
-        return Plugin_Handled;
+    if (CheckEditorCommand(client, false)) {
+        ReloadSpawns();
     }
-
-    ReloadSpawns();
     return Plugin_Handled;
 }
 
 public Action Command_SaveSpawns(int client, int args) {
-    if (g_hEditorEnabled.IntValue == 0) {
-        Retakes_Message(client, "The editor is currently disabled.");
-        return Plugin_Handled;
+    if (CheckEditorCommand(client, false)) {
+        SaveSpawns();
+        Retakes_Message(client, "Saved %d spawns.", g_NumSpawns);
     }
-
-    SaveSpawns();
-    Retakes_Message(client, "Saved %d spawns.", g_NumSpawns);
     return Plugin_Handled;
 }
 
 public Action Command_AddSpawn(int client, int args) {
-    if (g_hEditorEnabled.IntValue == 0) {
-        Retakes_Message(client, "The editor is currently disabled.");
-        return Plugin_Handled;
-    }
-
-    if (!g_EditMode) {
-        Retakes_Message(client, "You are not in edit mode.");
+    if (!CheckEditorCommand(client, true)) {
         return Plugin_Handled;
     }
 
@@ -93,13 +101,7 @@ public Action Command_AddSpawn(int client, int args) {
 }
 
 public Action Command_Show(int client, int args) {
-    if (g_hEditorEnabled.IntValue == 0) {
-        Retakes_Message(client, "The editor is currently disabled.");
-        return Plugin_Handled;
-    }
-
-    if (!g_EditMode) {
-        Retakes_Message(client, "You are not in edit mode.");
+    if (!CheckEditorCommand(client, true)) {
         return Plugin_Handled;
     }
 
@@ -114,38 +116,31 @@ public Action Command_Show(int client, int args) {
 }
 
 public Action Command_DeleteSpawn(int client, int args) {
-    if (g_hEditorEnabled.IntValue == 0) {
-        Retakes_Message(client, "The editor is currently disabled.");
-        return Plugin_Handled;
+    if (CheckEditorCommand(client, true)) {
+        DeleteClosestSpawn(client);
     }
-
-    if (!g_EditMode) {
-        Retakes_Message(client, "You are not in edit mode.");
-        return Plugin_Handled;
-    }
-
-    DeleteClosestSpawn(client);
     return Plugin_Handled;
 }
 
 public Action Command_DeleteMapSpawns(int client, int args) {
-    if (g_hEditorEnabled.IntValue == 0) {
-        Retakes_Message(client, "The editor is currently disabled.");
-        return Plugin_Handled;
+    if (CheckEditorCommand(client, false)) {
+        DeleteMapSpawns();
     }
-
-    DeleteMapSpawns();
     return Plugin_Handled;
 }
 
-public Action Command_IterateSpawns(int client, int args) {
-    if (g_hEditorEnabled.IntValue == 0) {
-        Retakes_Message(client, "The editor is currently disabled.");
-        return Plugin_Handled;
-    }
+/**
+ * Starts the timer that takes a client to the next existing spawn at or after spawnIndex.
+ */
+static void ScheduleSpawnIteration(int serial, int spawnIndex) {
+    DataPack pack;
+    CreateDataTimer(2.0, Timer_IterateSpawns, pack);
+    pack.WriteCell(serial);
+    pack.WriteCell(spawnIndex);
+}
 
-    if (!g_EditMode) {
-        Retakes_Message(client, "You are not in edit mode.");
+public Action Command_IterateSpawns(int client, int args) {
+    if (!CheckEditorCommand(client, true)) {
         return Plugin_Handled;
     }
 
@@ -158,12 +153,7 @@ public Action Command_IterateSpawns(int client, int args) {
         startIndex = 0;
     }
 
-    DataPack pack;
-
-    CreateDataTimer(2.0, Timer_IterateSpawns, pack);
-    pack.WriteCell(GetClientSerial(client));
-    pack.WriteCell(startIndex);
-
+    ScheduleSpawnIteration(GetClientSerial(client), startIndex);
     return Plugin_Handled;
 }
 
@@ -186,23 +176,14 @@ public Action Timer_IterateSpawns(Handle timer, DataPack data) {
     }
 
     if (spawnIndex < g_NumSpawns) {
-        DataPack newData;
-        CreateDataTimer(2.0, Timer_IterateSpawns, newData);
-        newData.WriteCell(serial);
-        newData.WriteCell(spawnIndex);
+        ScheduleSpawnIteration(serial, spawnIndex);
     }
 
     return Plugin_Handled;
 }
 
 public Action Command_GotoSpawn(int client, int args) {
-    if (g_hEditorEnabled.IntValue == 0) {
-        Retakes_Message(client, "The editor is currently disabled.");
-        return Plugin_Handled;
-    }
-
-    if (!g_EditMode) {
-        Retakes_Message(client, "You are not in edit mode.");
+    if (!CheckEditorCommand(client, true)) {
         return Plugin_Handled;
     }
 
@@ -218,13 +199,7 @@ public Action Command_GotoSpawn(int client, int args) {
 }
 
 public Action Command_GotoNearestSpawn(int client, int args) {
-    if (g_hEditorEnabled.IntValue == 0) {
-        Retakes_Message(client, "The editor is currently disabled.");
-        return Plugin_Handled;
-    }
-
-    if (!g_EditMode) {
-        Retakes_Message(client, "You are not in edit mode.");
+    if (!CheckEditorCommand(client, true)) {
         return Plugin_Handled;
     }
 
@@ -237,17 +212,7 @@ public Action Command_GotoNearestSpawn(int client, int args) {
 }
 
 static Action StepSpawnCommand(int client, int direction) {
-    if (g_hEditorEnabled.IntValue == 0) {
-        Retakes_Message(client, "The editor is currently disabled.");
-        return Plugin_Handled;
-    }
-
-    if (!g_EditMode) {
-        Retakes_Message(client, "You are not in edit mode.");
-        return Plugin_Handled;
-    }
-
-    if (IsPlayer(client)) {
+    if (CheckEditorCommand(client, true) && IsPlayer(client)) {
         StepToSpawnInEditor(client, direction);
     }
     return Plugin_Handled;

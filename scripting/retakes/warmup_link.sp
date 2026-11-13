@@ -28,7 +28,7 @@ public void OnLibraryRemoved(const char[] name) {
 /**
  * Returns if the warmup plugin is loaded and its natives can be called.
  */
-stock bool WarmupAvailable() {
+bool WarmupAvailable() {
     return g_WarmupLibrary && GetFeatureStatus(FeatureType_Native, "Warmup_IsActive") == FeatureStatus_Available;
 }
 
@@ -44,14 +44,14 @@ bool InWarmup() {
  * Returns if the plugin is in a "free play" state: the warmup or the spawn editor.
  * Retakes does not run rounds in either of them.
  */
-stock bool InFreePlay() {
+bool InFreePlay() {
     return Retakes_InWarmup() || g_EditMode;
 }
 
 /**
  * Starts the map-start warmup, if the warmup plugin is there to run it.
  */
-public void StartMapWarmup() {
+void StartMapWarmup() {
     int time = g_WarmupTimeCvar.IntValue;
     if (time > 0 && WarmupAvailable()) {
         Warmup_Start(time);
@@ -61,7 +61,7 @@ public void StartMapWarmup() {
 /**
  * Leaves the warmup/editor and restarts the game; the first retake follows the restart.
  */
-public void GoLive() {
+void GoLive() {
     DebugLog("going live (edit mode: %d), restarting the game", g_EditMode);
     g_EditMode = false;
     // The game restart zeroes the scoreboard, so the plugin's own progress (round points,

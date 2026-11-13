@@ -8,7 +8,7 @@ bool g_RoundTimePropMissingLogged;
  * Sets the length of the current round, in seconds.
  * Returns false if the game doesn't have the property.
  */
-stock bool SetRoundTime(int seconds) {
+bool SetRoundTime(int seconds) {
     // CSS-VERIFY: CCSGameRulesProxy has m_iRoundTime and changing it mid-round moves both
     // the HUD timer and the moment the round ends.
     if (FindSendPropInfo("CCSGameRulesProxy", "m_iRoundTime") == -1) {

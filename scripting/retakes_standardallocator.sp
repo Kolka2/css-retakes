@@ -9,9 +9,13 @@
 
 #define MENU_TIME_LENGTH 15
 
-// Винтовки CS:S: { значение cookie, класс оружия, название в меню }.
-// Первая строка - выбор по умолчанию. Им же заменяется неизвестное значение cookie
-// (например, оставшееся от CS:GO-версии: "m4a1_silencer", "sg556").
+// CS:S rifles: { cookie value, weapon class, menu name }.
+// The first row is the default choice. It also replaces an unknown cookie value
+// (e.g. one left by the CS:GO version: "m4a1_silencer", "sg556").
+#define RIFLE_COOKIE 0
+#define RIFLE_CLASS 1
+#define RIFLE_NAME 2
+
 char g_CTRifles[][][] = {
     { "m4a1", "weapon_m4a1", "M4A1" },
     { "aug", "weapon_aug", "AUG" },
@@ -46,35 +50,27 @@ public void OnPluginStart() {
 }
 
 public void OnClientConnected(int client) {
-    strcopy(g_CTRifleChoice[client], WEAPON_STRING_LENGTH, g_CTRifles[0][0]);
-    strcopy(g_TRifleChoice[client], WEAPON_STRING_LENGTH, g_TRifles[0][0]);
+    strcopy(g_CTRifleChoice[client], WEAPON_STRING_LENGTH, g_CTRifles[0][RIFLE_COOKIE]);
+    strcopy(g_TRifleChoice[client], WEAPON_STRING_LENGTH, g_TRifles[0][RIFLE_COOKIE]);
     g_AwpChoice[client] = false;
 }
 
 public void Retakes_OnGunsCommand(int client) {
-    GiveWeaponsMenu(client);
+    ShowRifleMenu(client, MenuHandler_CTRifle, "Select a CT rifle:", g_CTRifles, sizeof(g_CTRifles));
 }
 
 public void Retakes_OnWeaponsAllocated(ArrayList tPlayers, ArrayList ctPlayers, Bombsite bombsite) {
-    WeaponAllocator(tPlayers, ctPlayers, bombsite);
+    AllocateTeam(tPlayers, false);
+    AllocateTeam(ctPlayers, true);
 }
 
 /**
  * Returns the index of a rifle choice in a rifle table, or 0 (the default rifle)
  * if the choice is empty or unknown.
  */
-static int FindCTRifle(const char[] choice) {
-    for (int i = 0; i < sizeof(g_CTRifles); i++) {
-        if (StrEqual(choice, g_CTRifles[i][0], true)) {
-            return i;
-        }
-    }
-    return 0;
-}
-
-static int FindTRifle(const char[] choice) {
-    for (int i = 0; i < sizeof(g_TRifles); i++) {
-        if (StrEqual(choice, g_TRifles[i][0], true)) {
+static int FindRifle(const char[][][] rifles, int count, const char[] choice) {
+    for (int i = 0; i < count; i++) {
+        if (StrEqual(choice, rifles[i][RIFLE_COOKIE], true)) {
             return i;
         }
     }
@@ -92,9 +88,11 @@ public void OnClientCookiesCached(int client) {
     GetClientCookie(client, g_hCTRifleChoiceCookie, ctrifle, sizeof(ctrifle));
     GetClientCookie(client, g_hTRifleChoiceCookie, trifle, sizeof(trifle));
 
-    // Пустые и CS:GO-шные значения превращаются в выбор по умолчанию.
-    strcopy(g_CTRifleChoice[client], WEAPON_STRING_LENGTH, g_CTRifles[FindCTRifle(ctrifle)][0]);
-    strcopy(g_TRifleChoice[client], WEAPON_STRING_LENGTH, g_TRifles[FindTRifle(trifle)][0]);
+    // Empty and CS:GO values turn into the default choice.
+    int ctIndex = FindRifle(g_CTRifles, sizeof(g_CTRifles), ctrifle);
+    int tIndex = FindRifle(g_TRifles, sizeof(g_TRifles), trifle);
+    strcopy(g_CTRifleChoice[client], WEAPON_STRING_LENGTH, g_CTRifles[ctIndex][RIFLE_COOKIE]);
+    strcopy(g_TRifleChoice[client], WEAPON_STRING_LENGTH, g_TRifles[tIndex][RIFLE_COOKIE]);
     g_AwpChoice[client] = GetCookieBool(client, g_hAwpChoiceCookie);
 }
 
@@ -108,67 +106,43 @@ static void SetNades(char nades[NADE_STRING_LENGTH]) {
     }
 }
 
-public void WeaponAllocator(ArrayList tPlayers, ArrayList ctPlayers, Bombsite bombsite) {
-    int tCount = tPlayers.Length;
-    int ctCount = ctPlayers.Length;
-
+/**
+ * Sets the loadout of one team: the rifle each player chose (one AWP per team, for the
+ * first player that asked for it), the team pistol, a random grenade, full armor and,
+ * for the CTs, a defuse kit.
+ */
+static void AllocateTeam(ArrayList players, bool ct) {
     char primary[WEAPON_STRING_LENGTH];
     char secondary[WEAPON_STRING_LENGTH];
     char nades[NADE_STRING_LENGTH];
-    int health = 100;
-    int kevlar = 100;
-    bool helmet = true;
-    bool kit = true;
+    bool giveAwp = true;
 
-    bool giveTAwp = true;
-    bool giveCTAwp = true;
+    for (int i = 0; i < players.Length; i++) {
+        int client = players.Get(i);
 
-    for (int i = 0; i < tCount; i++) {
-        int client = tPlayers.Get(i);
-
-        if (giveTAwp && g_AwpChoice[client]) {
+        if (giveAwp && g_AwpChoice[client]) {
             primary = "weapon_awp";
-            giveTAwp = false;
+            giveAwp = false;
+        } else if (ct) {
+            int rifle = FindRifle(g_CTRifles, sizeof(g_CTRifles), g_CTRifleChoice[client]);
+            strcopy(primary, sizeof(primary), g_CTRifles[rifle][RIFLE_CLASS]);
         } else {
-            strcopy(primary, sizeof(primary), g_TRifles[FindTRifle(g_TRifleChoice[client])][1]);
+            int rifle = FindRifle(g_TRifles, sizeof(g_TRifles), g_TRifleChoice[client]);
+            strcopy(primary, sizeof(primary), g_TRifles[rifle][RIFLE_CLASS]);
         }
 
-        secondary = "weapon_glock";
-        health = 100;
-        kevlar = 100;
-        helmet = true;
-        kit = false;
+        strcopy(secondary, sizeof(secondary), ct ? "weapon_usp" : "weapon_glock");
         SetNades(nades);
 
-        Retakes_SetPlayerInfo(client, primary, secondary, nades, health, kevlar, helmet, kit);
-    }
-
-    for (int i = 0; i < ctCount; i++) {
-        int client = ctPlayers.Get(i);
-
-        if (giveCTAwp && g_AwpChoice[client]) {
-            primary = "weapon_awp";
-            giveCTAwp = false;
-        } else {
-            strcopy(primary, sizeof(primary), g_CTRifles[FindCTRifle(g_CTRifleChoice[client])][1]);
-        }
-
-        secondary = "weapon_usp";
-        kit = true;
-        health = 100;
-        kevlar = 100;
-        helmet = true;
-        SetNades(nades);
-
-        Retakes_SetPlayerInfo(client, primary, secondary, nades, health, kevlar, helmet, kit);
+        Retakes_SetPlayerInfo(client, primary, secondary, nades, 100, 100, true, ct);
     }
 }
 
-public void GiveWeaponsMenu(int client) {
-    Menu menu = new Menu(MenuHandler_CTRifle);
-    menu.SetTitle("Select a CT rifle:");
-    for (int i = 0; i < sizeof(g_CTRifles); i++) {
-        menu.AddItem(g_CTRifles[i][0], g_CTRifles[i][2]);
+static void ShowRifleMenu(int client, MenuHandler handler, const char[] title, const char[][][] rifles, int count) {
+    Menu menu = new Menu(handler);
+    menu.SetTitle(title);
+    for (int i = 0; i < count; i++) {
+        menu.AddItem(rifles[i][RIFLE_COOKIE], rifles[i][RIFLE_NAME]);
     }
     menu.Display(client, MENU_TIME_LENGTH);
 }
@@ -180,21 +154,12 @@ public int MenuHandler_CTRifle(Menu menu, MenuAction action, int param1, int par
         menu.GetItem(param2, choice, sizeof(choice));
         g_CTRifleChoice[client] = choice;
         SetClientCookie(client, g_hCTRifleChoiceCookie, choice);
-        TRifleMenu(client);
+        ShowRifleMenu(client, MenuHandler_TRifle, "Select a T rifle:", g_TRifles, sizeof(g_TRifles));
     } else if (action == MenuAction_End) {
         delete menu;
     }
 
     return 0;
-}
-
-public void TRifleMenu(int client) {
-    Menu menu = new Menu(MenuHandler_TRifle);
-    menu.SetTitle("Select a T rifle:");
-    for (int i = 0; i < sizeof(g_TRifles); i++) {
-        menu.AddItem(g_TRifles[i][0], g_TRifles[i][2]);
-    }
-    menu.Display(client, MENU_TIME_LENGTH);
 }
 
 public int MenuHandler_TRifle(Menu menu, MenuAction action, int param1, int param2) {
@@ -212,7 +177,7 @@ public int MenuHandler_TRifle(Menu menu, MenuAction action, int param1, int para
     return 0;
 }
 
-public void GiveAwpMenu(int client) {
+static void GiveAwpMenu(int client) {
     Menu menu = new Menu(MenuHandler_AWP);
     menu.SetTitle("Allow yourself to receive AWPs?");
     AddMenuBool(menu, true, "Yes");

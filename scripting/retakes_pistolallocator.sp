@@ -9,8 +9,8 @@
 
 #define MENU_TIME_LENGTH 15
 
-// Пистолеты CS:S. Индекс в этом массиве хранится в cookie игрока.
-// Первые NUM_DEFAULT_PISTOLS строк - "стартовые" пистолеты, с ними игрок получает броню.
+// CS:S pistols. The index in this array is what the player's cookie stores.
+// The first NUM_DEFAULT_PISTOLS rows are the "starting" pistols: with them the player gets armor.
 #define NUM_DEFAULT_PISTOLS 2
 #define DEFAULT_PISTOL_CHOICE 1
 
@@ -52,7 +52,8 @@ public void Retakes_OnGunsCommand(int client) {
 }
 
 public void Retakes_OnWeaponsAllocated(ArrayList tPlayers, ArrayList ctPlayers, Bombsite bombsite) {
-    PistolAllocator(tPlayers, ctPlayers, bombsite);
+    AllocateTeam(tPlayers, false);
+    AllocateTeam(ctPlayers, true);
 }
 
 /**
@@ -66,6 +67,14 @@ static int ValidatePistolChoice(int choice) {
     return choice;
 }
 
+static bool IsDefaultPistol(int weaponIndex) {
+    return weaponIndex < NUM_DEFAULT_PISTOLS;
+}
+
+static bool IsRandomPistol(int weaponIndex) {
+    return weaponIndex == sizeof(g_PistolChoices) - 1;
+}
+
 public void OnClientCookiesCached(int client) {
     if (IsFakeClient(client))
         return;
@@ -73,13 +82,13 @@ public void OnClientCookiesCached(int client) {
     char buffer[INTEGER_STRING_LENGTH];
     GetClientCookie(client, g_PistolChoiceCookie, buffer, sizeof(buffer));
     if (buffer[0] == '\0') {
-        // cookie ещё не задана - остаётся выбор по умолчанию из OnClientConnected
+        // no cookie yet: the default choice from OnClientConnected stays
         return;
     }
     g_PistolChoice[client] = ValidatePistolChoice(StringToInt(buffer));
 }
 
-public void SetNades(char nades[NADE_STRING_LENGTH]) {
+static void SetNades(char nades[NADE_STRING_LENGTH]) {
     int rand = GetRandomInt(0, 3);
     switch(rand) {
         case 0: nades = "";
@@ -89,50 +98,30 @@ public void SetNades(char nades[NADE_STRING_LENGTH]) {
     }
 }
 
-public void PistolAllocator(ArrayList tPlayers, ArrayList ctPlayers, Bombsite bombsite) {
-    int tCount = tPlayers.Length;
-    int ctCount = ctPlayers.Length;
-
+/**
+ * Sets the loadout of one team: no primary weapon, the pistol each player chose, a
+ * random grenade, armor only with a default pistol, no helmet and, for the CTs, a
+ * defuse kit.
+ */
+static void AllocateTeam(ArrayList players, bool ct) {
     char primary[WEAPON_STRING_LENGTH];
     char secondary[WEAPON_STRING_LENGTH];
     char nades[NADE_STRING_LENGTH];
-    int health = 100;
-    int kevlar = 100;
-    bool helmet = false;
-    bool kit = true;
 
-    for (int i = 0; i < tCount; i++) {
-        int client = tPlayers.Get(i);
+    for (int i = 0; i < players.Length; i++) {
+        int client = players.Get(i);
         int choice = ValidatePistolChoice(g_PistolChoice[client]);
         if (IsRandomPistol(choice)) {
             choice = GetRandomInt(0, sizeof(g_PistolChoices) - 2);
         }
         strcopy(secondary, sizeof(secondary), g_PistolChoices[choice][0]);
-        health = 100;
-        kevlar = IsDefaultPistol(choice) ? 100 : 0;
-        helmet = false;
-        kit = false;
+        int kevlar = IsDefaultPistol(choice) ? 100 : 0;
         SetNades(nades);
-        Retakes_SetPlayerInfo(client, primary, secondary, nades, health, kevlar, helmet, kit);
-    }
-
-    for (int i = 0; i < ctCount; i++) {
-        int client = ctPlayers.Get(i);
-        int choice = ValidatePistolChoice(g_PistolChoice[client]);
-        if (IsRandomPistol(choice)) {
-            choice = GetRandomInt(0, sizeof(g_PistolChoices) - 2);
-        }
-        strcopy(secondary, sizeof(secondary), g_PistolChoices[choice][0]);
-        kit = true;
-        health = 100;
-        kevlar = IsDefaultPistol(choice) ? 100 : 0;
-        helmet = false;
-        SetNades(nades);
-        Retakes_SetPlayerInfo(client, primary, secondary, nades, health, kevlar, helmet, kit);
+        Retakes_SetPlayerInfo(client, primary, secondary, nades, 100, kevlar, false, ct);
     }
 }
 
-public void GiveGunsMenu(int client) {
+static void GiveGunsMenu(int client) {
     Menu menu = new Menu(GunsMenuHandler);
     menu.SetTitle("Select a pistol:");
     for (int i = 0; i < sizeof(g_PistolChoices); i++) {
@@ -152,12 +141,4 @@ public int GunsMenuHandler(Menu menu, MenuAction action, int param1, int param2)
     }
 
     return 0;
-}
-
-public bool IsDefaultPistol(int weaponIndex) {
-    return weaponIndex < NUM_DEFAULT_PISTOLS;
-}
-
-public bool IsRandomPistol(int weaponIndex) {
-    return weaponIndex == sizeof(g_PistolChoices) - 1;
 }

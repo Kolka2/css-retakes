@@ -1,8 +1,8 @@
-// Команда sm_retakes_validatespawns: проверка спавнов текущей карты.
-// Подключается только из retakes.sp.
+// The sm_retakes_validatespawns command: checks the spawns of the current map.
+// Included only from retakes.sp.
 
-// Размеры игрока CS:S (стоя): 32x32x72. Проверяем чуть приподнятый и укороченный
-// хулл, чтобы спавн на наклонном полу не считался застрявшим.
+// A standing CS:S player is 32x32x72. The hull that is tested is slightly lifted and
+// shortened, so that a spawn on a sloped floor is not reported as stuck.
 #define VALIDATE_HULL_LIFT 8.0
 #define VALIDATE_HULL_HEIGHT 62.0
 
@@ -30,7 +30,7 @@ static bool IsSpawnBlocked(int spawn) {
 static bool IsSpawnOutsideWorld(int spawn) {
     float pos[3];
     pos = g_SpawnPoints[spawn];
-    pos[2] += 36.0; // середина игрока, а не подошвы
+    pos[2] += 36.0; // the middle of the player, not the feet
     return TR_PointOutsideWorld(pos);
 }
 
@@ -56,7 +56,7 @@ public Action Command_ValidateSpawns(int client, int args) {
         ReplyToCommand(client, "  Bomb targets found on the map: %d", g_SiteMins.Length);
     }
 
-    // [site][0] - все T, [1] - T, где может появиться бомбер, [2] - T, где может появиться не бомбер, [3] - CT
+    // [site][0] - all T, [1] - T usable by the bomb carrier, [2] - T usable by the others, [3] - CT
     int counts[2][4];
     int total = 0;
 

@@ -1,14 +1,17 @@
+// The spawn editor: entering and leaving edit mode, drawing the spawns, adding,
+// deleting and visiting them. Included only from retakes.sp.
+
 int g_iBeamSprite = 0;
 int g_iHaloSprite = 0;
 Bombsite g_EditingSite = BombsiteA;
-int g_EditorCursor[MAXPLAYERS+1] = {-1, ...}; // спавн, у которого редактор был последним (для !next / !prev)
+int g_EditorCursor[MAXPLAYERS+1] = {-1, ...}; // the spawn the editor visited last (for !next / !prev)
 
 /**
  * Precaches the sprites the editor draws the spawns with. Called on every map start.
  */
-public void PrecacheEditorSprites() {
-    // CSS-VERIFY: в CS:S есть sprites/laserbeam.vmt и sprites/halo01.vmt (в CS:GO был sprites/halo.vmt),
-    // кольца и стрелки спавнов в редакторе видны.
+void PrecacheEditorSprites() {
+    // CSS-VERIFY: CS:S has sprites/laserbeam.vmt and sprites/halo01.vmt (CS:GO had
+    // sprites/halo.vmt); the spawn rings and arrows are visible in the editor.
     g_iBeamSprite = PrecacheModel("sprites/laserbeam.vmt", true);
     g_iHaloSprite = PrecacheModel("sprites/halo01.vmt", true);
 }
@@ -18,7 +21,7 @@ public void PrecacheEditorSprites() {
  * alive while the editor was open, see Warmup_OnEnding) it is ended first; its
  * Warmup_OnEnd then goes live.
  */
-public void ExitEditMode() {
+void ExitEditMode() {
     g_EditMode = false;
     if (Retakes_InWarmup()) {
         Warmup_End(false);
@@ -27,19 +30,19 @@ public void ExitEditMode() {
     }
 }
 
-public void MovePlayerToEditMode(int client) {
+void MovePlayerToEditMode(int client) {
     SwitchPlayerTeam(client, CS_TEAM_CT);
     CS_RespawnPlayer(client);
 }
 
-public void ShowSpawns(Bombsite site) {
+void ShowSpawns(Bombsite site) {
     g_EditingSite = site;
     Retakes_MessageToAll("Showing spawns for bombsite \x04%s.", SITESTRING(site));
 
     int ct_count = 0;
     int t_count = 0;
     for (int i = 0; i < g_NumSpawns; i++) {
-        if (!g_SpawnDeleted[i] && g_SpawnSites[i] == g_EditingSite) {
+        if (SpawnFilter(i)) {
             if (g_SpawnTeams[i] == CS_TEAM_CT) {
                 ct_count++;
             } else {
@@ -55,19 +58,14 @@ public Action Timer_ShowSpawns(Handle timer) {
     if (!g_EditMode || g_hEditorEnabled.IntValue == 0)
         return Plugin_Continue;
 
-    float origin[3];
-    float angle[3];
-
     for (int i = 1; i <= MaxClients; i++) {
-        if (!IsValidClient(i) || IsFakeClient(i)) {
+        if (!IsPlayer(i)) {
             continue;
         }
 
         for (int j = 0; j < g_NumSpawns; j++) {
-            origin = g_SpawnPoints[j];
-            angle = g_SpawnAngles[j];
             if (SpawnFilter(j)) {
-                DisplaySpawnPoint(i, origin, angle, 40.0, g_SpawnTeams[j] == CS_TEAM_CT, g_SpawnTypes[j]);
+                DisplaySpawnPoint(i, g_SpawnPoints[j], g_SpawnAngles[j], 40.0, g_SpawnTeams[j] == CS_TEAM_CT, g_SpawnTypes[j]);
             }
         }
     }
@@ -75,19 +73,14 @@ public Action Timer_ShowSpawns(Handle timer) {
     return Plugin_Continue;
 }
 
-stock bool SpawnFilter(int spawn) {
-    if (!IsValidSpawn(spawn)) {
-        return false;
-    }
-
-    if (g_SpawnSites[spawn] != g_EditingSite) {
-        return false;
-    }
-
-    return true;
+/**
+ * Returns if a spawn exists and belongs to the bombsite the editor is showing.
+ */
+static bool SpawnFilter(int spawn) {
+    return IsValidSpawn(spawn) && g_SpawnSites[spawn] == g_EditingSite;
 }
 
-public void AddSpawn(int client) {
+void AddSpawn(int client) {
     g_DirtySpawns = true;
     if (g_NumSpawns + 1 >= MAX_SPAWNS) {
         Retakes_MessageToAll("{DARK_RED}WARNING: {NORMAL}the maximum number of spawns has been reached. New spawns cannot be added.");
@@ -109,81 +102,38 @@ public void AddSpawn(int client) {
     g_NumSpawns++;
 }
 
-public void DisplaySpawnPoint(int client, const float position[3], const float angles[3],
+/**
+ * Draws a spawn for one client: a ring on the ground and a line in the view direction.
+ * CT spawns are blue; T spawns are red (normal), green (bomb-carrier only) or
+ * yellow (never bomb-carrier).
+ */
+static void DisplaySpawnPoint(int client, const float position[3], const float angles[3],
                               float size, bool ct, SpawnType spawnType) {
     float direction[3];
     GetAngleVectors(angles, direction, NULL_VECTOR, NULL_VECTOR);
     ScaleVector(direction, size/2);
     AddVectors(position, direction, direction);
 
-    int r, g, b;
+    int color[4] = {255, 0, 0, 255};
     if (ct) {
-        // blue
-        r = 0;
-        g = 0;
-        b = 255;
-    } else {
-        if (spawnType == SpawnType_Normal) {
-            // red
-            r = 255;
-            g = 0;
-            b = 0;
-        } else if (spawnType == SpawnType_OnlyWithBomb) {
-            // green
-            r = 0;
-            g = 255;
-            b = 0;
-        } else {
-            // yellow
-            r = 255;
-            g = 255;
-            b = 0;
-        }
+        color = {0, 0, 255, 255};
+    } else if (spawnType == SpawnType_OnlyWithBomb) {
+        color = {0, 255, 0, 255};
+    } else if (spawnType != SpawnType_Normal) {
+        color = {255, 255, 0, 255};
     }
 
-    TE_Start("BeamRingPoint");
-    TE_WriteVector("m_vecCenter", position);
-    TE_WriteFloat("m_flStartRadius", 10.0);
-    TE_WriteFloat("m_flEndRadius", size);
-    TE_WriteNum("m_nModelIndex", g_iBeamSprite);
-    TE_WriteNum("m_nHaloIndex", g_iHaloSprite);
-    TE_WriteNum("m_nStartFrame", 0);
-    TE_WriteNum("m_nFrameRate", 0);
-    TE_WriteFloat("m_fLife", 1.0);
-    TE_WriteFloat("m_fWidth", 1.0);
-    TE_WriteFloat("m_fEndWidth", 1.0);
-    TE_WriteFloat("m_fAmplitude", 0.0);
-    TE_WriteNum("r", r);
-    TE_WriteNum("g", g);
-    TE_WriteNum("b", b);
-    TE_WriteNum("a", 255);
-    TE_WriteNum("m_nSpeed", 50);
-    TE_WriteNum("m_nFlags", 0);
-    TE_WriteNum("m_nFadeLength", 0);
+    TE_SetupBeamRingPoint(position, 10.0, size, g_iBeamSprite, g_iHaloSprite, 0, 0, 1.0, 1.0, 0.0, color, 50, 0);
     TE_SendToClient(client);
 
-    TE_Start("BeamPoints");
-    TE_WriteVector("m_vecStartPoint", position);
-    TE_WriteVector("m_vecEndPoint", direction);
-    TE_WriteNum("m_nModelIndex", g_iBeamSprite);
-    TE_WriteNum("m_nHaloIndex", g_iHaloSprite);
-    TE_WriteNum("m_nStartFrame", 0);
-    TE_WriteNum("m_nFrameRate", 0);
-    TE_WriteFloat("m_fLife", 1.0);
-    TE_WriteFloat("m_fWidth", 1.0);
-    TE_WriteFloat("m_fEndWidth", 1.0);
-    TE_WriteFloat("m_fAmplitude", 0.0);
-    TE_WriteNum("r", r);
-    TE_WriteNum("g", g);
-    TE_WriteNum("b", b);
-    TE_WriteNum("a", 255);
-    TE_WriteNum("m_nSpeed", 50);
-    TE_WriteNum("m_nFlags", 0);
-    TE_WriteNum("m_nFadeLength", 0);
+    TE_SetupBeamPoints(position, direction, g_iBeamSprite, g_iHaloSprite, 0, 0, 1.0, 1.0, 1.0, 0, 0.0, color, 50);
     TE_SendToClient(client);
 }
 
-stock int FindClosestSpawn(int client) {
+int FindClosestSpawn(int client) {
+    float playerOrigin[3];
+    GetClientAbsOrigin(client, playerOrigin);
+
     int closest = -1;
     float minDist = 0.0;
     for (int i = 0; i < g_NumSpawns; i++) {
@@ -191,13 +141,7 @@ stock int FindClosestSpawn(int client) {
             continue;
         }
 
-        float origin[3];
-        origin = g_SpawnPoints[i];
-
-        float playerOrigin[3];
-        GetClientAbsOrigin(client, playerOrigin);
-
-        float dist = GetVectorDistance(origin, playerOrigin);
+        float dist = GetVectorDistance(g_SpawnPoints[i], playerOrigin);
         if (closest < 0 || dist < minDist) {
             minDist = dist;
             closest = i;
@@ -206,7 +150,7 @@ stock int FindClosestSpawn(int client) {
     return closest;
 }
 
-public void DeleteClosestSpawn(int client) {
+void DeleteClosestSpawn(int client) {
     g_DirtySpawns = true;
     int closest = FindClosestSpawn(client);
     if (closest >= 0) {
@@ -215,22 +159,22 @@ public void DeleteClosestSpawn(int client) {
     }
 }
 
-public void SaveSpawns() {
+void SaveSpawns() {
     WriteSpawns();
     Retakes_MessageToAll("Map spawns saved.");
 }
 
-public void ReloadSpawns() {
+void ReloadSpawns() {
     g_NumSpawns = ParseSpawns();
     Retakes_MessageToAll("Imported %d map spawns.", g_NumSpawns);
 }
 
-public void DeleteMapSpawns() {
+void DeleteMapSpawns() {
     g_NumSpawns = 0;
     Retakes_MessageToAll("All spawns for this map have been deleted");
 }
 
-public void MoveToSpawnInEditor(int client, int spawnIndex) {
+void MoveToSpawnInEditor(int client, int spawnIndex) {
     g_EditorCursor[client] = spawnIndex;
     TeleportEntity(client, g_SpawnPoints[spawnIndex], g_SpawnAngles[spawnIndex], NULL_VECTOR);
     Retakes_Message(client, "Teleporting to spawn {GREEN}%d", spawnIndex);
@@ -242,9 +186,9 @@ public void MoveToSpawnInEditor(int client, int spawnIndex) {
  * Teleports the editor to the next (direction 1) or the previous (direction -1) spawn,
  * simply by spawn number, wrapping around at the ends. Deleted spawns are skipped.
  * The walk starts from the spawn the client visited last (any teleport command sets it).
- * Этой команды нет в оригинальном плагине, добавлена по просьбе владельца.
+ * The original plugin has no such command, it was added at the owner's request.
  */
-public void StepToSpawnInEditor(int client, int direction) {
+void StepToSpawnInEditor(int client, int direction) {
     if (g_NumSpawns <= 0) {
         Retakes_Message(client, "No spawns found");
         return;
@@ -252,7 +196,7 @@ public void StepToSpawnInEditor(int client, int direction) {
 
     int index = g_EditorCursor[client];
     if (index < 0 || index >= g_NumSpawns) {
-        // ещё нигде не были: "следующий" - это первый спавн, "предыдущий" - последний
+        // nowhere yet: "next" is the first spawn, "previous" is the last one
         index = (direction > 0) ? -1 : 0;
     }
 
@@ -265,7 +209,7 @@ public void StepToSpawnInEditor(int client, int direction) {
         }
 
         if (IsValidSpawn(index)) {
-            // показываем кольца того сайта, к которому относится спавн
+            // show the rings of the site the spawn belongs to
             g_EditingSite = g_SpawnSites[index];
             MoveToSpawnInEditor(client, index);
             return;

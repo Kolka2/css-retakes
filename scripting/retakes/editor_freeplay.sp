@@ -10,7 +10,7 @@ float g_LastDeathTime[MAXPLAYERS+1];
 /**
  * Keeps an hour on the round clock, so the round timer never runs out in the editor.
  */
-public void Editor_KeepRoundEndless() {
+void Editor_KeepRoundEndless() {
     int elapsed = 0;
     // CSS-VERIFY: CCSGameRulesProxy has m_fRoundStartTime (the end of the freeze time).
     if (FindSendPropInfo("CCSGameRulesProxy", "m_fRoundStartTime") != -1) {
@@ -42,7 +42,7 @@ static void RespawnDeadPlayers() {
 /**
  * Called once a second while the plugin is enabled.
  */
-public void Editor_OnSecondTick() {
+void Editor_OnSecondTick() {
     if (!g_EditMode) {
         return;
     }
