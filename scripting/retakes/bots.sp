@@ -144,8 +144,8 @@ void UpdateBotQuota(bool roundPrep) {
     }
 
     if (g_hBotQuotaCvar == null) {
-        // CSS-VERIFY: with bot_quota_mode normal the game itself adds and removes bots up
-        // to bot_quota (bots in spectators count as well).
+        // With bot_quota_mode normal the game itself adds and removes bots up to bot_quota
+        // (bots in spectators count as well); seen on a live server.
         g_hBotQuotaCvar = FindConVar("bot_quota");
         if (g_hBotQuotaCvar == null) {
             if (!g_BotQuotaMissingLogged) {

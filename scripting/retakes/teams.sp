@@ -35,13 +35,9 @@ void GetTeamCounts(int &tCount, int &ctCount, int ignoredClient = 0) {
  * player moved from spectators by the plugin never saw the class menu.
  */
 static void EnsureClientClass(int client, int team) {
-    // CSS-VERIFY: CCSPlayer has m_iClass (1-4 are the T classes, 5-8 the CT classes), and a
-    // player switched from spectators by CS_SwitchTeam with the class set spawns at the
-    // round restart without the model menu.
-    if (!HasEntProp(client, Prop_Send, "m_iClass")) {
-        return;
-    }
-
+    // m_iClass: 1-4 are the T classes, 5-8 the CT classes. A player switched from
+    // spectators by CS_SwitchTeam with the class set spawns at the round restart without
+    // the model menu (seen on a live server).
     int class = GetEntProp(client, Prop_Send, "m_iClass");
     if (team == CS_TEAM_T) {
         if (class < CSS_FIRST_T_CLASS || class > CSS_LAST_T_CLASS) {
@@ -59,10 +55,7 @@ static void EnsureClientClass(int client, int team) {
  * a team cannot spawn until the class menu is answered.
  */
 bool HasPickedClass(int client) {
-    // CSS-VERIFY: CCSPlayer has m_iClass, 0 means the class has not been picked yet.
-    if (!HasEntProp(client, Prop_Send, "m_iClass")) {
-        return true;
-    }
+    // CSS-VERIFY: m_iClass is 0 until the player has picked a class (model).
     return GetEntProp(client, Prop_Send, "m_iClass") != 0;
 }
 

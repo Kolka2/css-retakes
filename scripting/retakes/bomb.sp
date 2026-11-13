@@ -164,8 +164,8 @@ void FixBomb() {
         keep = GetClientC4(g_BombOwner);
     }
 
-    // CSS-VERIFY: removing the spare weapon_c4 entities (RemovePlayerItem + Kill) breaks
-    // nothing (the radar, the bots, the win conditions).
+    // Removing the spare weapon_c4 entities (RemovePlayerItem + Kill) breaks nothing:
+    // bots plant and defuse, rounds end as usual (a few hundred rounds on a live server).
     for (int i = 1; i <= MaxClients; i++) {
         if (i == g_BombOwner || !IsValidClient(i) || !IsPlayerAlive(i)) {
             continue;

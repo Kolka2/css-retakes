@@ -59,8 +59,6 @@ Handle g_hOnStart;
 Handle g_hOnEnding;
 Handle g_hOnEnd;
 
-bool g_RoundTimePropMissingLogged;
-
 public Plugin myinfo = {
     name = "CS:S Warmup",
     author = "retakes-css port",
@@ -405,8 +403,8 @@ public Action CS_OnTerminateRound(float &delay, CSRoundEndReason &reason) {
         return Plugin_Continue;
     }
 
-    // CSS-VERIFY: Plugin_Handled here really cancels the end of the round in CS:S
-    // (a team wiped out, the time ran out) and the game does not get stuck afterwards.
+    // Plugin_Handled cancels the end of the round (a team wiped out, the time ran out);
+    // checked on a live server.
     return Plugin_Handled;
 }
 
@@ -419,23 +417,11 @@ static void ExtendRound() {
         return;
     }
 
-    // CSS-VERIFY: CCSGameRulesProxy has m_iRoundTime and changing it mid-round moves both
-    // the HUD timer and the moment the round ends.
-    if (FindSendPropInfo("CCSGameRulesProxy", "m_iRoundTime") == -1) {
-        if (!g_RoundTimePropMissingLogged) {
-            g_RoundTimePropMissingLogged = true;
-            LogError("CCSGameRulesProxy::m_iRoundTime was not found, the warmup round may end by time");
-        }
-        return;
-    }
-
-    int elapsed = 0;
-    // CSS-VERIFY: CCSGameRulesProxy has m_fRoundStartTime (the end of the freeze time).
-    if (FindSendPropInfo("CCSGameRulesProxy", "m_fRoundStartTime") != -1) {
-        elapsed = RoundToFloor(GetGameTime() - GameRules_GetPropFloat("m_fRoundStartTime"));
-        if (elapsed < 0) {
-            elapsed = 0;
-        }
+    // Changing m_iRoundTime mid-round moves both the HUD timer and the moment the round
+    // ends (checked on a live server). m_fRoundStartTime is the end of the freeze time.
+    int elapsed = RoundToFloor(GetGameTime() - GameRules_GetPropFloat("m_fRoundStartTime"));
+    if (elapsed < 0) {
+        elapsed = 0;
     }
 
     int seconds = elapsed + ENDLESS_ROUND_TIME;
@@ -471,10 +457,7 @@ static bool IsOnTeam(int client) {
  * a team cannot spawn until the class menu is answered.
  */
 static bool HasPickedClass(int client) {
-    // CSS-VERIFY: CCSPlayer has m_iClass, 0 means the class has not been picked yet.
-    if (!HasEntProp(client, Prop_Send, "m_iClass")) {
-        return true;
-    }
+    // CSS-VERIFY: m_iClass is 0 until the player has picked a class (model).
     return GetEntProp(client, Prop_Send, "m_iClass") != 0;
 }
 
@@ -724,15 +707,13 @@ public Action Command_JoinTeam(int client, const char[] command, int argc) {
 
     CS_SwitchTeam(client, teamTo);
 
-    // CSS-VERIFY: CCSPlayer has m_iClass (1-4 terrorist models, 5-8 CT models); a player with
-    // a class of the new team is respawned without being shown the model menu.
-    if (HasEntProp(client, Prop_Send, "m_iClass")) {
-        int class = GetEntProp(client, Prop_Send, "m_iClass");
-        if (teamTo == CS_TEAM_T && (class < CSS_FIRST_T_CLASS || class > CSS_LAST_T_CLASS)) {
-            SetEntProp(client, Prop_Send, "m_iClass", GetRandomInt(CSS_FIRST_T_CLASS, CSS_LAST_T_CLASS));
-        } else if (teamTo == CS_TEAM_CT && (class < CSS_FIRST_CT_CLASS || class > CSS_LAST_CT_CLASS)) {
-            SetEntProp(client, Prop_Send, "m_iClass", GetRandomInt(CSS_FIRST_CT_CLASS, CSS_LAST_CT_CLASS));
-        }
+    // CSS-VERIFY: a player switching sides in the warmup gets a model of the new team
+    // and is respawned without being shown the model menu.
+    int class = GetEntProp(client, Prop_Send, "m_iClass");
+    if (teamTo == CS_TEAM_T && (class < CSS_FIRST_T_CLASS || class > CSS_LAST_T_CLASS)) {
+        SetEntProp(client, Prop_Send, "m_iClass", GetRandomInt(CSS_FIRST_T_CLASS, CSS_LAST_T_CLASS));
+    } else if (teamTo == CS_TEAM_CT && (class < CSS_FIRST_CT_CLASS || class > CSS_LAST_CT_CLASS)) {
+        SetEntProp(client, Prop_Send, "m_iClass", GetRandomInt(CSS_FIRST_CT_CLASS, CSS_LAST_CT_CLASS));
     }
 
     CS_UpdateClientModel(client);

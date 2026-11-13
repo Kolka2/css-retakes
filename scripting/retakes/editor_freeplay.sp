@@ -11,13 +11,10 @@ float g_LastDeathTime[MAXPLAYERS+1];
  * Keeps an hour on the round clock, so the round timer never runs out in the editor.
  */
 void Editor_KeepRoundEndless() {
-    int elapsed = 0;
-    // CSS-VERIFY: CCSGameRulesProxy has m_fRoundStartTime (the end of the freeze time).
-    if (FindSendPropInfo("CCSGameRulesProxy", "m_fRoundStartTime") != -1) {
-        elapsed = RoundToFloor(GetGameTime() - GameRules_GetPropFloat("m_fRoundStartTime"));
-        if (elapsed < 0) {
-            elapsed = 0;
-        }
+    // m_fRoundStartTime is the end of the freeze time.
+    int elapsed = RoundToFloor(GetGameTime() - GameRules_GetPropFloat("m_fRoundStartTime"));
+    if (elapsed < 0) {
+        elapsed = 0;
     }
     SetRoundTime(elapsed + EDITOR_ROUND_TIME);
 }
@@ -64,7 +61,7 @@ public Action CS_OnTerminateRound(float &delay, CSRoundEndReason &reason) {
         return Plugin_Continue;
     }
 
-    // CSS-VERIFY: Plugin_Handled here really cancels the end of the round in CS:S
-    // (a team wiped out, the time ran out) and the game does not get stuck afterwards.
+    // Plugin_Handled cancels the end of the round (a team wiped out, the time ran out);
+    // checked on a live server.
     return Plugin_Handled;
 }

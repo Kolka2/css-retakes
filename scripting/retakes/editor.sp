@@ -10,8 +10,8 @@ int g_EditorCursor[MAXPLAYERS+1] = {-1, ...}; // the spawn the editor visited la
  * Precaches the sprites the editor draws the spawns with. Called on every map start.
  */
 void PrecacheEditorSprites() {
-    // CSS-VERIFY: CS:S has sprites/laserbeam.vmt and sprites/halo01.vmt (CS:GO had
-    // sprites/halo.vmt); the spawn rings and arrows are visible in the editor.
+    // CS:S has sprites/halo01.vmt where CS:GO had sprites/halo.vmt; the spawn rings are
+    // visible in the editor (checked on a live server).
     g_iBeamSprite = PrecacheModel("sprites/laserbeam.vmt", true);
     g_iHaloSprite = PrecacheModel("sprites/halo01.vmt", true);
 }
