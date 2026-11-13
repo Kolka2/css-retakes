@@ -71,9 +71,11 @@ int GetClientC4(int client) {
  * Keeps the C4 away from everybody but the bomb carrier until FixBomb() has run.
  *
  * On every round restart CS:S gives a C4 to a random terrorist. FixBomb() takes it away
- * 0.1 s later, but by then that player has already been told "You have the bomb" (seen on
- * a live server: the hint showed up for players that never carried the bomb). Refusing the
- * pickup leaves the game's C4 on the ground, where FixBomb() removes it.
+ * 0.1 s later, but by then that player has seen "You picked up the bomb" at the top of
+ * the screen. Refusing the pickup prevents that text: the game's C4 stays on the ground,
+ * where FixBomb() removes it. Checked on a live server both ways: with this hook the text
+ * is gone, without it (the hook was removed for one build) the text came back.
+ * The hook does not stop the separate "You have the bomb" hint, see Hook_BombHintMessage.
  * After FixBomb() anybody may pick the bomb up, e.g. when the carrier dies.
  */
 public Action Hook_WeaponCanUse(int client, int weapon) {
@@ -135,8 +137,6 @@ public Action Hook_BombHintMessage(UserMsg msg_id, BfRead msg, const int[] playe
         return Plugin_Continue;
     }
 
-    // CSS-VERIFY: the hint travels in HintText or TextMsg with "you_have_the_bomb" in it,
-    // and blocking the message hides it.
     DebugLog("bomb: blocked the \"you have the bomb\" hint for %L", client);
     return Plugin_Handled;
 }
