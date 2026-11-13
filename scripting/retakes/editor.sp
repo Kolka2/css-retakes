@@ -81,8 +81,9 @@ static bool SpawnFilter(int spawn) {
 }
 
 void AddSpawn(int client) {
-    g_DirtySpawns = true;
-    if (g_NumSpawns + 1 >= MAX_SPAWNS) {
+    // (the original plugin stopped one spawn short of MAX_SPAWNS, and flagged unsaved
+    // changes even when nothing was added)
+    if (g_NumSpawns >= MAX_SPAWNS) {
         Retakes_MessageToAll("{DARK_RED}WARNING: {NORMAL}the maximum number of spawns has been reached. New spawns cannot be added.");
         LogError("Maximum number of spawns reached");
         return;
@@ -100,6 +101,7 @@ void AddSpawn(int client) {
                          SITESTRING(g_EditingSite),
                          g_NumSpawns);
     g_NumSpawns++;
+    g_DirtySpawns = true;
 }
 
 /**
@@ -151,11 +153,11 @@ int FindClosestSpawn(int client) {
 }
 
 void DeleteClosestSpawn(int client) {
-    g_DirtySpawns = true;
     int closest = FindClosestSpawn(client);
     if (closest >= 0) {
         Retakes_MessageToAll("Deleted spawn #%d.", closest);
         g_SpawnDeleted[closest] = true;
+        g_DirtySpawns = true;
     }
 }
 
@@ -179,6 +181,9 @@ void ReloadSpawns() {
 
 void DeleteMapSpawns() {
     g_NumSpawns = 0;
+    // An unsaved change like any other: without this (as in the original plugin) the
+    // map change did not write the file, and the deleted spawns came back.
+    g_DirtySpawns = true;
     Retakes_MessageToAll("All spawns for this map have been deleted");
 }
 

@@ -110,7 +110,14 @@ int ParseSpawns() {
         if (kv.GetNum("nobomb") == 1) {
             g_SpawnTypes[spawn] = SpawnType_NeverWithBomb;
         } else {
-            g_SpawnTypes[spawn] = view_as<SpawnType>(kv.GetNum("type"));
+            int type = kv.GetNum("type");
+            if (type < view_as<int>(SpawnType_Normal) || type > view_as<int>(SpawnType_NeverWithBomb)) {
+                // (the original plugin took any number, and the rest of the code then
+                // treated it as "never bomb-carrier")
+                LogError("Spawn %d in %s has an unknown type %d, using a normal spawn", spawn, configFile, type);
+                type = view_as<int>(SpawnType_Normal);
+            }
+            g_SpawnTypes[spawn] = view_as<SpawnType>(type);
         }
 
         g_SpawnDeleted[spawn] = false;
