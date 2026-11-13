@@ -1,5 +1,6 @@
 #include <sourcemod>
 #include <sdktools>
+#include <sdkhooks>
 #include <cstrike>
 
 #include "include/priorityqueue.inc"
@@ -267,6 +268,13 @@ public void OnPluginStart() {
     for (int i = 0; i < MAX_SPAWNS; i++) {
         g_SpawnTypes[i] = SpawnType_Normal;
     }
+
+    // Late load: hook the players that are already on the server.
+    for (int i = 1; i <= MaxClients; i++) {
+        if (IsClientInGame(i)) {
+            OnClientPutInServer(i);
+        }
+    }
 }
 
 public void OnPluginEnd() {
@@ -350,6 +358,10 @@ void ExecConfigs() {
 
 public void OnClientConnected(int client) {
     ResetClientVariables(client);
+}
+
+public void OnClientPutInServer(int client) {
+    SDKHook(client, SDKHook_WeaponCanUse, Hook_WeaponCanUse);
 }
 
 public void OnClientDisconnect(int client) {
