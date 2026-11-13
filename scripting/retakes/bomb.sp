@@ -68,31 +68,6 @@ int GetClientC4(int client) {
 }
 
 /**
- * Keeps the C4 away from everybody but the bomb carrier until FixBomb() has run.
- *
- * On every round restart CS:S gives a C4 to a random terrorist. FixBomb() takes it away
- * 0.1 s later, but by then that player has already been told "You have the bomb" (seen on
- * a live server: the hint showed up for players that never carried the bomb). Refusing the
- * pickup leaves the game's C4 on the ground, where FixBomb() removes it.
- * After FixBomb() anybody may pick the bomb up, e.g. when the carrier dies.
- */
-public Action Hook_WeaponCanUse(int client, int weapon) {
-    if (!g_Enabled || g_BombHandedOut || client == g_BombOwner || InFreePlay()) {
-        return Plugin_Continue;
-    }
-
-    char classname[32];
-    if (!IsValidEntity(weapon) || !GetEntityClassname(weapon, classname, sizeof(classname))
-        || !StrEqual(classname, "weapon_c4")) {
-        return Plugin_Continue;
-    }
-
-    // CSS-VERIFY: the refused C4 does not confuse the bots or the radar.
-    DebugLog("bomb: refused the C4 the game tried to give to %L", client);
-    return Plugin_Handled;
-}
-
-/**
  * Hooks the user messages the "You have the bomb" hint may travel in.
  */
 void HookBombHintMessages() {
@@ -108,9 +83,11 @@ void HookBombHintMessages() {
 /**
  * Drops the "You have the bomb" hint for a player that is not carrying the bomb.
  *
- * Refusing the game's C4 in Hook_WeaponCanUse did not stop the hint (checked on a live
- * server), so the message itself is filtered here. The text is looked for in every string
- * of the message, whatever its layout is.
+ * On every round restart CS:S gives a C4 to a random terrorist and tells that player
+ * "You have the bomb". FixBomb() takes the C4 away 0.1 s later, but the hint stayed on
+ * the screen of a player that never carried the bomb. Refusing the pickup did not stop
+ * the hint (both checked on a live server), so the message itself is filtered here.
+ * The text is looked for in every string of the message, whatever its layout is.
  */
 public Action Hook_BombHintMessage(UserMsg msg_id, BfRead msg, const int[] players, int playersNum, bool reliable, bool init) {
     if (!g_Enabled || playersNum != 1 || InFreePlay()) {
@@ -135,8 +112,6 @@ public Action Hook_BombHintMessage(UserMsg msg_id, BfRead msg, const int[] playe
         return Plugin_Continue;
     }
 
-    // CSS-VERIFY: the hint travels in HintText or TextMsg with "you_have_the_bomb" in it,
-    // and blocking the message hides it.
     DebugLog("bomb: blocked the \"you have the bomb\" hint for %L", client);
     return Plugin_Handled;
 }
@@ -178,8 +153,7 @@ void FixBomb() {
         }
     }
 
-    // Bombs lying on the ground (refused by Hook_WeaponCanUse, dropped in the last round
-    // or on a team switch).
+    // Bombs lying on the ground (dropped in the last round or on a team switch).
     int entity = -1;
     while ((entity = FindEntityByClassname(entity, "weapon_c4")) != -1) {
         if (entity != keep) {
@@ -187,7 +161,7 @@ void FixBomb() {
         }
     }
 
-    // From here on the bomb can change hands freely (see Hook_WeaponCanUse).
+    // From here on whoever holds the C4 is a legitimate carrier (see Hook_BombHintMessage).
     g_BombHandedOut = true;
 
     if (g_BombOwner == -1) {

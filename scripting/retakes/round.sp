@@ -243,8 +243,8 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
     ResetRoundPoints();
 
     if (!g_TeamsValid) {
-        // No retake this round (the map has no spawns): FixBomb() will not run, so the
-        // game's own bomb must stay usable.
+        // No retake this round (the map has no spawns): FixBomb() will not run, and the
+        // player the game gave the bomb to is the carrier (see Hook_BombHintMessage).
         g_BombHandedOut = true;
         return Plugin_Continue;
     }
