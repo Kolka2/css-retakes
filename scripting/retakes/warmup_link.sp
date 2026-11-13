@@ -64,10 +64,11 @@ public void StartMapWarmup() {
 public void GoLive() {
     DebugLog("going live (edit mode: %d), restarting the game", g_EditMode);
     g_EditMode = false;
-    // The round after the restart is prepared by Event_RoundStart: mp_restartgame does not
-    // necessarily fire round_end.
-    g_PreparePending = false;
-    g_RoundPrepared = false;
+    // The game restart zeroes the scoreboard, so the plugin's own progress (round points,
+    // the T win streak, the round counter) starts over as well. This also drops any
+    // prepared round: the round after the restart is prepared by Event_RoundStart, since
+    // mp_restartgame does not fire round_end.
+    ResetRetakesProgress();
     ServerCommand("mp_restartgame 1");
 }
 
