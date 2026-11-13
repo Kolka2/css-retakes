@@ -1,3 +1,6 @@
+// Helpers shared by the retakes plugin and its addons (the allocators, the site picker).
+// Everything here is a stock: each plugin only compiles what it uses.
+
 #tryinclude "manual_version.sp"
 #if !defined PLUGIN_VERSION
 #define PLUGIN_VERSION "0.3.4"
@@ -10,87 +13,11 @@
 #include <cstrike>
 #include <clientprefs>
 
-// Цвета чата CS:S: \x01 - обычный, \x04 - зелёный, \x05 - оливковый, \x07RRGGBB - произвольный.
-// Имена тегов те же, что в CS:GO-версии, поэтому файлы переводов менять не нужно.
-// CSS-VERIFY: чат CS:S понимает \x07RRGGBB в сообщениях PrintToChat (нет "квадратиков", теги раскрашены).
+// CS:S chat colors: \x01 - default, \x04 - green, \x05 - olive, \x07RRGGBB - any color.
+// The tag names are the same as in the CS:GO version, so the translation files need no changes.
+// CSS-VERIFY: the CS:S chat understands \x07RRGGBB in PrintToChat messages (no "boxes", the tags are colored).
 char g_ColorNames[][] = {"{NORMAL}", "{DARK_RED}", "{PURPLE}", "{GREEN}", "{MOSS_GREEN}", "{LIGHT_GREEN}", "{LIGHT_RED}", "{GRAY}", "{ORANGE}", "{LIGHT_BLUE}", "{DARK_BLUE}"};
 char g_ColorCodes[][] = {"\x01", "\x07CC0000", "\x07B980EF", "\x04", "\x05", "\x0799FF99", "\x07FF4040", "\x07CCCCCC", "\x07FFA500", "\x0799CCFF", "\x074D7AFF"};
-
-/**
- * Removes (and destroys) every weapon the client is carrying, apart from the
- * weapon entity passed as "except".
- * Замена Client_RemoveAllWeapons из smlib.
- */
-stock void RemoveAllWeapons(int client, int except = -1) {
-    if (!HasEntProp(client, Prop_Send, "m_hMyWeapons")) {
-        return;
-    }
-
-    int size = GetEntPropArraySize(client, Prop_Send, "m_hMyWeapons");
-    for (int i = 0; i < size; i++) {
-        int weapon = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
-        if (weapon > MaxClients && weapon != except && IsValidEntity(weapon)) {
-            RemovePlayerItem(client, weapon);
-            AcceptEntityInput(weapon, "Kill");
-        }
-    }
-}
-
-/**
- * Sets the armor value of a client.
- * Замена Client_SetArmor из smlib.
- */
-stock void SetClientArmor(int client, int value) {
-    if (HasEntProp(client, Prop_Send, "m_ArmorValue")) {
-        SetEntProp(client, Prop_Send, "m_ArmorValue", value);
-    }
-}
-
-/**
- * Returns if the 2 players should be fighting each other.
- * Returns false on friendly fire/suicides.
- */
-stock bool HelpfulAttack(int attacker, int victim) {
-    if (!IsValidClient(attacker) || !IsValidClient(victim)) {
-        return false;
-    }
-    int ateam = GetClientTeam(attacker); // Get attacker's team
-    int vteam = GetClientTeam(victim);   // Get the victim's team
-    return ateam != vteam && attacker != victim;
-}
-
-/**
- * Returns the player counts of the T & CT Teams. Despite the parameter names
- * (kept from the original plugin) this counts everybody on the teams, bots included.
- */
-stock void GetTeamsClientCounts(int &tHumanCount, int &ctHumanCount) {
-    for (int client = 1; client <= MaxClients; client++) {
-        if (IsClientConnected(client) && IsClientInGame(client)) {
-            if (GetClientTeam(client) == CS_TEAM_T)
-                tHumanCount++;
-
-            else if (GetClientTeam(client) == CS_TEAM_CT)
-                ctHumanCount++;
-        }
-    }
-}
-
-/**
- * Returns the number of players currently on an active team (T/CT).
- */
-stock int GetActivePlayerCount() {
-    int count = 0;
-    for (int client = 1; client <= MaxClients; client++) {
-        if (IsClientConnected(client) && IsClientInGame(client)) {
-            if (GetClientTeam(client) == CS_TEAM_T)
-                count++;
-            else if (GetClientTeam(client) == CS_TEAM_CT)
-                count++;
-        }
-    }
-    return count;
-}
-
 
 /**
  * Returns if a player is on an active/player team.
@@ -100,17 +27,11 @@ stock bool IsOnTeam(int client) {
     return (team == CS_TEAM_CT) || (team == CS_TEAM_T);
 }
 
-stock bool IsConnected(int client) {
-    return client > 0 && client <= MaxClients && IsClientConnected(client) && !IsFakeClient(client);
-}
-
 /**
  * Function to identify if a client is valid and in game.
  */
 stock bool IsValidClient(int client) {
-    if (client > 0 && client <= MaxClients && IsClientConnected(client) && IsClientInGame(client))
-        return true;
-    return false;
+    return client > 0 && client <= MaxClients && IsClientConnected(client) && IsClientInGame(client);
 }
 
 /**
@@ -149,15 +70,6 @@ stock void AddMenuInt(Menu menu, int value, const char[] display) {
     char buffer[INTEGER_STRING_LENGTH];
     IntToString(value, buffer, sizeof(buffer));
     menu.AddItem(buffer, display);
-}
-
-/**
- * Adds an integer to a menu as a string choice with the integer as the display.
- */
-stock void AddMenuInt2(Menu menu, int value) {
-    char buffer[INTEGER_STRING_LENGTH];
-    IntToString(value, buffer, sizeof(buffer));
-    menu.AddItem(buffer, buffer);
 }
 
 /**
@@ -239,11 +151,6 @@ stock void SetCookieBool(int client, Handle cookie, bool value) {
  */
 stock bool GetCookieBool(int client, Handle cookie) {
     return GetCookieInt(client, cookie) != 0;
-}
-
-stock bool Chance(float p) {
-    float f = GetRandomFloat();
-    return f < p;
 }
 
 /**

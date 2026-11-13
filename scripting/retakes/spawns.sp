@@ -1,3 +1,10 @@
+// Retake spawns: the bomb targets of the map, the spawn config file and the choice of
+// a spawn for a player. Included only from retakes.sp.
+
+Bombsite GetOtherSite(Bombsite site) {
+    return (site == BombsiteA) ? BombsiteB : BombsiteA;
+}
+
 static void GetConfigFileName(char[] buffer, int size) {
     // get the map, with any workshop stuff before removed
     char mapName[128];
@@ -9,8 +16,9 @@ static void GetConfigFileName(char[] buffer, int size) {
  * Reads the bounding box of an entity in world coordinates.
  */
 static bool GetEntityWorldBounds(int entity, float mins[3], float maxs[3]) {
-    // CSS-VERIFY: у func_bomb_target в CS:S читаются m_vecMins/m_vecMaxs, и вместе с m_vecOrigin
-    // они дают мировые координаты зоны закладки (спавн внутри бомбплейса определяется верно).
+    // CSS-VERIFY: func_bomb_target in CS:S has m_vecMins/m_vecMaxs, and together with
+    // m_vecOrigin they give the bomb target in world coordinates (a spawn inside the
+    // bombsite is detected correctly).
     if (HasEntProp(entity, Prop_Send, "m_vecMins") && HasEntProp(entity, Prop_Send, "m_vecMaxs")) {
         GetEntPropVector(entity, Prop_Send, "m_vecMins", mins);
         GetEntPropVector(entity, Prop_Send, "m_vecMaxs", maxs);
@@ -21,7 +29,7 @@ static bool GetEntityWorldBounds(int entity, float mins[3], float maxs[3]) {
         return false;
     }
 
-    // У брашевых сущностей origin обычно нулевой, но полагаться на это не будем.
+    // Brush entities usually have a zero origin, but that is not relied upon.
     float origin[3];
     if (HasEntProp(entity, Prop_Send, "m_vecOrigin")) {
         GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
@@ -33,7 +41,7 @@ static bool GetEntityWorldBounds(int entity, float mins[3], float maxs[3]) {
     return true;
 }
 
-public void FindSites() {
+void FindSites() {
     g_SiteMins.Clear();
     g_SiteMaxs.Clear();
 
@@ -58,13 +66,13 @@ public void FindSites() {
 /**
  * Reads the scenario keyvalues config file and sets up the global scenario and player arrays.
  */
-public int ParseSpawns() {
+int ParseSpawns() {
     g_DirtySpawns = false;
     char configFile[PLATFORM_MAX_PATH];
     GetConfigFileName(configFile, sizeof(configFile));
 
     if (!FileExists(configFile)) {
-        // Не ошибка: для CS:S спавны создаются редактором (!edit), см. configs/retakes/README.md.
+        // Not an error: CS:S spawns are made with the editor (!edit), see configs/retakes/README.md.
         LogMessage("No retakes spawns for this map yet (%s). Create them with the editor: !edit", configFile);
         return 0;
     }
@@ -123,7 +131,7 @@ public int ParseSpawns() {
 /**
  * Writes the stored scenario structures back to the config file.
  */
-public void WriteSpawns() {
+void WriteSpawns() {
     KeyValues kv = new KeyValues("Spawns");
     int output_index = 0;
 
@@ -150,7 +158,7 @@ public void WriteSpawns() {
         kv.GoBack();
     }
 
-    // Каталог может отсутствовать на свежем сервере: готовых спавнов для CS:S в комплекте нет.
+    // The directory may be missing on a fresh server: no CS:S spawns are shipped.
     char configDir[PLATFORM_MAX_PATH];
     BuildPath(Path_SM, configDir, sizeof(configDir), "configs/retakes");
     if (!DirExists(configDir)) {
@@ -163,8 +171,9 @@ public void WriteSpawns() {
     DeleteFile(configFile);
     kv.Rewind();
     if (kv.ExportToFile(configFile)) {
-        // Всё записано: несохранённых изменений больше нет (в оригинале флаг здесь не
-        // сбрасывался, из-за чего sm_retakes_validatespawns и после сохранения сообщал о них).
+        // Everything is on disk, there are no unsaved changes any more (the original
+        // did not reset the flag here, so sm_retakes_validatespawns kept reporting
+        // unsaved changes after a save).
         g_DirtySpawns = false;
     } else {
         LogError("Failed to write the retakes spawns to %s", configFile);
@@ -172,285 +181,7 @@ public void WriteSpawns() {
     delete kv;
 }
 
-/**
- * Sets up a player for the round, giving weapons, teleporting, etc.
- */
-public void SetupPlayer(int client) {
-    int spawnIndex = g_SpawnIndices[client];
-    if (spawnIndex < 0) {
-        DebugLog("spawn: %L has no retake spawn this round, left at the map spawn", client);
-        return;
-    }
-
-    MoveToSpawn(client, spawnIndex);
-    GiveWeapons(client);
-    DebugLog("spawn: %L -> %s spawn #%d, \"%s\" + \"%s\", nades \"%s\", armor %d, helmet %d, kit %d",
-             client, TEAMSTRING(g_Team[client]), spawnIndex, g_PlayerPrimary[client], g_PlayerSecondary[client],
-             g_PlayerNades[client], g_PlayerArmor[client], g_PlayerHelmet[client], g_PlayerKit[client]);
-}
-
-public void MoveToSpawn(int client, int spawnIndex) {
-    TeleportEntity(client, g_SpawnPoints[spawnIndex], g_SpawnAngles[spawnIndex], NULL_VECTOR);
-}
-
-/**
- * Gives a weapon by its class name. Empty names are skipped (an allocator may leave
- * the primary weapon empty). Returns the weapon entity or -1.
- */
-static int GiveWeapon(int client, const char[] weapon) {
-    if (weapon[0] == '\0') {
-        return -1;
-    }
-
-    int entity = GivePlayerItem(client, weapon);
-    if (entity == -1) {
-        // Чаще всего это имя оружия из CS:GO, пришедшее от стороннего аллокатора.
-        LogError("Failed to give \"%s\" to %L: no such weapon in CS:S?", weapon, client);
-    }
-    return entity;
-}
-
-/**
- * Fills the reserve ammo of one firearm the client was just given.
- *
- * Only the primary weapon and the pistol go through here. Grenades must not: an earlier
- * version refilled everything the player carried and relied on grenades having no clip,
- * but on a live CS:S server that gave a second flashbang (the flashbang ammo limit is 2).
- */
-static void RefillWeaponAmmo(int client, int weapon) {
-    if (weapon <= MaxClients || !IsValidEntity(weapon)) {
-        return;
-    }
-    if (!HasEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType")) {
-        return;
-    }
-
-    int ammoType = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
-    if (ammoType >= 0) {
-        // CSS-VERIFY: GivePlayerAmmo в CS:S обрезает запас до максимума для типа патронов
-        // (AK-47: 30/90, а не 30/999), а оружие от GivePlayerItem приходит с полным магазином.
-        GivePlayerAmmo(client, 999, ammoType, true);
-    }
-}
-
-/**
- * Sets the money of a client. Retakes hands out the equipment itself, so nobody
- * (the bots first of all) should be able to buy on top of it.
- */
-stock void SetClientMoney(int client, int money) {
-    // CSS-VERIFY: у CCSPlayer есть m_iAccount, при нуле ни люди, ни боты ничего не покупают.
-    if (HasEntProp(client, Prop_Send, "m_iAccount")) {
-        SetEntProp(client, Prop_Send, "m_iAccount", money);
-    }
-}
-
-public void GiveWeapons(int client) {
-    if (!IsValidClient(client)) {
-        return;
-    }
-
-    // The C4 is left alone: the game may already have given it to this player, and
-    // FixBomb() sorts the bombs out after everybody is equipped.
-    RemoveAllWeapons(client, GetClientC4(client));
-
-    // В CS:S один нож на обе команды (weapon_knife_t нет).
-    GiveWeapon(client, "weapon_knife");
-    RefillWeaponAmmo(client, GiveWeapon(client, g_PlayerPrimary[client]));
-    RefillWeaponAmmo(client, GiveWeapon(client, g_PlayerSecondary[client]));
-
-    SetClientArmor(client, g_PlayerArmor[client]);
-    SetEntityHealth(client, g_PlayerHealth[client]);
-
-    // CSS-VERIFY: у CCSPlayer есть m_bHasHelmet и m_bHasDefuser.
-    if (HasEntProp(client, Prop_Send, "m_bHasHelmet")) {
-        SetEntProp(client, Prop_Send, "m_bHasHelmet", g_PlayerHelmet[client]);
-    }
-    if (HasEntProp(client, Prop_Send, "m_bHasDefuser")) {
-        SetEntProp(client, Prop_Send, "m_bHasDefuser", g_Team[client] == CS_TEAM_CT && g_PlayerKit[client]);
-    }
-
-    // В CS:S есть только осколочная, световая и дымовая гранаты.
-    // Остальные буквы (m, i, d из CS:GO) молча пропускаются.
-    int len = strlen(g_PlayerNades[client]);
-    for (int i = 0; i < len; i++) {
-        switch (g_PlayerNades[client][i]) {
-            case 'h': GiveWeapon(client, "weapon_hegrenade");
-            case 'f': GiveWeapon(client, "weapon_flashbang");
-            case 's': GiveWeapon(client, "weapon_smokegrenade");
-        }
-    }
-
-    SetClientMoney(client, 0);
-
-    // C4 здесь не выдаётся: этим после спавна всех игроков занимается FixBomb().
-}
-
-#define SELECT_BOMB_WINDOW 3.0   // сколько секунд после выдачи бомбы пытаться дать её в руки
-
-int g_SelectBombClient = -1;     // человек-бомбер, которому нужно достать C4
-float g_SelectBombUntil;
-bool g_BombHandedOut;            // FixBomb() has run for the current round
-
-/**
- * Keeps the C4 away from everybody but the bomb carrier until FixBomb() has run.
- *
- * On every round restart CS:S gives a C4 to a random terrorist. FixBomb() takes it away
- * 0.1 s later, but by then that player has already been told "You have the bomb" (seen on
- * a live server: the hint showed up for players that never carried the bomb). Refusing the
- * pickup leaves the game's C4 on the ground, where FixBomb() removes it.
- * After FixBomb() anybody may pick the bomb up, e.g. when the carrier dies.
- */
-public Action Hook_WeaponCanUse(int client, int weapon) {
-    if (!g_Enabled || g_BombHandedOut || client == g_BombOwner || InFreePlay()) {
-        return Plugin_Continue;
-    }
-
-    char classname[32];
-    if (!IsValidEntity(weapon) || !GetEntityClassname(weapon, classname, sizeof(classname))
-        || !StrEqual(classname, "weapon_c4")) {
-        return Plugin_Continue;
-    }
-
-    // CSS-VERIFY: with the pickup refused the "You have the bomb" hint is not shown to
-    // that player, and the refused C4 does not confuse the bots or the radar.
-    return Plugin_Handled;
-}
-
-/**
- * Returns the weapon_c4 entity carried by a client, or -1.
- */
-stock int GetClientC4(int client) {
-    if (!HasEntProp(client, Prop_Send, "m_hMyWeapons")) {
-        return -1;
-    }
-
-    char classname[32];
-    int size = GetEntPropArraySize(client, Prop_Send, "m_hMyWeapons");
-    for (int i = 0; i < size; i++) {
-        int weapon = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
-        if (weapon > MaxClients && IsValidEntity(weapon)
-            && GetEntityClassname(weapon, classname, sizeof(classname))
-            && StrEqual(classname, "weapon_c4")) {
-            return weapon;
-        }
-    }
-    return -1;
-}
-
-/**
- * Makes sure there is exactly one C4 in the game and the bomb carrier has it.
- * CS:S has no mp_give_player_c4: on every round restart the game itself gives a C4 to a
- * random terrorist (after the players have spawned), so this runs shortly after round_start.
- */
-public void FixBomb() {
-    g_SelectBombClient = -1;
-
-    // Бомбер мог выйти между подготовкой раунда и его началом - берём другого живого T.
-    if (!IsValidClient(g_BombOwner) || !IsPlayerAlive(g_BombOwner) || GetClientTeam(g_BombOwner) != CS_TEAM_T) {
-        g_BombOwner = PickBombOwner();
-        if (g_BombOwner != -1 && (!IsPlayerAlive(g_BombOwner) || GetClientTeam(g_BombOwner) != CS_TEAM_T)) {
-            g_BombOwner = -1;
-        }
-        DebugLog("bomb: the bomb carrier is gone, new carrier: %d", g_BombOwner);
-    }
-
-    int keep = -1;
-    if (g_BombOwner != -1) {
-        keep = GetClientC4(g_BombOwner);
-    }
-
-    // CSS-VERIFY: игра при рестарте раунда сама выдаёт C4 случайному T; удаление лишних weapon_c4
-    // (RemovePlayerItem + Kill) ничего не ломает (радар, боты, условия победы).
-    for (int i = 1; i <= MaxClients; i++) {
-        if (i == g_BombOwner || !IsValidClient(i) || !IsPlayerAlive(i)) {
-            continue;
-        }
-        int c4 = GetClientC4(i);
-        if (c4 != -1) {
-            DebugLog("bomb: removing the C4 the game gave to %L", i);
-            RemovePlayerItem(i, c4);
-            AcceptEntityInput(c4, "Kill");
-        }
-    }
-
-    // Бомбы, лежащие на земле (выпали в прошлом раунде или при смене команды).
-    int entity = -1;
-    while ((entity = FindEntityByClassname(entity, "weapon_c4")) != -1) {
-        if (entity != keep) {
-            AcceptEntityInput(entity, "Kill");
-        }
-    }
-
-    // From here on the bomb can change hands freely (see Hook_WeaponCanUse).
-    g_BombHandedOut = true;
-
-    if (g_BombOwner == -1) {
-        DebugLog("bomb: there is nobody to carry the bomb this round");
-        return;
-    }
-
-    if (keep == -1) {
-        keep = GivePlayerItem(g_BombOwner, "weapon_c4");
-        if (keep == -1) {
-            LogError("Failed to give weapon_c4 to %L", g_BombOwner);
-            return;
-        }
-        DebugLog("bomb: C4 given to %L", g_BombOwner);
-    } else {
-        DebugLog("bomb: %L already has the C4", g_BombOwner);
-    }
-
-    // Человеку-бомберу сразу достаём C4 в руки. Ботам не нужно: они ставят бомбу сами.
-    if (!IsFakeClient(g_BombOwner)) {
-        g_SelectBombClient = g_BombOwner;
-        g_SelectBombUntil = GetGameTime() + SELECT_BOMB_WINDOW;
-    }
-}
-
-/**
- * Puts the C4 into the hands of the human bomb carrier.
- *
- * Weapon selection in Source is driven by the client: the "use"/"slotN" commands are
- * client-side, so FakeClientCommand(client, "use weapon_c4") does nothing on the server
- * (checked on a live CS:S server). The supported server-side way is to fill the
- * weapon-select field of the player's user command, which is what this hook does for
- * a short time after the bomb was handed out.
- */
-public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3],
-                             int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2]) {
-    if (client != g_SelectBombClient) {
-        return Plugin_Continue;
-    }
-
-    if (GetGameTime() > g_SelectBombUntil || g_bombPlanted || client != g_BombOwner || !IsPlayerAlive(client)) {
-        g_SelectBombClient = -1;
-        return Plugin_Continue;
-    }
-
-    int c4 = GetClientC4(client);
-    if (c4 == -1) {
-        g_SelectBombClient = -1;
-        return Plugin_Continue;
-    }
-
-    if (GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon") == c4) {
-        DebugLog("bomb: %L now holds the C4", client);
-        g_SelectBombClient = -1;
-        return Plugin_Continue;
-    }
-
-    // Если игрок в этот же тик сам выбирает оружие, не мешаем ему.
-    if (weapon != 0) {
-        return Plugin_Continue;
-    }
-
-    // CSS-VERIFY: подстановка weapon в OnPlayerRunCmd переключает человека на C4 в начале раунда
-    // (в том числе во время фризтайма), после чего он может свободно менять оружие.
-    weapon = c4;
-    return Plugin_Changed;
-}
-
-public bool InsideBombSite(float vec[3]) {
+static bool InsideBombSite(float vec[3]) {
     for (int i = 0; i < g_SiteMaxs.Length; i++) {
         float min[3];
         float max[3];
@@ -469,24 +200,25 @@ public bool InsideBombSite(float vec[3]) {
     return false;
 }
 
-public bool SpawnInsideBombSite(int spawnIndex) {
+bool SpawnInsideBombSite(int spawnIndex) {
     return InsideBombSite(g_SpawnPoints[spawnIndex]);
 }
 
 /**
  * Returns if the bomb carrier may be put on a spawn.
  *
- * Правило оригинального плагина, менять его не нужно (см. PORT/PROGRESS.md):
- * бомберу годится любой T-спавн ВНУТРИ зоны закладки, кроме помеченных "никогда бомбер".
- * То есть не только SpawnType_OnlyWithBomb, но и обычный SpawnType_Normal. Тип "только
- * бомбер" не привязывает бомбера к этому спавну, а лишь закрывает спавн для остальных T
- * (см. CanRegularPlayerSpawn). Чтобы бомбер появлялся только на выделенных точках,
- * остальные T-спавны внутри зоны закладки помечают SpawnType_NeverWithBomb.
+ * This is the rule of the original plugin and must stay as it is (see PORT/PROGRESS.md):
+ * the bomb carrier may use any T spawn INSIDE a bomb target, except the ones marked
+ * "never bomb-carrier". That is, not only SpawnType_OnlyWithBomb but an ordinary
+ * SpawnType_Normal as well. The "bomb-carrier only" type does not tie the carrier to
+ * that spawn, it only closes the spawn for the other terrorists (see
+ * CanRegularPlayerSpawn). To make the carrier appear on dedicated spots only, mark the
+ * other T spawns inside the bomb target as SpawnType_NeverWithBomb.
  *
- * Если подходящего спавна на сайте нет, SelectSpawn ставит бомбера на любой обычный
- * T-спавн и пишет ошибку в лог.
+ * If the site has no suitable spawn, SelectSpawn puts the carrier on any regular T spawn
+ * and logs an error.
  */
-public bool CanBombCarrierSpawn(int spawn) {
+bool CanBombCarrierSpawn(int spawn) {
     if (g_SpawnTeams[spawn] == CS_TEAM_CT)
         return false;
     return (g_SpawnTypes[spawn] != SpawnType_NeverWithBomb) && SpawnInsideBombSite(spawn);
@@ -494,10 +226,10 @@ public bool CanBombCarrierSpawn(int spawn) {
 
 /**
  * Returns if a player without the bomb may be put on a spawn.
- * Для CT - на любой CT-спавн; для T - на любой T-спавн, кроме "только бомбер".
- * Находится ли спавн в зоне закладки, здесь значения не имеет.
+ * A CT may use any CT spawn; a T may use any T spawn except "bomb-carrier only".
+ * Whether the spawn is inside a bomb target does not matter here.
  */
-public bool CanRegularPlayerSpawn(int spawn) {
+bool CanRegularPlayerSpawn(int spawn) {
     if (g_SpawnTeams[spawn] == CS_TEAM_CT)
         return true;
     return g_SpawnTypes[spawn] != SpawnType_OnlyWithBomb;
@@ -507,7 +239,7 @@ public bool CanRegularPlayerSpawn(int spawn) {
  * Returns if a bombsite has enough spawns to play a round with the given team sizes:
  * numT terrorist spawns (at least one of them usable by the bomb carrier) and numCT CT spawns.
  */
-public bool SiteHasSpawns(Bombsite site, int numT, int numCT) {
+bool SiteHasSpawns(Bombsite site, int numT, int numCT) {
     int tCount = 0, ctCount = 0, bombCount = 0;
     for (int i = 0; i < g_NumSpawns; i++) {
         if (g_SpawnDeleted[i] || g_SpawnSites[i] != site) {
@@ -528,7 +260,7 @@ public bool SiteHasSpawns(Bombsite site, int numT, int numCT) {
 /**
  * Returns an appropriate spawn index for a player.
  */
-public int SelectSpawn(int team, bool bombSpawn) {
+int SelectSpawn(int team, bool bombSpawn) {
     ArrayList potentialSpawns = new ArrayList();
     for (int i = 0; i < g_NumSpawns; i++) {
         if (g_SpawnDeleted[i]) {
@@ -560,6 +292,6 @@ public int SelectSpawn(int team, bool bombSpawn) {
     }
 }
 
-public bool IsValidSpawn(int index) {
+bool IsValidSpawn(int index) {
     return index >= 0 && index < g_NumSpawns && !g_SpawnDeleted[index];
 }
