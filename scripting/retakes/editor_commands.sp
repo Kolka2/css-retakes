@@ -55,8 +55,11 @@ public Action Command_ReloadSpawns(int client, int args) {
 
 public Action Command_SaveSpawns(int client, int args) {
     if (CheckEditorCommand(client, false)) {
-        SaveSpawns();
-        Retakes_Message(client, "Saved %d spawns.", g_NumSpawns);
+        // the original plugin printed g_NumSpawns here, which also counts deleted spawns
+        int saved = SaveSpawns();
+        if (saved >= 0) {
+            Retakes_Message(client, "Saved %d spawns.", saved);
+        }
     }
     return Plugin_Handled;
 }
@@ -106,11 +109,15 @@ public Action Command_Show(int client, int args) {
     }
 
     char arg[32];
-    if (args >= 1 && GetCmdArg(1, arg, sizeof(arg))) {
-        Bombsite site = StrEqual(arg, "A", false) ? BombsiteA : BombsiteB;
-        ShowSpawns(site);
+    if (args < 1 || !GetCmdArg(1, arg, sizeof(arg))) {
+        ReplyToCommand(client, "Usage: sm_show <a|b>");
+    } else if (StrEqual(arg, "A", false)) {
+        ShowSpawns(BombsiteA);
+    } else if (StrEqual(arg, "B", false)) {
+        ShowSpawns(BombsiteB);
     } else {
-        ReplyToCommand(client, "Usage: sm_show <site>");
+        // the original plugin treated anything but "a" as bombsite B
+        ReplyToCommand(client, "Invalid bomb site name: %s", arg);
     }
     return Plugin_Handled;
 }
@@ -188,11 +195,18 @@ public Action Command_GotoSpawn(int client, int args) {
     }
 
     char buffer[32];
-    if (args >= 1 && GetCmdArg(1, buffer, sizeof(buffer))) {
-        int spawn = StringToInt(buffer);
-        if (IsValidSpawn(spawn)) {
-            MoveToSpawnInEditor(client, spawn);
-        }
+    if (args < 1 || !GetCmdArg(1, buffer, sizeof(buffer))) {
+        ReplyToCommand(client, "Usage: sm_goto <spawn number>");
+        return Plugin_Handled;
+    }
+
+    int spawn = StringToInt(buffer);
+    if (IsValidSpawn(spawn)) {
+        MoveToSpawnInEditor(client, spawn);
+    } else {
+        // the original plugin stayed silent here
+        ReplyToCommand(client, "There is no spawn #%d (the numbers go from 0 to %d, deleted spawns are skipped).",
+                       spawn, g_NumSpawns - 1);
     }
 
     return Plugin_Handled;

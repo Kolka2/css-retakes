@@ -130,8 +130,9 @@ int ParseSpawns() {
 
 /**
  * Writes the stored scenario structures back to the config file.
+ * Returns the number of spawns written, or -1 if the file could not be written.
  */
-void WriteSpawns() {
+int WriteSpawns() {
     KeyValues kv = new KeyValues("Spawns");
     int output_index = 0;
 
@@ -177,8 +178,10 @@ void WriteSpawns() {
         g_DirtySpawns = false;
     } else {
         LogError("Failed to write the retakes spawns to %s", configFile);
+        output_index = -1;
     }
     delete kv;
+    return output_index;
 }
 
 static bool InsideBombSite(float vec[3]) {

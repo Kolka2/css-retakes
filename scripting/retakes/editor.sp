@@ -159,9 +159,17 @@ void DeleteClosestSpawn(int client) {
     }
 }
 
-void SaveSpawns() {
-    WriteSpawns();
-    Retakes_MessageToAll("Map spawns saved.");
+/**
+ * Saves the spawns and tells everybody. Returns the number of spawns written, or -1.
+ */
+int SaveSpawns() {
+    int saved = WriteSpawns();
+    if (saved >= 0) {
+        Retakes_MessageToAll("Map spawns saved.");
+    } else {
+        Retakes_MessageToAll("{DARK_RED}Failed to save the map spawns{NORMAL}, see the server error log.");
+    }
+    return saved;
 }
 
 void ReloadSpawns() {
