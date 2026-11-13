@@ -87,8 +87,57 @@ public Action Hook_WeaponCanUse(int client, int weapon) {
         return Plugin_Continue;
     }
 
-    // CSS-VERIFY: with the pickup refused the "You have the bomb" hint is not shown to
-    // that player, and the refused C4 does not confuse the bots or the radar.
+    // CSS-VERIFY: the refused C4 does not confuse the bots or the radar.
+    DebugLog("bomb: refused the C4 the game tried to give to %L", client);
+    return Plugin_Handled;
+}
+
+/**
+ * Hooks the user messages the "You have the bomb" hint may travel in.
+ */
+void HookBombHintMessages() {
+    static char names[][] = { "HintText", "TextMsg" };
+    for (int i = 0; i < sizeof(names); i++) {
+        UserMsg id = GetUserMessageId(names[i]);
+        if (id != INVALID_MESSAGE_ID) {
+            HookUserMessage(id, Hook_BombHintMessage, true);
+        }
+    }
+}
+
+/**
+ * Drops the "You have the bomb" hint for a player that is not carrying the bomb.
+ *
+ * Refusing the game's C4 in Hook_WeaponCanUse did not stop the hint (checked on a live
+ * server), so the message itself is filtered here. The text is looked for in every string
+ * of the message, whatever its layout is.
+ */
+public Action Hook_BombHintMessage(UserMsg msg_id, BfRead msg, const int[] players, int playersNum, bool reliable, bool init) {
+    if (!g_Enabled || playersNum != 1 || InFreePlay()) {
+        return Plugin_Continue;
+    }
+
+    bool bombHint = false;
+    char buffer[192];
+    while (!bombHint && msg.BytesLeft > 0) {
+        msg.ReadString(buffer, sizeof(buffer));
+        bombHint = StrContains(buffer, "you_have_the_bomb", false) != -1;
+    }
+    if (!bombHint) {
+        return Plugin_Continue;
+    }
+
+    // Before FixBomb() only the chosen carrier is told; after it, whoever holds the C4.
+    int client = players[0];
+    bool carrier = g_BombHandedOut ? (IsValidClient(client) && GetClientC4(client) != -1)
+                                   : (client == g_BombOwner);
+    if (carrier) {
+        return Plugin_Continue;
+    }
+
+    // CSS-VERIFY: the hint travels in HintText or TextMsg with "you_have_the_bomb" in it,
+    // and blocking the message hides it.
+    DebugLog("bomb: blocked the \"you have the bomb\" hint for %L", client);
     return Plugin_Handled;
 }
 

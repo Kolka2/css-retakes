@@ -222,12 +222,19 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
     }
 
     // A round_end handled in this very frame has not been prepared yet, and never will be.
+    bool roundEnded = g_PreparePending;
     g_PreparePending = false;
 
     if (g_RoundPrepared) {
         DebugLog("round_start: using the teams prepared after round_end");
     } else {
-        // First round after the warmup or the editor, mp_restartgame: there was no round_end.
+        if (!roundEnded) {
+            // A round that starts without a round_end is a game restart (mp_restartgame,
+            // by hand or after the warmup/editor). The game has zeroed the scoreboard, so
+            // the plugin's own progress (win streak, points, round counter) starts over too.
+            DebugLog("round_start: the game was restarted, resetting the retakes progress");
+            ResetRetakesProgress();
+        }
         DebugLog("round_start: the round was not prepared after round_end, preparing now");
         PrepareNextRound();
     }
@@ -330,6 +337,12 @@ public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
         } else if (winner == CS_TEAM_CT) {
             CounterTerroristsWon();
         }
+    }
+
+    // "Game Commencing" is the game's own restart and zeroes the scoreboard as well.
+    if (event.GetInt("reason") == view_as<int>(CSRoundEnd_GameStart)) {
+        DebugLog("round_end: game commencing, resetting the retakes progress");
+        ResetRetakesProgress();
     }
 
     // The teams of the next round are set on the next frame, before the round restarts.

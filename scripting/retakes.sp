@@ -247,6 +247,7 @@ public void OnPluginStart() {
     HookEvent("bomb_exploded", Event_Bomb);
     HookEvent("bomb_defused", Event_Bomb);
     HookEvent("round_end", Event_RoundEnd);
+    HookBombHintMessages();
 
     g_hOnGunsCommand = CreateGlobalForward("Retakes_OnGunsCommand", ET_Ignore, Param_Cell);
     g_hOnPostRoundEnqueue = CreateGlobalForward("Retakes_OnPostRoundEnqueue", ET_Ignore, Param_Cell, Param_Cell);
