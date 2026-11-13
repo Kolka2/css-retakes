@@ -178,7 +178,10 @@ int WriteSpawns() {
 
     DeleteFile(configFile);
     kv.Rewind();
-    if (kv.ExportToFile(configFile)) {
+    if (output_index == 0) {
+        // Every spawn was deleted: no file at all, like on a map that was never set up.
+        g_DirtySpawns = false;
+    } else if (kv.ExportToFile(configFile)) {
         // Everything is on disk, there are no unsaved changes any more (the original
         // did not reset the flag here, so sm_retakes_validatespawns kept reporting
         // unsaved changes after a save).

@@ -39,11 +39,11 @@ Retakes для Counter-Strike: Source
 | `!show a` / `!show b` | показать спавны сайта A или B (кольца: синие — CT, красные — T, зелёные — T «только бомбер», жёлтые — T «никогда бомбер») |
 | `!new ct a`, `!new t b` … | создать спавн там, где стоите (взгляд сохраняется); через меню можно выбрать тип T-спавна |
 | `!delete` | удалить ближайший спавн |
-| `!goto 10`, `!nearest` | телепорт к спавну по номеру / к ближайшему |
+| `!goto 10`, `!nearest` | телепорт к спавну по номеру (о несуществующем номере команда сообщит) / к ближайшему |
 | `!next`, `!prev` | телепорт к следующему / предыдущему спавну по порядку номеров, по кругу; то же есть в меню `!edit` |
 | `sm_iteratespawns` | по очереди облететь все спавны |
-| `!savespawns`, `!reloadspawns` | сохранить / перечитать из файла, отбросив изменения |
-| `sm_deletemapspawns` | удалить все спавны карты |
+| `!savespawns`, `!reloadspawns` | сохранить (в ответ — число записанных точек) / перечитать из файла, отбросив изменения |
+| `sm_deletemapspawns` | удалить все спавны карты; как и любая правка, попадает в файл при `!savespawns` или при смене карты, до этого `!reloadspawns` всё вернёт |
 | `sm_retakes_validatespawns` | проверить спавны и вывести отчёт |
 
 Что нужно на каждый сайт:
@@ -190,6 +190,22 @@ API аддонов описан в [scripting/include/retakes.inc](scripting/inc
 - списки игроков в форвардах (`Retakes_OnTeamsSet`, `Retakes_OnWeaponsAllocated`, `Retakes_OnRoundWon`) и очередь рангов содержат ботов; `Retakes_IsJoined()` для бота в команде возвращает `true`;
 - оружие — классы CS:S (`weapon_usp`, `weapon_p228`, `weapon_sg552`, `weapon_galil`, `weapon_famas`, …), гранаты — только `h`, `f`, `s`.
 
+Исходники основного плагина: `scripting/retakes.sp` (переменные, квары, регистрация команд и событий) и файлы в `scripting/retakes/`:
+
+| Файл | Что в нём |
+|---|---|
+| `round.sp` | ход раунда: подготовка после `round_end`, расстановка игроков в `round_start`, итог раунда |
+| `teams.sp` | смена команд, вход игрока, очередь рангов, составы на раунд |
+| `bots.sp` | сколько ботов держать на сервере (`bot_quota`) |
+| `spawns.sp` | зоны закладки, файл спавнов, выбор точки |
+| `equipment.sp` | выдача оружия и брони, запрет покупок |
+| `bomb.sp` | выбор бомбера, раздача C4 |
+| `points.sp` | очки за раунд |
+| `commands.sp` | `!guns`, `sm_scramble`, `sm_retakes_warmup` |
+| `editor*.sp`, `validate.sp` | редактор спавнов и проверка спавнов |
+| `warmup_link.sp` | связка с плагином `warmup` |
+| `natives.sp`, `generic.sp`, `debug.sp`, `roundtime.sp` | API для аддонов и общие функции |
+
 ## Сборка
 
 ```
@@ -246,11 +262,11 @@ Spawns are shipped for de_dust2 only (`configs/retakes/de_dust2.cfg`, a test set
 | `!show a` / `!show b` | show the spawns of a site (rings: blue — CT, red — T, green — T "bomb carrier only", yellow — T "never bomb carrier") |
 | `!new ct a`, `!new t b` … | create a spawn where you stand (the view angle is saved); the menu also lets you pick the T spawn type |
 | `!delete` | delete the nearest spawn |
-| `!goto 10`, `!nearest` | teleport to a spawn by index / to the nearest one |
+| `!goto 10`, `!nearest` | teleport to a spawn by index (an index that does not exist is reported) / to the nearest one |
 | `!next`, `!prev` | teleport to the next / previous spawn in index order, wrapping around; also in the `!edit` menu |
 | `sm_iteratespawns` | visit every spawn in turn |
-| `!savespawns`, `!reloadspawns` | save / reload from the file, discarding changes |
-| `sm_deletemapspawns` | delete all spawns of the map |
+| `!savespawns`, `!reloadspawns` | save (replies with the number of spawns written) / reload from the file, discarding changes |
+| `sm_deletemapspawns` | delete all spawns of the map; like any other edit it reaches the file on `!savespawns` or on a map change, until then `!reloadspawns` brings everything back |
 | `sm_retakes_validatespawns` | check the spawns and print a report |
 
 Each site needs:
@@ -396,6 +412,22 @@ The addon API is described in [scripting/include/retakes.inc](scripting/include/
 - `Retakes_InWarmup()` returns `Warmup_IsActive()` of the `warmup` plugin if it is loaded and `false` otherwise (not the game state, as it did in CS:GO);
 - the player lists in the forwards (`Retakes_OnTeamsSet`, `Retakes_OnWeaponsAllocated`, `Retakes_OnRoundWon`) and the ranking queue contain bots; `Retakes_IsJoined()` returns `true` for a bot on a team;
 - weapons are CS:S classes (`weapon_usp`, `weapon_p228`, `weapon_sg552`, `weapon_galil`, `weapon_famas`, …), grenades are `h`, `f`, `s` only.
+
+Sources of the main plugin: `scripting/retakes.sp` (variables, cvars, command and event registration) and the files in `scripting/retakes/`:
+
+| File | What it holds |
+|---|---|
+| `round.sp` | the round flow: preparation after `round_end`, placing the players at `round_start`, the round result |
+| `teams.sp` | team switching, joining players, the ranking queue, the teams of a round |
+| `bots.sp` | how many bots to keep on the server (`bot_quota`) |
+| `spawns.sp` | bomb targets, the spawn file, picking a spawn |
+| `equipment.sp` | weapons and armor, the purchase block |
+| `bomb.sp` | picking the bomb carrier, handing out the C4 |
+| `points.sp` | round points |
+| `commands.sp` | `!guns`, `sm_scramble`, `sm_retakes_warmup` |
+| `editor*.sp`, `validate.sp` | the spawn editor and the spawn check |
+| `warmup_link.sp` | the link to the `warmup` plugin |
+| `natives.sp`, `generic.sp`, `debug.sp`, `roundtime.sp` | the addon API and shared helpers |
 
 ## Building
 
