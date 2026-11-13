@@ -164,7 +164,7 @@ public void OnClientPutInServer(int client) {
 /**
  * Starts (or restarts) the warmup. A negative length means sm_warmup_time.
  */
-bool StartWarmup(int seconds) {
+static bool StartWarmup(int seconds) {
     if (!g_hEnabled.BoolValue) {
         return false;
     }
@@ -203,7 +203,7 @@ bool StartWarmup(int seconds) {
  * Ends the warmup: restores the cvars, tells the other plugins and, for a regular
  * end, restarts the game.
  */
-bool EndWarmup(WarmupEndReason reason, bool restartGame) {
+static bool EndWarmup(WarmupEndReason reason, bool restartGame) {
     if (!g_Active) {
         return false;
     }
@@ -461,7 +461,7 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
  *                     *
  ***********************/
 
-stock bool IsOnTeam(int client) {
+static bool IsOnTeam(int client) {
     int team = GetClientTeam(client);
     return team == CS_TEAM_T || team == CS_TEAM_CT;
 }
@@ -590,13 +590,8 @@ public Action Command_WarmupEnd(int client, int args) {
 /**
  * Tops the client's money up to the cap, if sm_warmup_infinite_money is set.
  */
-void GiveWarmupMoney(int client) {
-    if (!g_hInfiniteMoney.BoolValue) {
-        return;
-    }
-
-    // CSS-VERIFY: CCSPlayer has m_iAccount and writing it is enough for the buy menu to accept purchases.
-    if (HasEntProp(client, Prop_Send, "m_iAccount")) {
+static void GiveWarmupMoney(int client) {
+    if (g_hInfiniteMoney.BoolValue) {
         SetEntProp(client, Prop_Send, "m_iAccount", WARMUP_MONEY);
     }
 }
@@ -659,10 +654,10 @@ public void Hook_PostThinkPost(int client) {
  * Removes every C4 from the game: carried, dropped and planted. There is no bomb
  * during the warmup; the game hands a new one out when it restarts after the warmup.
  */
-void RemoveBombs() {
+static void RemoveBombs() {
     char classname[32];
     for (int client = 1; client <= MaxClients; client++) {
-        if (!IsClientInGame(client) || !HasEntProp(client, Prop_Send, "m_hMyWeapons")) {
+        if (!IsClientInGame(client)) {
             continue;
         }
 
