@@ -256,6 +256,13 @@ public void OnPluginStart() {
     for (int i = 0; i < MAX_SPAWNS; i++) {
         g_SpawnTypes[i] = SpawnType_Normal;
     }
+
+    // Late load: hook the players that are already on the server.
+    for (int i = 1; i <= MaxClients; i++) {
+        if (IsClientInGame(i)) {
+            OnClientPutInServer(i);
+        }
+    }
 }
 
 public void OnPluginEnd() {
@@ -279,6 +286,7 @@ public void OnMapStart() {
     g_SiteSpawnsLogged = false;
 
     g_bombPlanted = false;
+    g_BombHandedOut = false;
 
     FindSites();
     g_NumSpawns = ParseSpawns();
@@ -340,6 +348,10 @@ public void ExecConfigs() {
 
 public void OnClientConnected(int client) {
     ResetClientVariables(client);
+}
+
+public void OnClientPutInServer(int client) {
+    SDKHook(client, SDKHook_WeaponCanUse, Hook_WeaponCanUse);
 }
 
 public void OnClientDisconnect(int client) {
@@ -796,6 +808,7 @@ public void PrepareNextRound() {
     g_RoundSpawnsDecided = false;
     g_TeamsValid = false;
     g_BombOwner = -1;
+    g_BombHandedOut = false;
 
     for (int i = 1; i <= MaxClients; i++) {
         g_SpawnIndices[i] = -1;
@@ -886,6 +899,9 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
     }
 
     if (!g_TeamsValid) {
+        // No retake this round (the map has no spawns): FixBomb() will not run, so the
+        // game's own bomb must stay usable.
+        g_BombHandedOut = true;
         return Plugin_Continue;
     }
 
@@ -1358,6 +1374,7 @@ public void ResetRetakesProgress() {
     g_RoundSpawnsDecided = false;
 
     g_BombOwner = -1;
+    g_BombHandedOut = false;
     g_SelectBombClient = -1;
     g_bombPlanted = false;
 }

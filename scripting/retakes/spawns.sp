@@ -290,6 +290,32 @@ public void GiveWeapons(int client) {
 
 int g_SelectBombClient = -1;     // человек-бомбер, которому нужно достать C4
 float g_SelectBombUntil;
+bool g_BombHandedOut;            // FixBomb() has run for the current round
+
+/**
+ * Keeps the C4 away from everybody but the bomb carrier until FixBomb() has run.
+ *
+ * On every round restart CS:S gives a C4 to a random terrorist. FixBomb() takes it away
+ * 0.1 s later, but by then that player has already been told "You have the bomb" (seen on
+ * a live server: the hint showed up for players that never carried the bomb). Refusing the
+ * pickup leaves the game's C4 on the ground, where FixBomb() removes it.
+ * After FixBomb() anybody may pick the bomb up, e.g. when the carrier dies.
+ */
+public Action Hook_WeaponCanUse(int client, int weapon) {
+    if (!g_Enabled || g_BombHandedOut || client == g_BombOwner || InFreePlay()) {
+        return Plugin_Continue;
+    }
+
+    char classname[32];
+    if (!IsValidEntity(weapon) || !GetEntityClassname(weapon, classname, sizeof(classname))
+        || !StrEqual(classname, "weapon_c4")) {
+        return Plugin_Continue;
+    }
+
+    // CSS-VERIFY: with the pickup refused the "You have the bomb" hint is not shown to
+    // that player, and the refused C4 does not confuse the bots or the radar.
+    return Plugin_Handled;
+}
 
 /**
  * Returns the weapon_c4 entity carried by a client, or -1.
@@ -355,6 +381,9 @@ public void FixBomb() {
             AcceptEntityInput(entity, "Kill");
         }
     }
+
+    // From here on the bomb can change hands freely (see Hook_WeaponCanUse).
+    g_BombHandedOut = true;
 
     if (g_BombOwner == -1) {
         DebugLog("bomb: there is nobody to carry the bomb this round");
