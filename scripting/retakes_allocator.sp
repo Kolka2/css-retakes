@@ -17,6 +17,7 @@
 //   retakes_allocator/menus.sp   - the !guns menu
 
 ConVar g_hRoundsCvar;
+ConVar g_hOrderCvar;
 
 // Set when the loadouts of a round are built, cleared when the round type is announced.
 bool g_AnnouncePending;
@@ -43,7 +44,9 @@ public void OnPluginStart() {
     ParseRoundTypes();
 
     g_hRoundsCvar = CreateConVar("sm_retakes_alloc_rounds", "pistol:2,bonus:2,force:3,buy:12",
-        "Round types and how many rounds each lasts, played in a circle: \"type:rounds,type:rounds,...\". Types: pistol, bonus, force, buy, free (any weapon the player chose). A single type (\"buy\") makes every round the same.");
+        "Round types and how many rounds each lasts: \"type:rounds,type:rounds,...\". Types: pistol, bonus, force, buy, free (any weapon the player chose). A single type (\"buy\") makes every round the same.");
+    g_hOrderCvar = CreateConVar("sm_retakes_alloc_order", "cycle",
+        "cycle = the round types of sm_retakes_alloc_rounds are played in a circle, random = every round gets a random type, the round counts work as weights");
     g_hRoundsCvar.AddChangeHook(RoundsChanged);
     AutoExecConfig(true, "retakes_allocator", "sourcemod/retakes");
 
@@ -119,7 +122,11 @@ public void Frame_AnnounceRound(any data) {
         char typeName[64];
         char text[192];
         Format(typeName, sizeof(typeName), "%T", phrase, client);
-        Format(text, sizeof(text), "%T", "RoundAnnounce", client, typeName, g_RoundNumber, g_RoundsOfType);
+        if (g_RoundNumber > 0) {
+            Format(text, sizeof(text), "%T", "RoundAnnounce", client, typeName, g_RoundNumber, g_RoundsOfType);
+        } else {
+            Format(text, sizeof(text), "%T", "RoundAnnounceRandom", client, typeName);
+        }
         Retakes_Message(client, "%s", text);
     }
 }

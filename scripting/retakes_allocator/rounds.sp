@@ -44,7 +44,7 @@ int g_CycleLength; // the sum of g_CycleRounds
 
 // The round the loadouts were last built for.
 int g_RoundType;
-int g_RoundNumber;  // 1-based number of the round inside its cycle entry
+int g_RoundNumber;  // 1-based number of the round inside its cycle entry; 0 in the random order
 int g_RoundsOfType; // how many rounds the cycle entry lasts
 
 // The things a player buys besides the primary weapon, in a random order.
@@ -143,19 +143,31 @@ bool CycleHasPrimary(PrimaryPolicy policy) {
     return false;
 }
 
+static bool IsRandomOrder() {
+    char order[16];
+    g_hOrderCvar.GetString(order, sizeof(order));
+    return StrEqual(order, "random", false);
+}
+
 /**
  * Decides the type of the round that is being prepared.
  *
- * The rounds go in a circle. The position in the circle comes from the number of rounds
- * retakes has played, which starts over when the game restarts or the map changes, so
- * the allocator keeps no counter of its own.
+ * Think of the cycle laid out round by round ("pistol:2,buy:3" is P P B B B); the type of
+ * the round is the one at some position in it.
+ *  - Order "cycle": the rounds go in a circle. The position comes from the number of
+ *    rounds retakes has played, which starts over when the game restarts or the map
+ *    changes, so the allocator keeps no counter of its own.
+ *  - Order "random": a random position every round, with no memory of the rounds before.
+ *    The round counts of the cvar work as weights (2 in 5 for the pistol round above).
  */
 static void PickRoundType() {
-    int position = Retakes_GetRetakeRoundsPlayed() % g_CycleLength;
+    bool random = IsRandomOrder();
+    int position = random ? GetRandomInt(0, g_CycleLength - 1)
+                          : Retakes_GetRetakeRoundsPlayed() % g_CycleLength;
     for (int i = 0; i < g_CycleEntries; i++) {
         if (position < g_CycleRounds[i]) {
             g_RoundType = g_CycleType[i];
-            g_RoundNumber = position + 1;
+            g_RoundNumber = random ? 0 : position + 1;
             g_RoundsOfType = g_CycleRounds[i];
             return;
         }

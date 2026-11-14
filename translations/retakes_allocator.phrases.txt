@@ -78,4 +78,9 @@
 	{
 		"en"			"Pistol for free choice rounds:"
 	}
+	"RoundAnnounceRandom"
+	{
+		"#format"		"{1:s}"
+		"en"			"{GREEN}{1}"
+	}
 }
