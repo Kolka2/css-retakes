@@ -1,0 +1,55 @@
+"Phrases"
+{
+	"RoundType_pistol"
+	{
+		"en"			"Pistol round"
+	}
+	"RoundType_bonus"
+	{
+		"en"			"Bonus round"
+	}
+	"RoundType_force"
+	{
+		"en"			"Force buy"
+	}
+	"RoundType_buy"
+	{
+		"en"			"Buy round"
+	}
+	"RoundAnnounce"
+	{
+		"#format"		"{1:s},{2:d},{3:d}"
+		"en"			"{GREEN}{1}{NORMAL} ({2}/{3})"
+	}
+	"NothingToChoose"
+	{
+		"en"			"There is nothing to choose in the current weapon mode."
+	}
+	"GunsMenuTitle"
+	{
+		"en"			"Weapons"
+	}
+	"MenuCTRifle"
+	{
+		"#format"		"{1:s}"
+		"en"			"CT rifle: {1}"
+	}
+	"MenuTRifle"
+	{
+		"#format"		"{1:s}"
+		"en"			"T rifle: {1}"
+	}
+	"MenuAwp"
+	{
+		"#format"		"{1:s}"
+		"en"			"Receive the AWP: {1}"
+	}
+	"SelectCTRifle"
+	{
+		"en"			"Select a CT rifle:"
+	}
+	"SelectTRifle"
+	{
+		"en"			"Select a T rifle:"
+	}
+}

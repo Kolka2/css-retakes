@@ -1,0 +1,51 @@
+"Phrases"
+{
+	"RoundType_pistol"
+	{
+		"ru"			"Пистолетный раунд"
+	}
+	"RoundType_bonus"
+	{
+		"ru"			"Бонусный раунд"
+	}
+	"RoundType_force"
+	{
+		"ru"			"Форс-бай"
+	}
+	"RoundType_buy"
+	{
+		"ru"			"Закупочный раунд"
+	}
+	"RoundAnnounce"
+	{
+		"ru"			"{GREEN}{1}{NORMAL} ({2}/{3})"
+	}
+	"NothingToChoose"
+	{
+		"ru"			"В текущем режиме оружия выбирать нечего."
+	}
+	"GunsMenuTitle"
+	{
+		"ru"			"Оружие"
+	}
+	"MenuCTRifle"
+	{
+		"ru"			"Винтовка CT: {1}"
+	}
+	"MenuTRifle"
+	{
+		"ru"			"Винтовка T: {1}"
+	}
+	"MenuAwp"
+	{
+		"ru"			"Получать AWP: {1}"
+	}
+	"SelectCTRifle"
+	{
+		"ru"			"Выберите винтовку CT:"
+	}
+	"SelectTRifle"
+	{
+		"ru"			"Выберите винтовку T:"
+	}
+}
