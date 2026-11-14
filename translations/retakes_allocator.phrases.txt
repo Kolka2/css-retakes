@@ -83,4 +83,52 @@
 		"#format"		"{1:s}"
 		"en"			"{GREEN}{1}"
 	}
+	"Nade_h"
+	{
+		"en"			"HE"
+	}
+	"Nade_f"
+	{
+		"en"			"Flash"
+	}
+	"Nade_s"
+	{
+		"en"			"Smoke"
+	}
+	"NadesRandom"
+	{
+		"en"			"Random every round"
+	}
+	"NadesEveryRound"
+	{
+		"en"			"Ask me every round"
+	}
+	"NadesBuildList"
+	{
+		"en"			"Choose grenades by priority"
+	}
+	"MenuNades"
+	{
+		"#format"		"{1:s}"
+		"en"			"Grenades: {1}"
+	}
+	"NadesTitle"
+	{
+		"#format"		"{1:s}"
+		"en"			"Grenades\nNow: {1}"
+	}
+	"NadesListTitle"
+	{
+		"#format"		"{1:d},{2:d}"
+		"en"			"Pick grenades, the most wanted first ({1}/{2})\nYou get as many as the round allows."
+	}
+	"NadesRoundTitle"
+	{
+		"#format"		"{1:d},{2:d}"
+		"en"			"Grenades for this round ({1}/{2})"
+	}
+	"NadesTooLate"
+	{
+		"en"			"Too late: grenades are picked before the end of the freeze time."
+	}
 }

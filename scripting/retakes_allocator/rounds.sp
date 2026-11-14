@@ -182,7 +182,7 @@ static void PickRoundType() {
  * the kevlar, a better pistol (only when there is no primary weapon) and the defuse kit
  * (not every CT wants one in a cheap round) in a random order, and the helmet with what
  * is left. The grenades do not come out of
- * the budget: their number is set by the round type (see nades.sp).
+ * the budget: see nades.sp.
  *
  * awpLeft tells if the team may still get its AWP and is cleared when this player takes it.
  */
@@ -250,7 +250,7 @@ static void BuildLoadout(int client, bool ct, int type, bool &awpLeft) {
     char nades[NADE_STRING_LENGTH];
     GetWeaponClass(primary, primaryClass, sizeof(primaryClass));
     GetWeaponClass(pistol, pistolClass, sizeof(pistolClass));
-    PickNades(type, nades);
+    PickNades(client, type, nades);
 
     Retakes_SetPlayerInfo(client, primaryClass, pistolClass, nades, 100, armor ? 100 : 0, helmet, kit);
 }
@@ -267,6 +267,8 @@ static void AllocateTeam(ArrayList players, bool ct) {
  */
 void AllocateRound(ArrayList tPlayers, ArrayList ctPlayers) {
     PickRoundType();
+    ResetRoundNades();
     AllocateTeam(tPlayers, false);
     AllocateTeam(ctPlayers, true);
+    OfferRoundNades();
 }

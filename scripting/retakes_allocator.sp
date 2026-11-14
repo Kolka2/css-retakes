@@ -13,11 +13,15 @@
 //   retakes_allocator/weapons.sp - the weapon table
 //   retakes_allocator/choices.sp - what the players chose, and the cookies
 //   retakes_allocator/rounds.sp  - the round types, the cycle and the loadout of a player
-//   retakes_allocator/nades.sp   - the grenades
+//   retakes_allocator/nades.sp   - the grenades and their menus
 //   retakes_allocator/menus.sp   - the !guns menu
+
+#define MENU_TIME_LENGTH 15
 
 ConVar g_hRoundsCvar;
 ConVar g_hOrderCvar;
+ConVar g_hNadesCvar;
+ConVar g_hNadesCountCvar;
 
 // Set when the loadouts of a round are built, cleared when the round type is announced.
 bool g_AnnouncePending;
@@ -48,15 +52,25 @@ public void OnPluginStart() {
     g_hOrderCvar = CreateConVar("sm_retakes_alloc_order", "cycle",
         "cycle = the round types of sm_retakes_alloc_rounds are played in a circle, random = every round gets a random type, the round counts work as weights");
     g_hRoundsCvar.AddChangeHook(RoundsChanged);
+    g_hNadesCvar = CreateConVar("sm_retakes_alloc_nades", "choice",
+        "choice = the players set up their grenades in the !guns menu (random until they do), random = random grenades for everybody");
+    g_hNadesCountCvar = CreateConVar("sm_retakes_alloc_nades_count", "",
+        "Grenades per player: empty = by the round type (pistol 0-1, bonus 1, force 0-1, buy 1-2, free 0-4), or a number (\"1\"), or a range (\"0-4\")");
+    g_hNadesCountCvar.AddChangeHook(NadeCountChanged);
     AutoExecConfig(true, "retakes_allocator", "sourcemod/retakes");
 
-    char rounds[256];
-    g_hRoundsCvar.GetString(rounds, sizeof(rounds));
-    ParseRounds(rounds);
+    char value[256];
+    g_hRoundsCvar.GetString(value, sizeof(value));
+    ParseRounds(value);
+    g_hNadesCountCvar.GetString(value, sizeof(value));
+    ParseNadeCount(value);
 
     RegisterChoiceCookies();
+    RegisterNadeCookies();
 
     HookEvent("round_start", Event_RoundStart);
+    HookEvent("round_freeze_end", Event_RoundFreezeEnd);
+    HookEvent("round_end", Event_RoundEnd);
 
     // Late load: the players that are already on the server.
     for (int i = 1; i <= MaxClients; i++) {
@@ -73,13 +87,19 @@ public void RoundsChanged(ConVar convar, const char[] oldValue, const char[] new
     ParseRounds(newValue);
 }
 
+public void NadeCountChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+    ParseNadeCount(newValue);
+}
+
 public void OnClientConnected(int client) {
     ResetChoices(client);
+    ResetNades(client);
 }
 
 public void OnClientCookiesCached(int client) {
     if (!IsFakeClient(client)) {
         LoadChoices(client);
+        LoadNades(client);
     }
 }
 
@@ -98,7 +118,16 @@ public void Retakes_OnWeaponsAllocated(ArrayList tPlayers, ArrayList ctPlayers, 
  * which may run after this one. One frame later they are built either way.
  */
 public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast) {
+    Nades_OnRoundStart();
     RequestFrame(Frame_AnnounceRound);
+}
+
+public void Event_RoundFreezeEnd(Event event, const char[] name, bool dontBroadcast) {
+    Nades_OnFreezeEnd();
+}
+
+public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast) {
+    Nades_OnRoundEnd();
 }
 
 public void Frame_AnnounceRound(any data) {

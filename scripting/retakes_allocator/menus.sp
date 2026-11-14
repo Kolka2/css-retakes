@@ -1,14 +1,14 @@
 // The !guns menu of the allocator.
 // Included only from retakes_allocator.sp.
 
-#define MENU_TIME_LENGTH 15
 #define MENU_INFO_AWP "awp"
+#define MENU_INFO_NADES "nades"
 
 /**
  * Sends a phrase of the allocator to a client through the retakes chat prefix.
  * The text is translated here: the phrases belong to this plugin, not to retakes.
  */
-static void TellPhrase(int client, const char[] phrase) {
+void TellPhrase(int client, const char[] phrase) {
     char text[192];
     Format(text, sizeof(text), "%T", phrase, client);
     Retakes_Message(client, "%s", text);
@@ -28,7 +28,7 @@ static void GetChoiceName(int client, int choice, char[] buffer, int size) {
 /**
  * The main menu: one line per setting, with its current value. Only the settings that
  * matter for the round types of sm_retakes_alloc_rounds are listed. The item info is the
- * slot number, or MENU_INFO_AWP.
+ * slot number, MENU_INFO_AWP or MENU_INFO_NADES.
  */
 void ShowGunsMenu(int client) {
     Menu menu = new Menu(MenuHandler_Guns);
@@ -55,6 +55,8 @@ void ShowGunsMenu(int client) {
         menu.AddItem(MENU_INFO_AWP, text);
     }
 
+    AddNadesMenuItem(menu, client, MENU_INFO_NADES);
+
     if (menu.ItemCount == 0) {
         delete menu;
         TellPhrase(client, "NothingToChoose");
@@ -72,6 +74,8 @@ public int MenuHandler_Guns(Menu menu, MenuAction action, int param1, int param2
         if (StrEqual(info, MENU_INFO_AWP)) {
             SetAwpChoice(client, !g_AwpChoice[client]);
             ShowGunsMenu(client);
+        } else if (StrEqual(info, MENU_INFO_NADES)) {
+            ShowNadesMenu(client);
         } else {
             ShowSlotMenu(client, StringToInt(info));
         }
