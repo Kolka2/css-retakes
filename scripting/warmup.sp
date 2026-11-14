@@ -202,7 +202,12 @@ static bool StartWarmup(int seconds) {
         OverrideCvar("mp_buytime", WARMUP_BUYTIME);
     }
 
-    DebugLog("warmup %s: %d seconds (0 = no time limit)", wasActive ? "restarted" : "started", seconds);
+    if (seconds > 0) {
+        DebugLog("warmup %s: %d seconds", wasActive ? "restarted" : "started", seconds);
+    } else {
+        DebugLog("warmup %s: no time limit, it ends once %d human(s) are on the server (sm_warmup_min_players)",
+                 wasActive ? "restarted" : "started", g_hMinPlayers.IntValue);
+    }
 
     ExtendRound();
     RemoveBombs("warmup start");
@@ -297,7 +302,9 @@ public Action Timer_Second(Handle timer) {
     ExtendRound();
     RespawnDeadPlayers();
     // A safety net: whatever way a C4 got into the warmup, it does not live long enough
-    // to be planted.
+    // to be planted. Needed: on a live server it found a C4 on the ground that had not
+    // gone through Hook_WeaponCanUse. The cost is a walk over the players' weapons once
+    // a second, only while the warmup runs.
     RemoveBombs("every-second check");
 
     int humans = GetHumanCount();
@@ -717,8 +724,8 @@ public Action Timer_RemoveBombs(Handle timer) {
 
 /**
  * Nobody can take a C4 during the warmup. Removing the bombs at the warmup start and at
- * every round start was not enough: on a live server the terrorist bots still got a C4
- * in a warmup and planted it (how the game handed it out is not known).
+ * every round start was not enough: on a live server the game kept handing a C4 to the
+ * terrorist bots while they joined the server one by one, and they planted it.
  */
 public Action Hook_WeaponCanUse(int client, int weapon) {
     if (!g_Active || !IsValidEntity(weapon)) {
