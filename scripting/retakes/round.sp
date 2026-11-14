@@ -378,7 +378,9 @@ static void TerroristsWon() {
 }
 
 static void CounterTerroristsWon() {
-    if (!g_bombPlanted && IsValidClient(g_BombOwner) && g_RoundCount >= 3) {
+    // The original plugin stayed silent here during the first two rounds
+    // (g_RoundCount >= 3); the threshold was dropped by the owner's decision.
+    if (!g_bombPlanted && IsValidClient(g_BombOwner)) {
         Retakes_MessageToAll("%t", "FailedToPlant", g_BombOwner);
         Call_StartForward(g_OnFailToPlant);
         Call_PushCell(g_BombOwner);
