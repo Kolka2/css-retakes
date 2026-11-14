@@ -158,6 +158,7 @@ Retakes для Counter-Strike: Source
 | `sm_warmup_infinite_money` | `1` | `1` — $16000 при появлении и после каждой покупки; `0` — деньги не трогать |
 | `sm_warmup_buy_anywhere` | `0` | `1` — покупать можно в любой точке карты, а не только в зоне закупки. На живом сервере не проверено |
 | `sm_warmup_restart_delay` | `1` | через сколько секунд после конца разминки перезапускается игра (`mp_restartgame`); `0` — не перезапускать |
+| `sm_warmup_debug` | `0` | `1` — писать в `addons/sourcemod/logs/warmup_debug.log`, что делает разминка: старт, конец, удалённые и отвергнутые бомбы |
 
 Время и число людей сочетаются так:
 
@@ -381,6 +382,7 @@ The cvars are stored in `cfg/sourcemod/warmup.cfg` (generated on the first run):
 | `sm_warmup_infinite_money` | `1` | `1` — $16000 on spawn and after every purchase; `0` — leave the money alone |
 | `sm_warmup_buy_anywhere` | `0` | `1` — players can buy anywhere on the map, not only in the buy zones. Not verified on a live server |
 | `sm_warmup_restart_delay` | `1` | seconds until the game restarts after the warmup (`mp_restartgame`); `0` — do not restart |
+| `sm_warmup_debug` | `0` | `1` — write what the warmup does (start, end, removed and refused bombs) to `addons/sourcemod/logs/warmup_debug.log` |
 
 How the time and the player count combine:
 

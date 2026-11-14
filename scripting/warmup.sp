@@ -41,6 +41,7 @@ ConVar g_hRespawnTime;
 ConVar g_hInfiniteMoney;
 ConVar g_hBuyAnywhere;
 ConVar g_hRestartDelay;
+ConVar g_hDebug;
 
 /** Warmup state **/
 bool g_Active;
@@ -91,6 +92,8 @@ public void OnPluginStart() {
     g_hInfiniteMoney = CreateConVar("sm_warmup_infinite_money", "1", "1 = everybody has $16000 on spawn and again after every purchase during the warmup", _, true, 0.0, true, 1.0);
     g_hBuyAnywhere = CreateConVar("sm_warmup_buy_anywhere", "0", "1 = players can buy anywhere on the map during the warmup, not only in the buy zones", _, true, 0.0, true, 1.0);
     g_hRestartDelay = CreateConVar("sm_warmup_restart_delay", "1", "Seconds until the game restarts after the warmup (mp_restartgame). 0 = do not restart the game", _, true, 0.0);
+
+    g_hDebug = CreateConVar("sm_warmup_debug", "0", "1 = write what the warmup does (start, end, removed bombs) to addons/sourcemod/logs/warmup_debug.log", _, true, 0.0, true, 1.0);
 
     AutoExecConfig(true, "warmup");
 
@@ -150,6 +153,23 @@ public void OnEnabledChanged(ConVar cvar, const char[] oldValue, const char[] ne
 public void OnClientPutInServer(int client) {
     g_LastDeathTime[client] = 0.0;
     SDKHook(client, SDKHook_PostThinkPost, Hook_PostThinkPost);
+    SDKHook(client, SDKHook_WeaponCanUse, Hook_WeaponCanUse);
+}
+
+/**
+ * Writes a line to logs/warmup_debug.log if sm_warmup_debug is set.
+ */
+static void DebugLog(const char[] format, any ...) {
+    if (!g_hDebug.BoolValue) {
+        return;
+    }
+
+    char buffer[512];
+    VFormat(buffer, sizeof(buffer), format, 2);
+
+    char path[PLATFORM_MAX_PATH];
+    BuildPath(Path_SM, path, sizeof(path), "logs/warmup_debug.log");
+    LogToFile(path, "%s", buffer);
 }
 
 
@@ -182,8 +202,10 @@ static bool StartWarmup(int seconds) {
         OverrideCvar("mp_buytime", WARMUP_BUYTIME);
     }
 
+    DebugLog("warmup %s: %d seconds (0 = no time limit)", wasActive ? "restarted" : "started", seconds);
+
     ExtendRound();
-    RemoveBombs();
+    RemoveBombs("warmup start");
 
     for (int i = 1; i <= MaxClients; i++) {
         if (IsClientInGame(i) && IsOnTeam(i)) {
@@ -208,6 +230,7 @@ static bool EndWarmup(WarmupEndReason reason, bool restartGame) {
 
     g_Active = false;
     RestoreCvars();
+    DebugLog("warmup ended, reason %d", reason);
 
     Call_StartForward(g_hOnEnd);
     Call_PushCell(reason);
@@ -273,6 +296,9 @@ public Action Timer_Second(Handle timer) {
 
     ExtendRound();
     RespawnDeadPlayers();
+    // A safety net: whatever way a C4 got into the warmup, it does not live long enough
+    // to be planted.
+    RemoveBombs("every-second check");
 
     int humans = GetHumanCount();
     int minPlayers = g_hMinPlayers.IntValue;
@@ -637,7 +663,8 @@ public void Hook_PostThinkPost(int client) {
  * Removes every C4 from the game: carried, dropped and planted. There is no bomb
  * during the warmup; the game hands a new one out when it restarts after the warmup.
  */
-static void RemoveBombs() {
+static void RemoveBombs(const char[] when) {
+    int carried = 0, loose = 0, planted = 0;
     char classname[32];
     for (int client = 1; client <= MaxClients; client++) {
         if (!IsClientInGame(client)) {
@@ -650,29 +677,64 @@ static void RemoveBombs() {
             if (weapon > MaxClients && IsValidEntity(weapon)
                 && GetEntityClassname(weapon, classname, sizeof(classname))
                 && StrEqual(classname, "weapon_c4")) {
+                DebugLog("bomb: taking the C4 from %L (%s)", client, when);
                 RemovePlayerItem(client, weapon);
                 AcceptEntityInput(weapon, "Kill");
+                carried++;
             }
         }
     }
 
+    // A carried C4 was detached above and is found here once more: only the ones that
+    // still have no owner count as lying on the ground.
     int entity = -1;
     while ((entity = FindEntityByClassname(entity, "weapon_c4")) != -1) {
         AcceptEntityInput(entity, "Kill");
+        loose++;
     }
+    loose = (loose > carried) ? loose - carried : 0;
 
     // Checked on a live CS:S server: removing a planted bomb (planted_c4) mid-round does not confuse the game
     // or the bots; the next game restart clears the "bomb planted" state anyway.
     entity = -1;
     while ((entity = FindEntityByClassname(entity, "planted_c4")) != -1) {
         AcceptEntityInput(entity, "Kill");
+        planted++;
+    }
+
+    if (carried > 0 || loose > 0 || planted > 0) {
+        DebugLog("bomb: removed at %s - carried: %d, on the ground: %d, planted: %d",
+                 when, carried, loose, planted);
     }
 }
 
 public Action Timer_RemoveBombs(Handle timer) {
     if (g_Active) {
-        RemoveBombs();
+        RemoveBombs("round start");
     }
+    return Plugin_Handled;
+}
+
+/**
+ * Nobody can take a C4 during the warmup. Removing the bombs at the warmup start and at
+ * every round start was not enough: on a live server the terrorist bots still got a C4
+ * in a warmup and planted it (how the game handed it out is not known).
+ */
+public Action Hook_WeaponCanUse(int client, int weapon) {
+    if (!g_Active || !IsValidEntity(weapon)) {
+        return Plugin_Continue;
+    }
+
+    char classname[32];
+    if (!GetEntityClassname(weapon, classname, sizeof(classname))
+        || !StrEqual(classname, "weapon_c4")) {
+        return Plugin_Continue;
+    }
+
+    // CSS-VERIFY: refusing the C4 here and removing the refused entity keeps the bomb out
+    // of the warmup whichever way the game hands it out (round restart, late spawn).
+    DebugLog("bomb: refused the C4 for %L and removed it", client);
+    AcceptEntityInput(weapon, "Kill");
     return Plugin_Handled;
 }
 
