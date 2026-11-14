@@ -20,12 +20,26 @@ public Action CS_OnBuyCommand(int client, const char[] weapon) {
 /**
  * Removes (and destroys) every weapon the client is carrying, apart from the
  * weapon entity passed as "except".
+ *
+ * The reserve ammo of a removed weapon is zeroed as well. In CS:S the ammo belongs to
+ * the player, not to the weapon, and a grenade is one unit of such ammo: a player who
+ * survived a round with an unused flashbang kept that unit, and the flashbang given in
+ * the next round made it two (the flashbang limit is 2, so only this grenade showed it).
  */
 static void RemoveAllWeapons(int client, int except = -1) {
     int size = GetEntPropArraySize(client, Prop_Send, "m_hMyWeapons");
     for (int i = 0; i < size; i++) {
         int weapon = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
         if (weapon > MaxClients && weapon != except && IsValidEntity(weapon)) {
+            // CSS-VERIFY: zeroing m_iAmmo for the weapon's ammo type drops a grenade count
+            // left over from the previous round, so a survivor never starts with two
+            // flashbangs.
+            if (HasEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType")) {
+                int ammoType = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
+                if (ammoType >= 0) {
+                    SetEntProp(client, Prop_Send, "m_iAmmo", 0, _, ammoType);
+                }
+            }
             RemovePlayerItem(client, weapon);
             AcceptEntityInput(weapon, "Kill");
         }
