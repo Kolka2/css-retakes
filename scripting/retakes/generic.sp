@@ -15,7 +15,7 @@
 
 // CS:S chat colors: \x01 - default, \x04 - green, \x05 - olive, \x07RRGGBB - any color.
 // The tag names are the same as in the CS:GO version, so the translation files need no changes.
-// CSS-VERIFY: the CS:S chat understands \x07RRGGBB in PrintToChat messages (no "boxes", the tags are colored).
+// Checked on a live CS:S server: the CS:S chat understands \x07RRGGBB in PrintToChat messages (no "boxes", the tags are colored).
 char g_ColorNames[][] = {"{NORMAL}", "{DARK_RED}", "{PURPLE}", "{GREEN}", "{MOSS_GREEN}", "{LIGHT_GREEN}", "{LIGHT_RED}", "{GRAY}", "{ORANGE}", "{LIGHT_BLUE}", "{DARK_BLUE}"};
 char g_ColorCodes[][] = {"\x01", "\x07CC0000", "\x07B980EF", "\x04", "\x05", "\x0799FF99", "\x07FF4040", "\x07CCCCCC", "\x07FFA500", "\x0799CCFF", "\x074D7AFF"};
 

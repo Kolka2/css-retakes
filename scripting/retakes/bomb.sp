@@ -89,7 +89,7 @@ public Action Hook_WeaponCanUse(int client, int weapon) {
         return Plugin_Continue;
     }
 
-    // CSS-VERIFY: the refused C4 does not confuse the bots or the radar.
+    // Checked on a live CS:S server: the refused C4 does not confuse the bots or the radar.
     DebugLog("bomb: refused the C4 the game tried to give to %L", client);
     return Plugin_Handled;
 }

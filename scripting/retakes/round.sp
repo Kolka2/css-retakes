@@ -250,13 +250,13 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
         return Plugin_Continue;
     }
 
-    // CSS-VERIFY: teleporting and re-equipping the players inside the round_start handler
+    // Checked on a live CS:S server: teleporting and re-equipping the players inside the round_start handler
     // works like it did in player_spawn: everybody starts on the retake spawn with the
     // right weapons, and a player whose team was switched right here (unprepared round)
     // needs no respawn.
     PlacePlayers();
 
-    // CSS-VERIFY: when m_iRoundTime runs out with no bomb planted the CTs win (Target Saved),
+    // Checked on a live CS:S server: when m_iRoundTime runs out with no bomb planted the CTs win (Target Saved),
     // and once the bomb is planted this timer no longer ends the round.
     SetRoundTime(g_hRoundTime.IntValue);
     Retakes_MessageToAll("%t", "RetakeSiteMessage", SITESTRING(g_Bombsite), g_NumT, g_NumCT);

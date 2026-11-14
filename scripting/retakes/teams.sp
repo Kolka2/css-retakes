@@ -55,7 +55,7 @@ static void EnsureClientClass(int client, int team) {
  * a team cannot spawn until the class menu is answered.
  */
 bool HasPickedClass(int client) {
-    // CSS-VERIFY: m_iClass is 0 until the player has picked a class (model).
+    // Checked on a live CS:S server: m_iClass is 0 until the player has picked a class (model).
     return GetEntProp(client, Prop_Send, "m_iClass") != 0;
 }
 

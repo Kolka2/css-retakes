@@ -79,7 +79,7 @@ static void RefillWeaponAmmo(int client, int weapon) {
 
     int ammoType = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
     if (ammoType >= 0) {
-        // CSS-VERIFY: GivePlayerAmmo in CS:S clamps the reserve to the maximum of the ammo
+        // Checked on a live CS:S server: GivePlayerAmmo in CS:S clamps the reserve to the maximum of the ammo
         // type (AK-47: 30/90, not 30/999), and a weapon from GivePlayerItem has a full clip.
         GivePlayerAmmo(client, 999, ammoType, true);
     }

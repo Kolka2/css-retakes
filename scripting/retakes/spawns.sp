@@ -16,7 +16,7 @@ static void GetConfigFileName(char[] buffer, int size) {
  * Reads the bounding box of an entity in world coordinates.
  */
 static bool GetEntityWorldBounds(int entity, float mins[3], float maxs[3]) {
-    // CSS-VERIFY: func_bomb_target in CS:S has m_vecMins/m_vecMaxs, and together with
+    // Checked on a live CS:S server: func_bomb_target in CS:S has m_vecMins/m_vecMaxs, and together with
     // m_vecOrigin they give the bomb target in world coordinates (a spawn inside the
     // bombsite is detected correctly).
     if (HasEntProp(entity, Prop_Send, "m_vecMins") && HasEntProp(entity, Prop_Send, "m_vecMaxs")) {

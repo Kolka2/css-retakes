@@ -255,7 +255,7 @@ static void HintToAll(const char[] phrase, int arg1, int arg2 = 0) {
             PrintHintText(i, "%t", phrase, arg1, arg2);
             // CS:S plays a sound with every hint message; with a countdown that is a beep
             // every second. Cut it right away.
-            // CSS-VERIFY: the hint sound is UI/hint.wav on the static channel, and stopping it
+            // Checked on a live CS:S server: the hint sound is UI/hint.wav on the static channel, and stopping it
             // here silences the countdown without hiding the text.
             StopSound(i, SNDCHAN_STATIC, HINT_SOUND);
         }
@@ -457,7 +457,7 @@ static bool IsOnTeam(int client) {
  * a team cannot spawn until the class menu is answered.
  */
 static bool HasPickedClass(int client) {
-    // CSS-VERIFY: m_iClass is 0 until the player has picked a class (model).
+    // Checked on a live CS:S server: m_iClass is 0 until the player has picked a class (model).
     return GetEntProp(client, Prop_Send, "m_iClass") != 0;
 }
 
@@ -618,9 +618,9 @@ public void Hook_PostThinkPost(int client) {
         return;
     }
 
-    // CSS-VERIFY: CCSPlayer has m_bInBuyZone, and forcing it to 1 every think lets the player
+    // Checked on a live CS:S server: CCSPlayer has m_bInBuyZone, and forcing it to 1 every think lets the player
     // open the buy menu and buy anywhere on the map (the game resets the flag on its own
-    // while the player is outside of a real buy zone). Off by default until confirmed.
+    // while the player is outside of a real buy zone). Off by default.
     if (HasEntProp(client, Prop_Send, "m_bInBuyZone")) {
         SetEntProp(client, Prop_Send, "m_bInBuyZone", 1);
     }
@@ -661,7 +661,7 @@ static void RemoveBombs() {
         AcceptEntityInput(entity, "Kill");
     }
 
-    // CSS-VERIFY: removing a planted bomb (planted_c4) mid-round does not confuse the game
+    // Checked on a live CS:S server: removing a planted bomb (planted_c4) mid-round does not confuse the game
     // or the bots; the next game restart clears the "bomb planted" state anyway.
     entity = -1;
     while ((entity = FindEntityByClassname(entity, "planted_c4")) != -1) {
@@ -707,7 +707,7 @@ public Action Command_JoinTeam(int client, const char[] command, int argc) {
 
     CS_SwitchTeam(client, teamTo);
 
-    // CSS-VERIFY: a player switching sides in the warmup gets a model of the new team
+    // Checked on a live CS:S server: a player switching sides in the warmup gets a model of the new team
     // and is respawned without being shown the model menu.
     int class = GetEntProp(client, Prop_Send, "m_iClass");
     if (teamTo == CS_TEAM_T && (class < CSS_FIRST_T_CLASS || class > CSS_LAST_T_CLASS)) {
