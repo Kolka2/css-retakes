@@ -867,7 +867,7 @@ public Action Hook_WeaponCanUse(int client, int weapon) {
         return Plugin_Continue;
     }
 
-    // CSS-VERIFY: refusing the C4 here and removing the refused entity keeps the bomb out
+    // Checked on a live CS:S server: refusing the C4 here and removing the refused entity keeps the bomb out
     // of the warmup whichever way the game hands it out (round restart, late spawn).
     DebugLog("bomb: refused the C4 for %L and removed it", client);
     AcceptEntityInput(weapon, "Kill");

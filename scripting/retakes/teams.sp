@@ -225,7 +225,7 @@ public void Frame_MoveUnassignedToSpectator(int userid) {
         return;
     }
 
-    // CSS-VERIFY: a bot moved to spectators with ChangeClientTeam stays there (does not
+    // Checked on a live CS:S server: a bot moved to spectators with ChangeClientTeam stays there (does not
     // rejoin a team by itself) until the next round preparation.
     DebugLog("round: %L spawned without a slot in this round, moving to spectators", client);
     SwitchPlayerTeam(client, CS_TEAM_SPECTATOR);
