@@ -117,7 +117,40 @@ Retakes для Counter-Strike: Source
 
 - `retakes_standardallocator` — выбор винтовки через `!guns`: CT — M4A1 / AUG / FAMAS, T — AK-47 / SG 552 / Galil; можно разрешить себе AWP (не больше одной на команду); у всех броня с каской и случайная граната.
 - `retakes_pistolallocator` — пистолетные раунды: Glock и USP (с бронёй), P228, Five-SeveN, Desert Eagle, Dual Elites (без брони) или случайный.
+- `retakes_allocator` — раунды разных типов: пистолетные, бонусные, форс-бай, закупочные и «свободный выбор» любого оружия, по кругу или в случайном порядке; гранаты по выбору игрока. Подробно — в разделе [Аллокатор с типами раундов](#аллокатор-с-типами-раундов-retakes_allocator).
 - `retakes_sitepicker` — админ-команда `sm_site a|b|any`: играть только на одном сайте.
+
+### Аллокатор с типами раундов (retakes_allocator)
+
+У каждого раунда есть тип. Игрок «закупается» на бюджет типа по ценам CS:S; деньги настоящие не тратятся.
+
+| Тип | Бюджет | Что получает игрок |
+|---|---|---|
+| `pistol` | $800 | одно из: стартовый пистолет (Glock у T, USP у CT) с кевларом; P228, Desert Eagle, Five-SeveN (CT) или Dual Elites (T) без брони; без шлема |
+| `bonus` | $1700 | улучшенный пистолет и кевлар, на сдачу шлем |
+| `force` | $3300 | случайное основное оружие, которое влезает в бюджет (без AWP, автоматических снайперских, SG 552, AUG и M249), стартовый пистолет, броня и шлем — на сколько хватит: с AK-47, M4A1, Scout или XM1014 брони мало или нет, с ПП, M3, Galil или FAMAS есть |
+| `buy` | хватает на всё | винтовка, выбранная в `!guns` (T: AK-47 / Galil / SG 552, CT: M4A1 / FAMAS / AUG), AWP одному согласившемуся игроку команды, стартовый пистолет, броня со шлемом |
+| `free` | хватает на всё | основное оружие и пистолет из всего оружия игры независимо от стороны — те, что игрок выбрал в `!guns`, либо случайные каждый раунд (так по умолчанию); броня со шлемом |
+
+Кит: в `buy` и `free` у всех CT, в остальных типах его пробует купить половина CT (если остались $200).
+
+Квары (файл `cfg/sourcemod/retakes/retakes_allocator.cfg` создаётся при первом запуске):
+
+| Квар | По умолчанию | Что делает |
+|---|---|---|
+| `sm_retakes_alloc_rounds` | `pistol:2,bonus:2,force:3,buy:12` | типы раундов и число раундов каждого: `тип:раунды,тип:раунды,…`; `:раунды` можно опустить (1). Один тип — все раунды одинаковые: `buy` (как стандартный аллокатор), `free` («хаос») |
+| `sm_retakes_alloc_order` | `cycle` | `cycle` — типы идут по кругу в порядке списка; `random` — тип каждого раунда разыгрывается заново, числа из списка работают как веса (по умолчанию `buy` выпадает в 12 раундах из 19) |
+| `sm_retakes_alloc_nades` | `choice` | `choice` — игрок настраивает гранаты в `!guns`; `random` — у всех случайные |
+| `sm_retakes_alloc_nades_count` | пусто | сколько гранат получает игрок: пусто — по типу раунда (`pistol` 0–1, `bonus` 1, `force` 0–1, `buy` 1–2, `free` 0–4); число (`1`) или диапазон (`0-4`) — одинаково во всех раундах |
+
+- Место в цикле считается от числа сыгранных раундов Retakes: после смены карты, `mp_restartgame` и разминки цикл начинается сначала.
+- В начале раунда тип объявляется в чате («Пистолетный раунд (1/2)»). Если в списке один тип, объявления нет.
+- Гранаты в режиме `choice`, меню `!guns` → «Гранаты»:
+  - «Случайные каждый раунд» — так по умолчанию;
+  - «Выбрать гранаты по приоритету» — список до четырёх гранат (осколочная, две световые, дымовая); в раунде игрок получает первые N из списка, где N — число гранат этого раунда;
+  - «Спрашивать каждый раунд» — меню открывается в паузе перед раундом и принимает выбор до конца фризтайма; кто не выбрал, остаётся без гранат.
+- Как повторить варианты: «до одной случайной» — `random` и `0-1`; «одна по выбору» — `choice` и `1`; «любой набор по выбору» — `choice` и `4`; «полный рандом» — `random` и `0-4`.
+- Боты получают винтовки по умолчанию, случайное оружие в `free` и случайные гранаты.
 
 ### Где хранится выбор оружия
 
@@ -126,8 +159,9 @@ Retakes для Counter-Strike: Source
 - Данные лежат в базе clientprefs. По умолчанию это файл SQLite `addons/sourcemod/data/sqlite/clientprefs-sqlite.sq3`; другую базу можно указать в `addons/sourcemod/configs/databases.cfg`, секция `clientprefs`.
 - `retakes_standardallocator` хранит три значения: `retakes_ctriflechoice` (винтовка CT), `retakes_triflechoice` (винтовка T), `retakes_awpchoice` (согласие на AWP).
 - `retakes_pistolallocator` хранит одно: `retakes_pistolchoice` (номер пистолета в меню).
+- `retakes_allocator` использует те же три значения, что и `retakes_standardallocator` (выбор винтовок и AWP переносится между ними), и ещё четыре: `retakes_alloc_freeprimary` и `retakes_alloc_freepistol` (оружие и пистолет для раундов `free`, `random` — случайные), `retakes_alloc_nades` (список гранат буквами `h`, `f`, `s`; пусто — случайные), `retakes_alloc_nadesask` (спрашивать каждый раунд).
 - Значение, которого в CS:S нет (например, оставшееся от CS:GO-версии плагина), заменяется оружием по умолчанию.
-- У ботов сохранённого выбора нет: они всегда получают вариант по умолчанию.
+- У ботов сохранённого выбора нет: они всегда получают вариант по умолчанию (в `retakes_allocator` это случайное оружие в раундах `free` и случайные гранаты).
 - Если расширение clientprefs не загружено или база недоступна, выбор действует только до отключения игрока.
 
 Спавны хранятся отдельно, в файлах `addons/sourcemod/configs/retakes/<карта>.cfg` — см. раздел [Спавны](#спавны).
@@ -206,6 +240,8 @@ API аддонов описан в [scripting/include/retakes.inc](scripting/inc
 | `editor*.sp`, `validate.sp` | редактор спавнов и проверка спавнов |
 | `warmup_link.sp` | связка с плагином `warmup` |
 | `natives.sp`, `generic.sp`, `debug.sp`, `roundtime.sp` | API для аддонов и общие функции |
+
+Аллокатор `scripting/retakes_allocator.sp` пользуется только этим API; его файлы в `scripting/retakes_allocator/`: `weapons.sp` (таблица оружия: цена, сторона, категория), `rounds.sp` (таблица типов раундов, цикл, закупка на бюджет), `choices.sp` (выбор игроков и cookie), `nades.sp` (гранаты и их меню), `menus.sp` (меню `!guns`). Новый тип раунда — одна строка в `g_RoundTypes` и фраза `RoundType_<имя>` в `translations/retakes_allocator.phrases.txt`.
 
 ## Сборка
 
@@ -341,7 +377,40 @@ Optional plugins, installed next to `retakes.smx`. Use only one allocator.
 
 - `retakes_standardallocator` — rifle choice through `!guns`: CT — M4A1 / AUG / FAMAS, T — AK-47 / SG 552 / Galil; players may opt in for the AWP (one per team at most); armor, helmet and a random grenade for everybody.
 - `retakes_pistolallocator` — pistol rounds: Glock and USP (with armor), P228, Five-SeveN, Desert Eagle, Dual Elites (no armor) or random.
+- `retakes_allocator` — rounds of different types: pistol, bonus, force buy, buy and "free choice" of any weapon, in a circle or in a random order; grenades chosen by the player. See [Round type allocator](#round-type-allocator-retakes_allocator).
 - `retakes_sitepicker` — admin command `sm_site a|b|any` to play a single site.
+
+### Round type allocator (retakes_allocator)
+
+Every round has a type. A player "buys" within the budget of the type at CS:S prices; no real money is spent.
+
+| Type | Budget | What a player gets |
+|---|---|---|
+| `pistol` | $800 | one of: the starting pistol (Glock for T, USP for CT) with kevlar; a P228, Desert Eagle, Five-SeveN (CT) or Dual Elites (T) without armor; no helmet |
+| `bonus` | $1700 | a better pistol and kevlar, a helmet with what is left |
+| `force` | $3300 | a random primary weapon that fits the budget (no AWP, auto snipers, SG 552, AUG or M249), the starting pistol, as much armor as the money allows: little or none with an AK-47, M4A1, Scout or XM1014, some with an SMG, M3, Galil or FAMAS |
+| `buy` | covers everything | the rifle chosen in `!guns` (T: AK-47 / Galil / SG 552, CT: M4A1 / FAMAS / AUG), the AWP for one player per team that opted in, the starting pistol, armor and helmet |
+| `free` | covers everything | a primary weapon and a pistol out of every weapon of the game, whatever the side: the ones chosen in `!guns`, or random ones every round (the default); armor and helmet |
+
+Defuse kit: every CT in `buy` and `free`; in the other types half of the CTs try to buy one (if $200 are left).
+
+Cvars (`cfg/sourcemod/retakes/retakes_allocator.cfg` is created on the first run):
+
+| Cvar | Default | What it does |
+|---|---|---|
+| `sm_retakes_alloc_rounds` | `pistol:2,bonus:2,force:3,buy:12` | round types and how many rounds each lasts: `type:rounds,type:rounds,…`; `:rounds` may be left out (1). A single type makes every round the same: `buy` (like the standard allocator), `free` ("chaos") |
+| `sm_retakes_alloc_order` | `cycle` | `cycle` — the types are played in a circle, in the order of the list; `random` — the type of every round is drawn anew and the round counts work as weights (by default `buy` comes up in 12 rounds out of 19) |
+| `sm_retakes_alloc_nades` | `choice` | `choice` — players set up their grenades in `!guns`; `random` — random grenades for everybody |
+| `sm_retakes_alloc_nades_count` | empty | grenades per player: empty — by the round type (`pistol` 0–1, `bonus` 1, `force` 0–1, `buy` 1–2, `free` 0–4); a number (`1`) or a range (`0-4`) — the same in every round |
+
+- The position in the cycle comes from the number of Retakes rounds played: it starts over after a map change, `mp_restartgame` and the warmup.
+- The round type is announced in chat when the round starts ("Pistol round (1/2)"). With a single type in the list nothing is announced.
+- Grenades in the `choice` mode, `!guns` → "Grenades":
+  - "Random every round" — the default;
+  - "Choose grenades by priority" — a list of up to four grenades (HE, two flashbangs, smoke); in a round the player gets the first N of the list, N being the number of grenades of that round;
+  - "Ask me every round" — a menu opens in the pause before the round and takes picks until the end of the freeze time; a player who picks nothing gets no grenades.
+- Presets: "up to one random" — `random` and `0-1`; "one of your choice" — `choice` and `1`; "any set of your choice" — `choice` and `4`; "fully random" — `random` and `0-4`.
+- Bots get the default rifles, random weapons in `free` and random grenades.
 
 ### Where weapon choices are stored
 
@@ -350,8 +419,9 @@ A choice made in the `!guns` menu is saved with SourceMod's stock clientprefs me
 - The data lives in the clientprefs database. By default this is the SQLite file `addons/sourcemod/data/sqlite/clientprefs-sqlite.sq3`; another database can be set in `addons/sourcemod/configs/databases.cfg`, section `clientprefs`.
 - `retakes_standardallocator` stores three values: `retakes_ctriflechoice` (CT rifle), `retakes_triflechoice` (T rifle), `retakes_awpchoice` (AWP opt-in).
 - `retakes_pistolallocator` stores one: `retakes_pistolchoice` (index of the pistol in the menu).
+- `retakes_allocator` uses the same three values as `retakes_standardallocator` (the rifle and AWP choices carry over between the two) and four more: `retakes_alloc_freeprimary` and `retakes_alloc_freepistol` (the weapon and the pistol for `free` rounds, `random` for random ones), `retakes_alloc_nades` (the grenade list as the letters `h`, `f`, `s`; empty for random), `retakes_alloc_nadesask` (ask every round).
 - A value that does not exist in CS:S (for example one left over from the CS:GO version of the plugin) is replaced by the default weapon.
-- Bots have no saved choice: they always get the default.
+- Bots have no saved choice: they always get the default (in `retakes_allocator` that is random weapons in `free` rounds and random grenades).
 - If the clientprefs extension is not loaded or its database is unavailable, a choice only lasts until the player disconnects.
 
 Spawns are stored separately, in `addons/sourcemod/configs/retakes/<map>.cfg` — see [Spawns](#spawns).
@@ -430,6 +500,8 @@ Sources of the main plugin: `scripting/retakes.sp` (variables, cvars, command an
 | `editor*.sp`, `validate.sp` | the spawn editor and the spawn check |
 | `warmup_link.sp` | the link to the `warmup` plugin |
 | `natives.sp`, `generic.sp`, `debug.sp`, `roundtime.sp` | the addon API and shared helpers |
+
+The allocator `scripting/retakes_allocator.sp` only uses this API; its files are in `scripting/retakes_allocator/`: `weapons.sp` (the weapon table: price, side, category), `rounds.sp` (the round type table, the cycle, buying within a budget), `choices.sp` (player choices and cookies), `nades.sp` (grenades and their menus), `menus.sp` (the `!guns` menu). A new round type is one row in `g_RoundTypes` and a `RoundType_<name>` phrase in `translations/retakes_allocator.phrases.txt`.
 
 ## Building
 
