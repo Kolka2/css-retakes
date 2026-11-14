@@ -9,6 +9,7 @@
 #define CAT_RIFLE   (1 << 4)
 #define CAT_SNIPER  (1 << 5)
 #define CAT_MG      (1 << 6)
+#define CAT_ANY_PISTOL (CAT_STARTER | CAT_PISTOL)
 #define CAT_ANY_PRIMARY (CAT_SMG | CAT_SHOTGUN | CAT_RIFLE | CAT_SNIPER | CAT_MG)
 
 char g_CategoryNames[][] = { "starter", "pistol", "smg", "shotgun", "rifle", "sniper", "mg" };
@@ -18,7 +19,7 @@ char g_CategoryNames[][] = { "starter", "pistol", "smg", "shotgun", "rifle", "sn
 #define SIDE_CT   (1 << 1)
 #define SIDE_BOTH (SIDE_T | SIDE_CT)
 
-// Indices of a side in two-element arrays (g_Rifle, g_DefaultRifle and so on).
+// Indices of a side in two-element arrays (g_DefaultPistol, g_DefaultRifle).
 #define T_INDEX 0
 #define CT_INDEX 1
 
@@ -74,6 +75,10 @@ int g_Awp;
 
 int SideIndex(bool ct) {
     return ct ? CT_INDEX : T_INDEX;
+}
+
+int SideFlag(bool ct) {
+    return ct ? SIDE_CT : SIDE_T;
 }
 
 /**
@@ -134,22 +139,22 @@ void ParseWeapons() {
 }
 
 /**
- * Returns if a side can have a weapon of one of the given categories.
+ * Returns if a weapon is of one of the given categories and can be bought in the game by
+ * one of the given sides (SIDE_BOTH: any weapon, whoever buys it).
  */
-bool WeaponFits(int weapon, int categories, bool ct) {
-    return (g_WeaponCategory[weapon] & categories) != 0
-        && (g_WeaponSides[weapon] & (ct ? SIDE_CT : SIDE_T)) != 0;
+bool WeaponFits(int weapon, int categories, int sides) {
+    return (g_WeaponCategory[weapon] & categories) != 0 && (g_WeaponSides[weapon] & sides) != 0;
 }
 
 /**
- * Picks a random weapon of the given categories that the side can have and that costs
- * no more than maxPrice. Returns -1 if there is no such weapon.
+ * Picks a random weapon of the given categories and sides (see WeaponFits) that costs no
+ * more than maxPrice. Returns -1 if there is no such weapon.
  */
-int RandomWeapon(int categories, bool ct, int maxPrice) {
+int RandomWeapon(int categories, int sides, int maxPrice) {
     int candidates[sizeof(g_Weapons)];
     int count = 0;
     for (int i = 0; i < sizeof(g_Weapons); i++) {
-        if (WeaponFits(i, categories, ct) && g_WeaponPrice[i] <= maxPrice) {
+        if (WeaponFits(i, categories, sides) && g_WeaponPrice[i] <= maxPrice) {
             candidates[count++] = i;
         }
     }

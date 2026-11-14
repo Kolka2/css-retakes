@@ -6,19 +6,10 @@
 #define PRICE_HELMET 350 // on top of the kevlar
 #define PRICE_KIT 200
 
-// Where the primary weapon of a round type comes from. The order must match g_PrimaryNames.
-enum PrimaryPolicy {
-    Primary_None = 0, // no primary weapon
-    Primary_Random,   // a random one the budget allows
-    Primary_Rifle,    // the rifle the player chose; the AWP for one player that asked for it
-};
-
-char g_PrimaryNames[][] = { "none", "random", "rifle" };
-
 // Columns of g_RoundTypes.
 #define TYPE_TOKEN 0     // the name used in sm_retakes_alloc_rounds; the phrase is "RoundType_<token>"
 #define TYPE_BUDGET 1    // money a player "spends" on the weapons, the armor and the kit
-#define TYPE_PRIMARY 2   // one of g_PrimaryNames
+#define TYPE_PRIMARY 2   // one of g_PrimaryNames (see PrimaryPolicy in choices.sp)
 #define TYPE_NADES_MIN 3 // grenades per player, from ...
 #define TYPE_NADES_MAX 4 // ... to
 #define TYPE_KIT_CHANCE 5 // percent of the CTs that try to buy a defuse kit
@@ -27,12 +18,14 @@ char g_PrimaryNames[][] = { "none", "random", "rifle" };
 //   pistol - kevlar, or a better pistol, or a kit with something cheap;
 //   bonus  - a better pistol and the kevlar, the rest as the money allows;
 //   force  - a rifle with little or no armor, or something cheaper with armor;
-//   buy    - the budget covers everything.
+//   buy    - the budget covers everything;
+//   free   - the same, with any weapon of the game ("chaos").
 char g_RoundTypes[][][] = {
     { "pistol", "800",   "none",   "0", "1", "50" },
     { "bonus",  "1700",  "none",   "1", "1", "50" },
     { "force",  "3300",  "random", "0", "1", "50" },
     { "buy",    "16000", "rifle",  "1", "2", "100" },
+    { "free",   "16000", "free",   "0", "4", "100" },
 };
 
 // The numeric columns of g_RoundTypes, filled by ParseRoundTypes().
@@ -186,24 +179,30 @@ static void BuildLoadout(int client, bool ct, int type, bool &awpLeft) {
     int money = g_TypeBudget[type];
 
     int primary = -1;
+    int pistol = g_DefaultPistol[side];
     switch (g_TypePrimary[type]) {
         case Primary_Random: {
-            primary = RandomWeapon(CAT_ANY_PRIMARY, ct, money);
+            primary = RandomWeapon(CAT_ANY_PRIMARY, SideFlag(ct), money);
         }
         case Primary_Rifle: {
             if (awpLeft && g_AwpChoice[client]) {
                 primary = g_Awp;
                 awpLeft = false;
             } else {
-                primary = g_Rifle[client][side];
+                // SLOT_T_RIFLE and SLOT_CT_RIFLE are the side indices
+                primary = ResolveChoice(client, side);
             }
+        }
+        case Primary_Free: {
+            primary = ResolveChoice(client, SLOT_FREE_PRIMARY);
+            pistol = ResolveChoice(client, SLOT_FREE_PISTOL);
+            money -= g_WeaponPrice[pistol];
         }
     }
     if (primary != -1) {
         money -= g_WeaponPrice[primary];
     }
 
-    int pistol = g_DefaultPistol[side];
     bool armor = false;
     bool kit = false;
 
@@ -218,7 +217,7 @@ static void BuildLoadout(int client, bool ct, int type, bool &awpLeft) {
                 }
             }
             case EXTRA_PISTOL: {
-                int better = (primary == -1) ? RandomWeapon(CAT_PISTOL, ct, money) : -1;
+                int better = (primary == -1) ? RandomWeapon(CAT_PISTOL, SideFlag(ct), money) : -1;
                 if (better != -1) {
                     pistol = better;
                     money -= g_WeaponPrice[better];

@@ -7,21 +7,14 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-// A weapon allocator built around round types (pistol, bonus, force, buy): the cvar
+// A weapon allocator built around round types (pistol, bonus, force, buy, free): the cvar
 // sm_retakes_alloc_rounds says which types are played and for how many rounds.
 //
 //   retakes_allocator/weapons.sp - the weapon table
+//   retakes_allocator/choices.sp - what the players chose, and the cookies
 //   retakes_allocator/rounds.sp  - the round types, the cycle and the loadout of a player
 //   retakes_allocator/nades.sp   - the grenades
 //   retakes_allocator/menus.sp   - the !guns menu
-
-// What the players chose in the !guns menu. The rifles are indices into g_Weapons.
-int g_Rifle[MAXPLAYERS+1][2];
-bool g_AwpChoice[MAXPLAYERS+1];
-
-// The cookies have the names retakes_standardallocator uses: the players keep their choice.
-Handle g_hRifleCookie[2];
-Handle g_hAwpCookie;
 
 ConVar g_hRoundsCvar;
 
@@ -29,6 +22,7 @@ ConVar g_hRoundsCvar;
 bool g_AnnouncePending;
 
 #include "retakes_allocator/weapons.sp"
+#include "retakes_allocator/choices.sp"
 #include "retakes_allocator/rounds.sp"
 #include "retakes_allocator/nades.sp"
 #include "retakes_allocator/menus.sp"
@@ -36,7 +30,7 @@ bool g_AnnouncePending;
 public Plugin myinfo = {
     name = "CS:S Retakes: round type weapon allocator",
     author = "Kolka2",
-    description = "Pistol, bonus, force and buy rounds in a configurable cycle",
+    description = "Pistol, bonus, force, buy and free choice rounds in a configurable cycle",
     version = PLUGIN_VERSION,
     url = "https://github.com/splewis/csgo-retakes"
 };
@@ -49,7 +43,7 @@ public void OnPluginStart() {
     ParseRoundTypes();
 
     g_hRoundsCvar = CreateConVar("sm_retakes_alloc_rounds", "pistol:2,bonus:2,force:3,buy:12",
-        "Round types and how many rounds each lasts, played in a circle: \"type:rounds,type:rounds,...\". Types: pistol, bonus, force, buy. A single type (\"buy\") makes every round the same.");
+        "Round types and how many rounds each lasts, played in a circle: \"type:rounds,type:rounds,...\". Types: pistol, bonus, force, buy, free (any weapon the player chose). A single type (\"buy\") makes every round the same.");
     g_hRoundsCvar.AddChangeHook(RoundsChanged);
     AutoExecConfig(true, "retakes_allocator", "sourcemod/retakes");
 
@@ -57,9 +51,7 @@ public void OnPluginStart() {
     g_hRoundsCvar.GetString(rounds, sizeof(rounds));
     ParseRounds(rounds);
 
-    g_hRifleCookie[CT_INDEX] = RegClientCookie("retakes_ctriflechoice", "", CookieAccess_Private);
-    g_hRifleCookie[T_INDEX] = RegClientCookie("retakes_triflechoice", "", CookieAccess_Private);
-    g_hAwpCookie = RegClientCookie("retakes_awpchoice", "", CookieAccess_Private);
+    RegisterChoiceCookies();
 
     HookEvent("round_start", Event_RoundStart);
 
@@ -79,33 +71,13 @@ public void RoundsChanged(ConVar convar, const char[] oldValue, const char[] new
 }
 
 public void OnClientConnected(int client) {
-    g_Rifle[client][T_INDEX] = g_DefaultRifle[T_INDEX];
-    g_Rifle[client][CT_INDEX] = g_DefaultRifle[CT_INDEX];
-    g_AwpChoice[client] = false;
-}
-
-/**
- * Reads the rifle a client chose for one side. An empty or unknown cookie value (e.g. one
- * left by the CS:GO version: "m4a1_silencer", "sg556") leaves the default rifle.
- */
-static void LoadRifleChoice(int client, bool ct) {
-    int side = SideIndex(ct);
-    char id[WEAPON_STRING_LENGTH];
-    GetClientCookie(client, g_hRifleCookie[side], id, sizeof(id));
-
-    int weapon = FindWeapon(id);
-    if (weapon != -1 && WeaponFits(weapon, CAT_RIFLE, ct)) {
-        g_Rifle[client][side] = weapon;
-    }
+    ResetChoices(client);
 }
 
 public void OnClientCookiesCached(int client) {
-    if (IsFakeClient(client)) {
-        return;
+    if (!IsFakeClient(client)) {
+        LoadChoices(client);
     }
-    LoadRifleChoice(client, false);
-    LoadRifleChoice(client, true);
-    g_AwpChoice[client] = GetCookieBool(client, g_hAwpCookie);
 }
 
 public void Retakes_OnGunsCommand(int client) {

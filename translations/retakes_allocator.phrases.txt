@@ -52,4 +52,30 @@
 	{
 		"en"			"Select a T rifle:"
 	}
+	"RoundType_free"
+	{
+		"en"			"Free choice round"
+	}
+	"RandomEveryRound"
+	{
+		"en"			"Random every round"
+	}
+	"MenuFreePrimary"
+	{
+		"#format"		"{1:s}"
+		"en"			"Free choice rounds, weapon: {1}"
+	}
+	"MenuFreePistol"
+	{
+		"#format"		"{1:s}"
+		"en"			"Free choice rounds, pistol: {1}"
+	}
+	"SelectFreePrimary"
+	{
+		"en"			"Weapon for free choice rounds:"
+	}
+	"SelectFreePistol"
+	{
+		"en"			"Pistol for free choice rounds:"
+	}
 }
