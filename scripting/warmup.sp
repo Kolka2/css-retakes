@@ -49,6 +49,13 @@ int g_TimeLimit;      // length of the running warmup in seconds, 0 = no time li
 int g_TimeLeft;
 float g_LastDeathTime[MAXPLAYERS+1];
 
+/** Only for the debug log (sm_warmup_debug) **/
+int g_DebugTeamT = -1;                  // team sizes at the last check, -1 = not known yet
+int g_DebugTeamCT = -1;
+float g_DebugLastBlockTime;             // when a blocked round end was last logged
+CSRoundEndReason g_DebugLastBlockReason;
+bool g_DebugVetoLogged;                 // the "another plugin keeps the warmup going" line is out
+
 /** Cvars changed for the duration of the warmup, see OverrideCvar **/
 ArrayList g_OverriddenCvars;    // ConVar handles
 ArrayList g_OriginalValues;     // what to put back
@@ -109,6 +116,7 @@ public void OnPluginStart() {
     HookEvent("player_spawn", Event_PlayerSpawn);
     HookEvent("player_death", Event_PlayerDeath);
     HookEvent("round_start", Event_RoundStart);
+    HookEvent("round_end", Event_RoundEnd);
 
     g_hOnStart = CreateGlobalForward("Warmup_OnStart", ET_Ignore, Param_Cell);
     g_hOnEnding = CreateGlobalForward("Warmup_OnEnding", ET_Event);
@@ -172,6 +180,71 @@ static void DebugLog(const char[] format, any ...) {
     LogToFile(path, "%s", buffer);
 }
 
+/**
+ * Counts the players of a team for the debug log: members and the living among them.
+ */
+static void CountTeam(int team, int &members, int &alive) {
+    members = 0;
+    alive = 0;
+    for (int i = 1; i <= MaxClients; i++) {
+        if (IsClientInGame(i) && GetClientTeam(i) == team) {
+            members++;
+            if (IsPlayerAlive(i)) {
+                alive++;
+            }
+        }
+    }
+}
+
+/**
+ * Formats "T 2/3 alive, CT 0/3 alive" for the debug log.
+ */
+static void DescribeTeams(char[] buffer, int maxlength) {
+    int t, tAlive, ct, ctAlive;
+    CountTeam(CS_TEAM_T, t, tAlive);
+    CountTeam(CS_TEAM_CT, ct, ctAlive);
+    Format(buffer, maxlength, "T %d/%d alive, CT %d/%d alive", tAlive, t, ctAlive, ct);
+}
+
+/**
+ * Names the round end reasons that can show up in a warmup.
+ */
+static void RoundEndReasonName(CSRoundEndReason reason, char[] buffer, int maxlength) {
+    switch (reason) {
+        case CSRoundEnd_TargetBombed: strcopy(buffer, maxlength, "target bombed");
+        case CSRoundEnd_BombDefused: strcopy(buffer, maxlength, "bomb defused");
+        case CSRoundEnd_CTWin: strcopy(buffer, maxlength, "all terrorists dead");
+        case CSRoundEnd_TerroristWin: strcopy(buffer, maxlength, "all CTs dead");
+        case CSRoundEnd_Draw: strcopy(buffer, maxlength, "draw");
+        case CSRoundEnd_TargetSaved: strcopy(buffer, maxlength, "time ran out");
+        case CSRoundEnd_GameStart: strcopy(buffer, maxlength, "game commencing");
+        default: strcopy(buffer, maxlength, "other");
+    }
+}
+
+/**
+ * Debug log only: tells when a team becomes empty or gets its first member. The game
+ * restarts the round ("Game Commencing") when a team that was empty gets a player.
+ */
+static void DebugTrackTeams() {
+    if (!g_hDebug.BoolValue) {
+        g_DebugTeamT = -1;
+        g_DebugTeamCT = -1;
+        return;
+    }
+
+    int t, ct, alive;
+    CountTeam(CS_TEAM_T, t, alive);
+    CountTeam(CS_TEAM_CT, ct, alive);
+    if (g_DebugTeamT != -1 && ((t == 0) != (g_DebugTeamT == 0) || (ct == 0) != (g_DebugTeamCT == 0))) {
+        DebugLog("teams: T %d -> %d, CT %d -> %d players (%s)", g_DebugTeamT, t, g_DebugTeamCT, ct,
+                 (t > 0 && ct > 0) ? "both teams have players again, the game may restart the round"
+                                   : "a team is empty");
+    }
+    g_DebugTeamT = t;
+    g_DebugTeamCT = ct;
+}
+
 
 /***********************
  *                     *
@@ -193,6 +266,9 @@ static bool StartWarmup(int seconds) {
 
     bool wasActive = g_Active;
     g_Active = true;
+    g_DebugTeamT = -1;
+    g_DebugTeamCT = -1;
+    g_DebugVetoLogged = false;
     g_TimeLimit = seconds;
     g_TimeLeft = seconds;
 
@@ -235,7 +311,9 @@ static bool EndWarmup(WarmupEndReason reason, bool restartGame) {
 
     g_Active = false;
     RestoreCvars();
-    DebugLog("warmup ended, reason %d", reason);
+    DebugLog("warmup ended, reason %d (0 finished, 1 forced, 2 map change, 3 plugin unload), game restart: %s",
+             reason, (restartGame && g_hRestartDelay.IntValue > 0
+                      && (reason == WarmupEnd_Finished || reason == WarmupEnd_Forced)) ? "yes" : "no");
 
     Call_StartForward(g_hOnEnd);
     Call_PushCell(reason);
@@ -258,8 +336,13 @@ static void TryFinishWarmup() {
     Call_Finish(result);
 
     if (result >= Plugin_Handled) {
+        if (!g_DebugVetoLogged) {
+            g_DebugVetoLogged = true;
+            DebugLog("warmup: the end conditions are met, but another plugin keeps the warmup going (Warmup_OnEnding)");
+        }
         return;
     }
+    g_DebugVetoLogged = false;
 
     EndWarmup(WarmupEnd_Finished, true);
 }
@@ -306,6 +389,7 @@ public Action Timer_Second(Handle timer) {
     // gone through Hook_WeaponCanUse. The cost is a walk over the players' weapons once
     // a second, only while the warmup runs.
     RemoveBombs("every-second check");
+    DebugTrackTeams();
 
     int humans = GetHumanCount();
     int minPlayers = g_hMinPlayers.IntValue;
@@ -391,6 +475,11 @@ public void OnOverriddenCvarChanged(ConVar cvar, const char[] oldValue, const ch
 
     char value[CVAR_VALUE_LENGTH];
     g_OverrideValues.GetString(index, value, sizeof(value));
+
+    char cvarName[64];
+    cvar.GetName(cvarName, sizeof(cvarName));
+    DebugLog("cvar: %s was set to %s during the warmup; kept at %s, %s will be restored afterwards",
+             cvarName, newValue, value, newValue);
     g_SettingCvar = true;
     cvar.SetString(value);
     g_SettingCvar = false;
@@ -431,14 +520,49 @@ public Action CS_OnTerminateRound(float &delay, CSRoundEndReason &reason) {
         return Plugin_Continue;
     }
 
+    char teams[64];
+    char reasonName[32];
+
     // "Game Commencing" is the game's own first restart (it resets the scores), let it through.
     if (reason == CSRoundEnd_GameStart) {
+        if (g_hDebug.BoolValue) {
+            DescribeTeams(teams, sizeof(teams));
+            DebugLog("round: game commencing let through, the round restarts in %.1f s (%s)", delay, teams);
+        }
         return Plugin_Continue;
+    }
+
+    // The game may ask again and again while the condition holds: one line per second
+    // and reason is enough.
+    if (g_hDebug.BoolValue
+        && (reason != g_DebugLastBlockReason || GetGameTime() - g_DebugLastBlockTime >= 1.0)) {
+        g_DebugLastBlockReason = reason;
+        g_DebugLastBlockTime = GetGameTime();
+        DescribeTeams(teams, sizeof(teams));
+        RoundEndReasonName(reason, reasonName, sizeof(reasonName));
+        DebugLog("round: end blocked, reason %d (%s), %s", reason, reasonName, teams);
     }
 
     // Plugin_Handled cancels the end of the round (a team wiped out, the time ran out);
     // checked on a live server.
     return Plugin_Handled;
+}
+
+/**
+ * Debug log only. A round_end inside a warmup means the round ended although
+ * CS_OnTerminateRound blocks it: either "game commencing" or a path around the forward.
+ */
+public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast) {
+    if (g_Active && g_hDebug.BoolValue) {
+        char teams[64];
+        char reasonName[32];
+        CSRoundEndReason reason = view_as<CSRoundEndReason>(event.GetInt("reason"));
+        DescribeTeams(teams, sizeof(teams));
+        RoundEndReasonName(reason, reasonName, sizeof(reasonName));
+        DebugLog("round: round_end INSIDE the warmup, winner team %d, reason %d (%s), %s",
+                 event.GetInt("winner"), reason, reasonName, teams);
+    }
+    return Plugin_Continue;
 }
 
 /**
@@ -466,6 +590,11 @@ static void ExtendRound() {
 
 public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast) {
     if (g_Active) {
+        if (g_hDebug.BoolValue) {
+            char teams[64];
+            DescribeTeams(teams, sizeof(teams));
+            DebugLog("round: round_start inside the warmup - the round was restarted (%s)", teams);
+        }
         ExtendRound();
         // The game hands out a C4 on every round restart, after the players have spawned.
         CreateTimer(0.1, Timer_RemoveBombs, _, TIMER_FLAG_NO_MAPCHANGE);
