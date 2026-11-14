@@ -432,7 +432,10 @@ static void AssignTeams() {
         for (int i = 0; i < n; i++) {
             int value = GetRandomInt(1, 1000);
             g_hRankingQueue.Set(i, value, 1);
+            DebugLog("prepare: scramble, %L drew %d", g_hRankingQueue.Get(i, 0), value);
         }
+        DebugLog("prepare: the teams are scrambled (%s): the highest draws play T",
+                 g_ScrambleSignal ? "win streak or sm_scramble" : "sm_retakes_random_teams");
         g_ScrambleSignal = false;
     }
 
