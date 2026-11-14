@@ -31,9 +31,8 @@ static void RemoveAllWeapons(int client, int except = -1) {
     for (int i = 0; i < size; i++) {
         int weapon = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
         if (weapon > MaxClients && weapon != except && IsValidEntity(weapon)) {
-            // CSS-VERIFY: zeroing m_iAmmo for the weapon's ammo type drops a grenade count
-            // left over from the previous round, so a survivor never starts with two
-            // flashbangs.
+            // Checked on a live CS:S server: zeroing m_iAmmo for the weapon's ammo type
+            // drops a grenade count left over from the previous round.
             if (HasEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType")) {
                 int ammoType = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
                 if (ammoType >= 0) {
