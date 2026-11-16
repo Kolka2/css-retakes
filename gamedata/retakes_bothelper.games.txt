@@ -1,0 +1,62 @@
+"Games"
+{
+    /**
+     * Gamedata of the retakes_bothelper plugin (Counter-Strike: Source, 64-bit server).
+     *
+     * Checked against cstrike/bin/x64/server.dll of PatchVersion 11003710.
+     * How to check it again after a game update: README, "retakes_bothelper".
+     *
+     * There are no entries for "linux64" yet: server.so was not available. Without them the
+     * plugin loads on a Linux server, writes one error to the log and does nothing.
+     */
+    "cstrike"
+    {
+        "Offsets"
+        {
+            /**
+             * Where the bot's CSGameState object (CCSBot::m_gameState) lies inside the bot.
+             * CCSBot::OnBombPlanted starts with it:
+             *   add rcx, 42B0h / call CSGameState::OnBombPlanted
+             */
+            "CCSBot::m_gameState"
+            {
+                "windows64"     "17072"
+            }
+
+            /**
+             * The fields of CSGameState, counted from the start of that object. They are
+             * the ones CSGameState::UpdatePlantedBomb writes (the function with the string
+             * "ERROR: Bomb planted outside of a zone!"), plus those the plugin only reads
+             * to make sure the offsets still fit.
+             */
+            "CSGameState::m_isRoundOver"
+            {
+                "windows64"     "8"
+            }
+            "CSGameState::m_bombState"
+            {
+                "windows64"     "12"
+            }
+            "CSGameState::m_bombsiteSearchOrder"
+            {
+                "windows64"     "52"
+            }
+            "CSGameState::m_bombsiteCount"
+            {
+                "windows64"     "68"
+            }
+            "CSGameState::m_plantedBombsite"
+            {
+                "windows64"     "76"
+            }
+            "CSGameState::m_isPlantedBombPosKnown"
+            {
+                "windows64"     "80"
+            }
+            "CSGameState::m_plantedBombPos"
+            {
+                "windows64"     "84"
+            }
+        }
+    }
+}

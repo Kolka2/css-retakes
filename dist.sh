@@ -34,6 +34,10 @@ cp build/retakes.smx build/warmup.smx build/retakes_allocator.smx \
    build/retakes_autoplant.smx build/retakes_autodefuse.smx "$SM/plugins/"
 cp build/retakes_standardallocator.smx build/retakes_pistolallocator.smx \
    build/retakes_sitepicker.smx "$SM/plugins/disabled/"
+# retakes_bothelper пишет в память ботов по смещениям из gamedata и на сервере ещё не
+# проверен: лежит в disabled/, пока владелец его не примет. Его gamedata — всегда на месте.
+cp build/retakes_bothelper.smx "$SM/plugins/disabled/"
+cp -r "$STAGE/gamedata" "$SM/gamedata"
 cp -r "$STAGE/translations" "$SM/translations"
 cp -r "$STAGE/configs/retakes" "$SM/configs/retakes"
 cp -r "$STAGE/cfg/sourcemod" "$S/cfg/sourcemod"
