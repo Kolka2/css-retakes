@@ -28,7 +28,7 @@
  * the C4 during the freezetime at all.
  */
 
-#define AUTOPLANT_VERSION "0.5.1"
+#define AUTOPLANT_VERSION "0.5.2"
 
 #define START_DELAY 0.2     // seconds after round_start to stay away; Retakes hands the C4 out 0.1 s after it
 #define GIVE_UP_TIME 5.0    // seconds after the planned plant before the carrier is left alone
@@ -56,6 +56,9 @@ float g_GiveUpTime;
 float g_BarTime;            // when the carrier may be looked for (the C4 is handed out by then)
 int g_Carrier;              // the bomb carrier found during the freezetime, or 0
 int g_BarClient;            // the human carrier that sees the progress bar, or 0
+int g_BarSeconds;           // length of that bar
+float g_BarStartTime;       // game time at which that bar is empty
+bool g_LoggedBarRestore;
 int g_NextClick = sizeof(g_ClickTimes); // index of the next keypad click in g_ClickTimes
 float g_FirstClickTime;     // game time of the first keypad click
 bool g_ClickFailed;         // the "no such sound" line is in the log
@@ -360,8 +363,23 @@ static void FreezeTimeEffects(int client, float now) {
         && left >= MIN_BAR_TIME && RoundToCeil(left) <= MAX_BAR_TIME) {
         int seconds = RoundToCeil(left);
         g_BarClient = client;
-        ShowProgressBar(client, seconds, g_PlantTime - float(seconds));
+        g_BarSeconds = seconds;
+        g_BarStartTime = g_PlantTime - float(seconds);
+        g_LoggedBarRestore = false;
+        ShowProgressBar(client, seconds, g_BarStartTime);
         AutoplantDebug("progress bar of %d s shown to %L, the plant is due in %.2f s", seconds, client, left);
+    } else if (g_BarClient == client && left > 0.0
+               && HasEntProp(client, Prop_Send, "m_iProgressBarDuration")
+               && GetEntProp(client, Prop_Send, "m_iProgressBarDuration") == 0) {
+        // The game clears the bar when the C4 is put away (CC4::Holster; seen on a live
+        // CS:S server: the bar vanished on a weapon switch). It is put back with the
+        // same start time, so it goes on from where it would have been.
+        // CSS-VERIFY: the restored bar shows up again and still ends at the plant.
+        ShowProgressBar(client, g_BarSeconds, g_BarStartTime);
+        if (!g_LoggedBarRestore) {
+            g_LoggedBarRestore = true;
+            AutoplantDebug("the game took the progress bar away from %L, it is put back", client);
+        }
     }
 }
 
