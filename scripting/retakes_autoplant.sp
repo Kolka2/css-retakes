@@ -11,7 +11,8 @@
  *
  * Plants the bomb for the bomb carrier at the end of the freezetime, right where the
  * carrier stands. During the freezetime a human carrier sees a progress bar that fills
- * up by the moment of the plant.
+ * up by the moment of the plant, and in its last seconds the keypad clicks of a bomb
+ * being armed are played at the carrier.
  *
  * The bomb is planted by the game's own code, not by the plugin: a planted_c4 entity
  * created by name would be dead in CS:S (its timer and think function are only set by
@@ -27,15 +28,24 @@
  * the C4 during the freezetime at all.
  */
 
-#define AUTOPLANT_VERSION "0.3.0"
+#define AUTOPLANT_VERSION "0.4.0"
 
 #define START_DELAY 0.2     // seconds after round_start to stay away; Retakes hands the C4 out 0.1 s after it
 #define GIVE_UP_TIME 5.0    // seconds after the planned plant before the carrier is left alone
 #define MIN_BAR_TIME 1.0    // a progress bar shorter than this is not worth showing
+#define MAX_BAR_TIME 15     // m_iProgressBarDuration is 4 bits wide
+#define ARM_TIME 3.0        // seconds the game takes to arm the C4 (WEAPON_C4_ARM_TIME)
+#define CLICK_SOUND "c4.click"
+
+// When the game plays the keypad clicks, in seconds from the start of the arming: frames
+// 27, 37, 45, 51, 57, 63 and 67 of the 83 frames the arming animation plays in 2.25 s
+// (CC4::PlayArmingBeeps).
+static const float g_ClickTimes[] = { 0.73, 1.00, 1.22, 1.38, 1.55, 1.71, 1.82 };
 
 /** ConVars **/
 ConVar g_hEnabled;
 ConVar g_hProgressBar;
+ConVar g_hSound;
 ConVar g_hFreezeTime;
 
 /** Round state **/
@@ -43,8 +53,11 @@ bool g_Pending;             // the bomb of this round still has to be planted by
 float g_StartTime;          // when the carrier starts arming the C4
 float g_PlantTime;          // when the bomb is to be planted
 float g_GiveUpTime;
-float g_BarTime;            // when the progress bar may be shown (the C4 is handed out by then)
+float g_BarTime;            // when the carrier may be looked for (the C4 is handed out by then)
+int g_Carrier;              // the bomb carrier found during the freezetime, or 0
 int g_BarClient;            // the human carrier that sees the progress bar, or 0
+int g_NextClick;            // index of the next keypad click in g_ClickTimes
+bool g_ClickFailed;         // the "no such sound" line is in the log
 int g_LoggedCarrier;        // the carrier the "started" line was written for
 bool g_LoggedArming;
 bool g_LoggedNotInZone;
@@ -70,6 +83,8 @@ public void OnPluginStart() {
 
     g_hProgressBar = CreateConVar("sm_retakes_autoplant_progressbar", "1", "Whether a human bomb carrier sees a progress bar during the freezetime that fills up by the moment the bomb is planted", _, true, 0.0, true, 1.0);
 
+    g_hSound = CreateConVar("sm_retakes_autoplant_sound", "1", "Whether the keypad clicks of a bomb being armed are played at the bomb carrier in the last seconds of the freezetime", _, true, 0.0, true, 1.0);
+
     AutoExecConfig(true, "retakes_autoplant", "sourcemod/retakes");
 
     g_hFreezeTime = FindConVar("mp_freezetime");
@@ -84,12 +99,18 @@ public void OnPluginStart() {
 
 public void OnMapStart() {
     g_Pending = false;
+    g_Carrier = 0;
     g_BarClient = 0;
+    g_ClickFailed = false;
+    PrecacheScriptSound(CLICK_SOUND);
 }
 
 public void OnClientDisconnect(int client) {
     if (client == g_BarClient) {
         g_BarClient = 0;
+    }
+    if (client == g_Carrier) {
+        g_Carrier = 0;
     }
 }
 
@@ -149,6 +170,8 @@ static void StartAttempt(float plantTime) {
     g_PlantTime = plantTime;
     g_GiveUpTime = plantTime + GIVE_UP_TIME;
     g_BarTime = GetGameTime() + START_DELAY;
+    g_Carrier = 0;
+    g_NextClick = 0;
     g_LoggedCarrier = -1;
     g_LoggedArming = false;
     g_LoggedNotInZone = false;
@@ -159,9 +182,11 @@ static void StartAttempt(float plantTime) {
  * filling up at startTime and is full after `seconds`.
  */
 static void ShowProgressBar(int client, int seconds, float startTime) {
-    // CSS-VERIFY: CS:S has the m_iProgressBarDuration / m_flProgressBarStartTime
-    // properties and its HUD draws the bar from them for a player that is not defusing;
-    // without the properties the older BarTime user message is tried.
+    // CS:S has the m_iProgressBarDuration / m_flProgressBarStartTime properties (seen in
+    // the property dump of a live server). Without them the older BarTime user message
+    // is tried.
+    // CSS-VERIFY: the HUD draws the bar from the properties for a player that is not
+    // defusing, and the bar is full at startTime + seconds.
     if (HasEntProp(client, Prop_Send, "m_iProgressBarDuration")) {
         if (HasEntProp(client, Prop_Send, "m_flProgressBarStartTime")) {
             SetEntPropFloat(client, Prop_Send, "m_flProgressBarStartTime", startTime);
@@ -264,21 +289,60 @@ public void Event_BombPlanted(Event event, const char[] name, bool dontBroadcast
  *************************/
 
 /**
- * Shows the progress bar to a human carrier during the freezetime: it is full at the
- * planned moment of the plant. The bar counts whole seconds, so its start is moved back
- * to make the end fall on that moment.
+ * Returns the game time of a keypad click: the clicks are laid out as if the carrier had
+ * started arming the C4 three seconds before the planned plant.
  */
-static void OfferProgressBar(int client, float now) {
-    if (g_BarClient != 0 || !g_hProgressBar.BoolValue || now < g_BarTime
-        || g_PlantTime - now < MIN_BAR_TIME || IsFakeClient(client)
-        || !IsPlayerAlive(client) || GetClientTeam(client) != CS_TEAM_T || GetClientC4(client) == -1) {
+static float ClickTime(int index) {
+    return g_PlantTime - ARM_TIME + g_ClickTimes[index];
+}
+
+/**
+ * What the carrier gets during the freezetime instead of the arming animation: a progress
+ * bar (humans only) and the keypad clicks. Called for every user command before the plant.
+ */
+static void FreezeTimeEffects(int client, float now) {
+    if (now < g_BarTime) {
         return;
     }
 
-    int seconds = RoundToCeil(g_PlantTime - now);
-    g_BarClient = client;
-    ShowProgressBar(client, seconds, g_PlantTime - float(seconds));
-    AutoplantDebug("progress bar of %d s shown to %L, the plant is due in %.2f s", seconds, client, g_PlantTime - now);
+    if (g_Carrier == 0) {
+        if (!IsPlayerAlive(client) || GetClientTeam(client) != CS_TEAM_T || GetClientC4(client) == -1) {
+            return;
+        }
+        g_Carrier = client;
+        g_LoggedCarrier = client;
+        AutoplantDebug("the bomb carrier is %L", client);
+
+        // The clicks that are already in the past (a short freezetime) are skipped.
+        while (g_NextClick < sizeof(g_ClickTimes) && ClickTime(g_NextClick) < now) {
+            g_NextClick++;
+        }
+    }
+
+    if (client != g_Carrier || !IsPlayerAlive(client)) {
+        return;
+    }
+
+    // The bar is full at the planned moment of the plant. It counts whole seconds, so
+    // its start is moved back to make the end fall on that moment.
+    float left = g_PlantTime - now;
+    if (g_BarClient == 0 && g_hProgressBar.BoolValue && !IsFakeClient(client)
+        && left >= MIN_BAR_TIME && RoundToCeil(left) <= MAX_BAR_TIME) {
+        int seconds = RoundToCeil(left);
+        g_BarClient = client;
+        ShowProgressBar(client, seconds, g_PlantTime - float(seconds));
+        AutoplantDebug("progress bar of %d s shown to %L, the plant is due in %.2f s", seconds, client, left);
+    }
+
+    if (g_hSound.BoolValue && g_NextClick < sizeof(g_ClickTimes) && now >= ClickTime(g_NextClick)) {
+        g_NextClick++;
+        // CSS-VERIFY: the c4.click game sound exists on the server and is heard by the
+        // carrier and the players around.
+        if (!EmitGameSoundToAll(CLICK_SOUND, client) && !g_ClickFailed) {
+            g_ClickFailed = true;
+            AutoplantDebug("the game sound %s was not found, no keypad clicks", CLICK_SOUND);
+        }
+    }
 }
 
 /**
@@ -293,7 +357,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
     float now = GetGameTime();
     if (now < g_StartTime) {
-        OfferProgressBar(client, now);
+        FreezeTimeEffects(client, now);
         return Plugin_Continue;
     }
     if (now > g_GiveUpTime) {
