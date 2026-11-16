@@ -246,6 +246,14 @@ static bool LostInRestart(int client) {
 void OfferRoundNades() {
     g_NadePickOpen = true;
     AllocDebug("nades: the grenades of the round can be picked (round started: %d)", g_RoundStarted);
+
+    // A menu left from loadouts that were built again (the game was restarted in the
+    // middle of a round) shows the old picks and the old number of grenades.
+    for (int i = 1; i <= MaxClients; i++) {
+        if (g_RoundPickerMenu[i] != null && WantsRoundPicker(i)) {
+            ShowNadePicker(i, PICK_ROUND);
+        }
+    }
     ShowPendingRoundPickers();
     if (g_hRoundPickerTimer == null) {
         g_hRoundPickerTimer = CreateTimer(0.5, Timer_RoundPickers, _, TIMER_REPEAT);
@@ -330,9 +338,9 @@ static void HideClientMenu(int client) {
     // SourceMod takes the message for a menu of somebody else (MenuSource_External). With
     // a display time of 0 that "menu" never ended, and the menu of the round, which did
     // not replace other menus, was not shown in the next rounds (seen on a live server).
-    // CSS-VERIFY: with a display time of one second SourceMod forgets it after a second.
-    // ShowPendingRoundPickers() does not depend on that: it shows the menu over an
-    // external one.
+    // Hence the display time of one second, and ShowPendingRoundPickers() shows the
+    // menu over an external one. Checked on a live CS:S server: the menu is hidden at
+    // once and comes back in every round.
     Handle message = StartMessageOne("ShowMenu", client, USERMSG_RELIABLE);
     if (message != null) {
         BfWrite bf = UserMessageToBfWrite(message);
