@@ -34,6 +34,8 @@ PrimaryPolicy g_TypePrimary[sizeof(g_RoundTypes)];
 int g_TypeNadesMin[sizeof(g_RoundTypes)];
 int g_TypeNadesMax[sizeof(g_RoundTypes)];
 int g_TypeKitChance[sizeof(g_RoundTypes)];
+// sm_retakes_alloc_random_types, parsed: the weapons of the type are always random.
+bool g_TypeForcedRandom[sizeof(g_RoundTypes)];
 
 // sm_retakes_alloc_rounds, parsed: the round types in order and how many rounds each lasts.
 #define MAX_CYCLE_ENTRIES 16
@@ -74,6 +76,39 @@ void ParseRoundTypes() {
                          g_RoundTypes[i][TYPE_TOKEN], g_RoundTypes[i][TYPE_PRIMARY]);
         }
         g_TypePrimary[i] = view_as<PrimaryPolicy>(policy);
+    }
+
+    for (int slot = 0; slot < NUM_SLOTS; slot++) {
+        g_SlotType[slot] = FindRoundType(g_SlotTypeTokens[slot]);
+        if (g_SlotType[slot] == -1) {
+            SetFailState("Choice slot %d belongs to an unknown round type \"%s\"", slot, g_SlotTypeTokens[slot]);
+        }
+        g_SlotMaxPrice[slot] = g_TypeBudget[g_SlotType[slot]];
+    }
+}
+
+/**
+ * Parses sm_retakes_alloc_random_types: the round types, separated by commas, in which
+ * the weapons the players chose are ignored. Unknown names are logged and skipped.
+ */
+void ParseRandomTypes(const char[] value) {
+    for (int i = 0; i < sizeof(g_RoundTypes); i++) {
+        g_TypeForcedRandom[i] = false;
+    }
+
+    char tokens[sizeof(g_RoundTypes) * 2][24];
+    int count = ExplodeString(value, ",", tokens, sizeof(tokens), sizeof(tokens[]));
+    for (int i = 0; i < count; i++) {
+        TrimString(tokens[i]);
+        if (tokens[i][0] == '\0') {
+            continue;
+        }
+        int type = FindRoundType(tokens[i]);
+        if (type == -1) {
+            LogError("sm_retakes_alloc_random_types: \"%s\" is not a round type, skipped", tokens[i]);
+        } else {
+            g_TypeForcedRandom[type] = true;
+        }
     }
 }
 
@@ -131,16 +166,78 @@ void ParseRounds(const char[] value) {
 }
 
 /**
- * Returns if any round type of the cycle takes its primary weapon from the given source,
- * i.e. if the players have something to set up for it.
+ * Returns if a round type is played, i.e. is in sm_retakes_alloc_rounds.
  */
-bool CycleHasPrimary(PrimaryPolicy policy) {
+bool CycleHasType(int type) {
     for (int i = 0; i < g_CycleEntries; i++) {
-        if (g_TypePrimary[g_CycleType[i]] == policy) {
+        if (g_CycleType[i] == type) {
             return true;
         }
     }
     return false;
+}
+
+/**
+ * Returns the choice slot of a round type for a side (a side flag) and for the pistol or
+ * the primary weapon, or -1 if the players have nothing to choose there.
+ */
+static int FindTypeSlot(int type, int sideFlag, bool pistol) {
+    for (int slot = 0; slot < NUM_SLOTS; slot++) {
+        if (g_SlotType[slot] == type && (g_SlotSides[slot] & sideFlag) != 0 && IsPistolSlot(slot) == pistol) {
+            return slot;
+        }
+    }
+    return -1;
+}
+
+/**
+ * Returns the weapon a client chose in a slot, or CHOICE_RANDOM if there is no such slot,
+ * the client left it at "random every round", or the type is forced to be random.
+ */
+static int WantedWeapon(int client, int type, int slot) {
+    if (slot == -1 || g_TypeForcedRandom[type]) {
+        return CHOICE_RANDOM;
+    }
+    return g_Choice[client][slot];
+}
+
+/**
+ * What a weapon takes out of the budget: its price, or nothing for the pistol the side
+ * starts with.
+ */
+static int WeaponCost(int weapon, int side) {
+    return (weapon == g_DefaultPistol[side]) ? 0 : g_WeaponPrice[weapon];
+}
+
+/**
+ * Pays for something if the money allows it. Returns if it was bought.
+ */
+static bool Buy(int &money, int price) {
+    if (money < price) {
+        return false;
+    }
+    money -= price;
+    return true;
+}
+
+/**
+ * Returns if the weapons of a slot decide how much armor the player gets, i.e. if the
+ * menu should say so next to every weapon (see GetChoiceArmor).
+ */
+bool SlotDecidesArmor(int slot) {
+    PrimaryPolicy policy = g_TypePrimary[g_SlotType[slot]];
+    return policy == Primary_None || policy == Primary_Random;
+}
+
+/**
+ * Tells what armor is left for a player who chose a weapon in a slot: BuildLoadout()
+ * buys the chosen weapon, then the kevlar, then the helmet.
+ */
+void GetChoiceArmor(int slot, int weapon, bool &armor, bool &helmet) {
+    int side = (g_SlotSides[slot] == SIDE_CT) ? CT_INDEX : T_INDEX;
+    int money = g_SlotMaxPrice[slot] - WeaponCost(weapon, side);
+    armor = Buy(money, PRICE_KEVLAR);
+    helmet = armor && Buy(money, PRICE_HELMET);
 }
 
 static bool IsRandomOrder() {
@@ -178,72 +275,96 @@ static void PickRoundType() {
 /**
  * Sets the loadout of one player for a round of the given type.
  *
- * The player "buys" within the budget of the round type: first the primary weapon, then
- * the kevlar, a better pistol (only when there is no primary weapon) and the defuse kit
- * (not every CT wants one in a cheap round) in a random order, and the helmet with what
- * is left. The grenades do not come out of
- * the budget: see nades.sp.
+ * The player "buys" within the budget of the round type. The grenades do not come out
+ * of the budget: see nades.sp.
+ *
+ * The weapons come from what the player chose for the round type and the side (see the
+ * slot table in choices.sp), unless there is nothing to choose, the player left it at
+ * "random every round" or the type is listed in sm_retakes_alloc_random_types.
+ *
+ *  - Nothing chosen: first a random primary weapon (if the type has one), then the
+ *    kevlar, a better pistol (only when there is no primary weapon) and the defuse kit
+ *    (not every CT wants one in a cheap round) in a random order, and the helmet with
+ *    what is left.
+ *  - A weapon chosen: the weapon, then the kevlar, the helmet and the kit, in this
+ *    order, so that the armor only depends on the weapon (the menu tells it next to
+ *    every weapon).
  *
  * awpLeft tells if the team may still get its AWP and is cleared when this player takes it.
  */
 static void BuildLoadout(int client, bool ct, int type, bool &awpLeft) {
     int side = SideIndex(ct);
+    int sideFlag = SideFlag(ct);
     int money = g_TypeBudget[type];
 
+    int wantPrimary = WantedWeapon(client, type, FindTypeSlot(type, sideFlag, false));
+    int wantPistol = WantedWeapon(client, type, FindTypeSlot(type, sideFlag, true));
+    bool chosen = (wantPrimary != CHOICE_RANDOM || wantPistol != CHOICE_RANDOM);
+
     int primary = -1;
-    int pistol = g_DefaultPistol[side];
     switch (g_TypePrimary[type]) {
         case Primary_Random: {
-            primary = RandomWeapon(CAT_ANY_PRIMARY, SideFlag(ct), money);
+            primary = (wantPrimary != CHOICE_RANDOM) ? wantPrimary
+                                                     : RandomWeapon(CAT_ANY_PRIMARY, sideFlag, money);
         }
         case Primary_Rifle: {
             if (awpLeft && g_AwpChoice[client]) {
                 primary = g_Awp;
                 awpLeft = false;
             } else {
-                // SLOT_T_RIFLE and SLOT_CT_RIFLE are the side indices
-                primary = ResolveChoice(client, side);
+                // (random: only when the type is forced to be random)
+                primary = (wantPrimary != CHOICE_RANDOM) ? wantPrimary
+                                                         : RandomWeapon(CAT_RIFLE, sideFlag, money);
             }
         }
         case Primary_Free: {
-            primary = ResolveChoice(client, SLOT_FREE_PRIMARY);
-            pistol = ResolveChoice(client, SLOT_FREE_PISTOL);
-            money -= g_WeaponPrice[pistol];
+            primary = (wantPrimary != CHOICE_RANDOM) ? wantPrimary
+                                                     : RandomWeapon(CAT_ANY_PRIMARY, SIDE_BOTH, money);
+            if (wantPistol == CHOICE_RANDOM) {
+                wantPistol = RandomWeapon(CAT_ANY_PISTOL, SIDE_BOTH, money);
+            }
         }
     }
     if (primary != -1) {
         money -= g_WeaponPrice[primary];
     }
 
+    int pistol = g_DefaultPistol[side];
+    if (wantPistol != CHOICE_RANDOM) {
+        pistol = wantPistol;
+        money -= WeaponCost(pistol, side);
+    }
+
     bool armor = false;
+    bool helmet = false;
     bool kit = false;
 
-    int extras[NUM_EXTRAS] = { EXTRA_ARMOR, EXTRA_PISTOL, EXTRA_KIT };
-    ShuffleInts(extras, NUM_EXTRAS);
-    for (int i = 0; i < NUM_EXTRAS; i++) {
-        switch (extras[i]) {
-            case EXTRA_ARMOR: {
-                if (money >= PRICE_KEVLAR) {
-                    armor = true;
-                    money -= PRICE_KEVLAR;
+    if (chosen) {
+        armor = Buy(money, PRICE_KEVLAR);
+        helmet = armor && Buy(money, PRICE_HELMET);
+        kit = ct && GetRandomInt(1, 100) <= g_TypeKitChance[type] && Buy(money, PRICE_KIT);
+    } else {
+        int extras[NUM_EXTRAS] = { EXTRA_ARMOR, EXTRA_PISTOL, EXTRA_KIT };
+        ShuffleInts(extras, NUM_EXTRAS);
+        for (int i = 0; i < NUM_EXTRAS; i++) {
+            switch (extras[i]) {
+                case EXTRA_ARMOR: {
+                    armor = Buy(money, PRICE_KEVLAR);
                 }
-            }
-            case EXTRA_PISTOL: {
-                int better = (primary == -1) ? RandomWeapon(CAT_PISTOL, SideFlag(ct), money) : -1;
-                if (better != -1) {
-                    pistol = better;
-                    money -= g_WeaponPrice[better];
+                case EXTRA_PISTOL: {
+                    int better = (primary == -1) ? RandomWeapon(CAT_PISTOL, sideFlag, money) : -1;
+                    if (better != -1) {
+                        pistol = better;
+                        money -= g_WeaponPrice[better];
+                    }
                 }
-            }
-            case EXTRA_KIT: {
-                if (ct && money >= PRICE_KIT && GetRandomInt(1, 100) <= g_TypeKitChance[type]) {
-                    kit = true;
-                    money -= PRICE_KIT;
+                case EXTRA_KIT: {
+                    kit = ct && GetRandomInt(1, 100) <= g_TypeKitChance[type] && Buy(money, PRICE_KIT);
                 }
             }
         }
+        helmet = armor && money >= PRICE_HELMET;
     }
-    bool helmet = armor && money >= PRICE_HELMET;
 
     char primaryClass[WEAPON_STRING_LENGTH];
     char pistolClass[WEAPON_STRING_LENGTH];

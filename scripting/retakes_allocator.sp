@@ -21,6 +21,7 @@
 
 ConVar g_hRoundsCvar;
 ConVar g_hOrderCvar;
+ConVar g_hRandomTypesCvar;
 ConVar g_hNadesCvar;
 ConVar g_hNadesCountCvar;
 
@@ -73,6 +74,9 @@ public void OnPluginStart() {
     g_hOrderCvar = CreateConVar("sm_retakes_alloc_order", "cycle",
         "cycle = the round types of sm_retakes_alloc_rounds are played in a circle, random = every round gets a random type, the round counts work as weights");
     g_hRoundsCvar.AddChangeHook(RoundsChanged);
+    g_hRandomTypesCvar = CreateConVar("sm_retakes_alloc_random_types", "",
+        "Round types, separated by commas, in which the weapons are always random and what the players chose in !guns is ignored (\"force\", \"pistol,bonus,force,buy,free\"). Empty = the players choose wherever there is a choice. The AWP in buy rounds still goes only to those who agreed to it.");
+    g_hRandomTypesCvar.AddChangeHook(RandomTypesChanged);
     g_hNadesCvar = CreateConVar("sm_retakes_alloc_nades", "choice",
         "choice = the players set up their grenades in the !guns menu (random until they do), random = random grenades for everybody");
     g_hNadesCountCvar = CreateConVar("sm_retakes_alloc_nades_count", "",
@@ -83,6 +87,8 @@ public void OnPluginStart() {
     char value[256];
     g_hRoundsCvar.GetString(value, sizeof(value));
     ParseRounds(value);
+    g_hRandomTypesCvar.GetString(value, sizeof(value));
+    ParseRandomTypes(value);
     g_hNadesCountCvar.GetString(value, sizeof(value));
     ParseNadeCount(value);
 
@@ -109,6 +115,10 @@ public void OnPluginStart() {
 
 public void RoundsChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
     ParseRounds(newValue);
+}
+
+public void RandomTypesChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+    ParseRandomTypes(newValue);
 }
 
 public void NadeCountChanged(ConVar convar, const char[] oldValue, const char[] newValue) {

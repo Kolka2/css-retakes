@@ -72,6 +72,50 @@
 	{
 		"ru"			"Пистолет для раундов свободного выбора:"
 	}
+	"MenuTPistol"
+	{
+		"ru"			"Пистолет T: {1}"
+	}
+	"MenuCTPistol"
+	{
+		"ru"			"Пистолет CT: {1}"
+	}
+	"MenuTWeapon"
+	{
+		"ru"			"Оружие T: {1}"
+	}
+	"MenuCTWeapon"
+	{
+		"ru"			"Оружие CT: {1}"
+	}
+	"SelectTPistol"
+	{
+		"ru"			"Выберите пистолет T:"
+	}
+	"SelectCTPistol"
+	{
+		"ru"			"Выберите пистолет CT:"
+	}
+	"SelectTWeapon"
+	{
+		"ru"			"Выберите оружие T:"
+	}
+	"SelectCTWeapon"
+	{
+		"ru"			"Выберите оружие CT:"
+	}
+	"ArmorNone"
+	{
+		"ru"			"без брони"
+	}
+	"ArmorKevlar"
+	{
+		"ru"			"кевлар"
+	}
+	"ArmorFull"
+	{
+		"ru"			"кевлар и шлем"
+	}
 	"RoundAnnounceRandom"
 	{
 		"ru"			"{GREEN}{1}"

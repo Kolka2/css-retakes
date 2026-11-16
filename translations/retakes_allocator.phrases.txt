@@ -78,6 +78,54 @@
 	{
 		"en"			"Pistol for free choice rounds:"
 	}
+	"MenuTPistol"
+	{
+		"#format"		"{1:s}"
+		"en"			"T pistol: {1}"
+	}
+	"MenuCTPistol"
+	{
+		"#format"		"{1:s}"
+		"en"			"CT pistol: {1}"
+	}
+	"MenuTWeapon"
+	{
+		"#format"		"{1:s}"
+		"en"			"T weapon: {1}"
+	}
+	"MenuCTWeapon"
+	{
+		"#format"		"{1:s}"
+		"en"			"CT weapon: {1}"
+	}
+	"SelectTPistol"
+	{
+		"en"			"Select a T pistol:"
+	}
+	"SelectCTPistol"
+	{
+		"en"			"Select a CT pistol:"
+	}
+	"SelectTWeapon"
+	{
+		"en"			"Select a T weapon:"
+	}
+	"SelectCTWeapon"
+	{
+		"en"			"Select a CT weapon:"
+	}
+	"ArmorNone"
+	{
+		"en"			"no armor"
+	}
+	"ArmorKevlar"
+	{
+		"en"			"kevlar"
+	}
+	"ArmorFull"
+	{
+		"en"			"kevlar and helmet"
+	}
 	"RoundAnnounceRandom"
 	{
 		"#format"		"{1:s}"
