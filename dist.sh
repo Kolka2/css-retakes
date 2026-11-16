@@ -25,9 +25,11 @@ git archive HEAD | tar -x -C "$STAGE"
 S="$STAGE/server"
 SM="$S/addons/sourcemod"
 mkdir -p "$SM/plugins/disabled" "$SM/scripting/include" "$SM/configs" "$S/cfg"
-cp build/retakes.smx build/warmup.smx "$SM/plugins/"
+# retakes_allocator — основной аллокатор (решение владельца); остальные лежат в disabled/,
+# потому что одновременно должен работать только один аллокатор.
+cp build/retakes.smx build/warmup.smx build/retakes_allocator.smx "$SM/plugins/"
 cp build/retakes_standardallocator.smx build/retakes_pistolallocator.smx \
-   build/retakes_allocator.smx build/retakes_sitepicker.smx "$SM/plugins/disabled/"
+   build/retakes_sitepicker.smx "$SM/plugins/disabled/"
 cp -r "$STAGE/translations" "$SM/translations"
 cp -r "$STAGE/configs/retakes" "$SM/configs/retakes"
 cp -r "$STAGE/cfg/sourcemod" "$S/cfg/sourcemod"

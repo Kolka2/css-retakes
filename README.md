@@ -24,7 +24,7 @@ Retakes для Counter-Strike: Source
    - `translations/` → `addons/sourcemod/translations/`
    - `cfg/sourcemod/retakes/` → `cfg/sourcemod/retakes/`
    - `configs/retakes/` → `addons/sourcemod/configs/retakes/`
-3. По желанию — один из аллокаторов оружия (см. [Аддоны](#аддоны)).
+3. Аллокатор оружия — один из трёх (см. [Аддоны](#аддоны)); основной — `build/retakes_allocator.smx` → `addons/sourcemod/plugins/`. В готовом архиве `retakes-css-server.zip` он уже лежит в `plugins/`, два других аллокатора и `retakes_sitepicker` — в `plugins/disabled/`.
 4. Запустите карту с двумя бомбплейсами и расставьте спавны (см. ниже). Без спавнов режим не начнётся: плагин раз в раунд пишет об этом в чат.
 
 При первом запуске создаётся `cfg/sourcemod/retakes/retakes.cfg` с кварами плагина. Файл `cfg/sourcemod/retakes/retakes_game.cfg` выполняется на старте каждой карты и настраивает игру (балансировку команд, лимиты, поведение ботов); прежние значения возвращаются при выключении плагина.
@@ -285,7 +285,7 @@ The plugin refuses to load on any other game.
    - `translations/` → `addons/sourcemod/translations/`
    - `cfg/sourcemod/retakes/` → `cfg/sourcemod/retakes/`
    - `configs/retakes/` → `addons/sourcemod/configs/retakes/`
-3. Optionally add one of the weapon allocators (see [Addon plugins](#addon-plugins)).
+3. A weapon allocator, one of the three (see [Addon plugins](#addon-plugins)); the main one is `build/retakes_allocator.smx` → `addons/sourcemod/plugins/`. The prebuilt `retakes-css-server.zip` already has it in `plugins/`, with the other two allocators and `retakes_sitepicker` in `plugins/disabled/`.
 4. Start a map with two bombsites and create the spawns (see below). The mode does not start without spawns; the plugin says so in chat every round.
 
 `cfg/sourcemod/retakes/retakes.cfg` is generated on the first run. `cfg/sourcemod/retakes/retakes_game.cfg` is executed on every map start and sets the game up (team balancing, limits, bot behaviour); the previous values are restored when the plugin is disabled.
