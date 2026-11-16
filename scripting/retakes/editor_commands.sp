@@ -174,7 +174,7 @@ public Action Timer_IterateSpawns(Handle timer, DataPack data) {
         return Plugin_Handled;
 
     if (IsValidSpawn(spawnIndex)) {
-        MoveToSpawnInEditor(client, spawnIndex);
+        VisitSpawnInEditor(client, spawnIndex);
     }
 
     spawnIndex++;

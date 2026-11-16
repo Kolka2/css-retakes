@@ -41,7 +41,7 @@ Retakes для Counter-Strike: Source
 | `!delete` | удалить ближайший спавн показанного сайта |
 | `!goto 10`, `!nearest` | телепорт к спавну по номеру (о несуществующем номере команда сообщит; показ переключается на сайт этого спавна) / к ближайшему спавну показанного сайта |
 | `!next`, `!prev` | телепорт к следующему / предыдущему спавну по порядку номеров, по кругу; показ переключается на сайт спавна; то же есть в меню `!edit` |
-| `sm_iteratespawns` | по очереди облететь все спавны |
+| `sm_iteratespawns` | по очереди облететь все спавны (показ переключается на сайт каждого спавна) |
 | `!savespawns`, `!reloadspawns` | сохранить (в ответ — число записанных точек) / перечитать из файла, отбросив изменения |
 | `sm_deletemapspawns` | удалить все спавны карты; как и любая правка, попадает в файл при `!savespawns` или при смене карты, до этого `!reloadspawns` всё вернёт |
 | `sm_retakes_validatespawns` | проверить спавны и вывести отчёт |
@@ -301,7 +301,7 @@ Spawns are shipped for de_dust2 only (`configs/retakes/de_dust2.cfg`, a test set
 | `!delete` | delete the nearest spawn of the shown site |
 | `!goto 10`, `!nearest` | teleport to a spawn by index (an index that does not exist is reported; the shown site switches to the spawn's one) / to the nearest spawn of the shown site |
 | `!next`, `!prev` | teleport to the next / previous spawn in index order, wrapping around; the shown site switches to the spawn's one; also in the `!edit` menu |
-| `sm_iteratespawns` | visit every spawn in turn |
+| `sm_iteratespawns` | visit every spawn in turn (the shown site switches to each spawn's one) |
 | `!savespawns`, `!reloadspawns` | save (replies with the number of spawns written) / reload from the file, discarding changes |
 | `sm_deletemapspawns` | delete all spawns of the map; like any other edit it reaches the file on `!savespawns` or on a map change, until then `!reloadspawns` brings everything back |
 | `sm_retakes_validatespawns` | check the spawns and print a report |
