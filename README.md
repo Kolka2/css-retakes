@@ -129,7 +129,7 @@ Retakes для Counter-Strike: Source
 |---|---|---|
 | `pistol` | $800 | одно из: стартовый пистолет (Glock у T, USP у CT) с кевларом; P228, Desert Eagle, Five-SeveN (CT) или Dual Elites (T) без брони; без шлема |
 | `bonus` | $1700 | улучшенный пистолет и кевлар, на сдачу шлем |
-| `force` | $3300 | случайное основное оружие, которое влезает в бюджет (без AWP, автоматических снайперских, SG 552, AUG и M249), стартовый пистолет, броня и шлем — на сколько хватит: с AK-47, M4A1, Scout или XM1014 брони мало или нет, с ПП, M3, Galil или FAMAS есть |
+| `force` | $3300 | случайное основное оружие, которое влезает в бюджет (без AWP, автоматических снайперских, SG 552, AUG и M249), стартовый пистолет, броня и шлем — на сколько хватит: с M4A1 брони нет, с AK-47 и P90 нет шлема, с остальным есть и то и другое (у CT с FAMAS и китом — без шлема). Scout и XM1014 в бюджете считаются дешевле, чем в игре: $1750 и $2000 |
 | `buy` | хватает на всё | винтовка, выбранная в `!guns` (T: AK-47 / Galil / SG 552, CT: M4A1 / FAMAS / AUG), AWP одному согласившемуся игроку команды, стартовый пистолет, броня со шлемом |
 | `free` | хватает на всё | основное оружие и пистолет из всего оружия игры независимо от стороны — те, что игрок выбрал в `!guns`, либо случайные каждый раунд (так по умолчанию); броня со шлемом |
 
@@ -390,7 +390,7 @@ Every round has a type. A player "buys" within the budget of the type at CS:S pr
 |---|---|---|
 | `pistol` | $800 | one of: the starting pistol (Glock for T, USP for CT) with kevlar; a P228, Desert Eagle, Five-SeveN (CT) or Dual Elites (T) without armor; no helmet |
 | `bonus` | $1700 | a better pistol and kevlar, a helmet with what is left |
-| `force` | $3300 | a random primary weapon that fits the budget (no AWP, auto snipers, SG 552, AUG or M249), the starting pistol, as much armor as the money allows: little or none with an AK-47, M4A1, Scout or XM1014, some with an SMG, M3, Galil or FAMAS |
+| `force` | $3300 | a random primary weapon that fits the budget (no AWP, auto snipers, SG 552, AUG or M249), the starting pistol, as much armor as the money allows: none with an M4A1, no helmet with an AK-47 or a P90, both with the rest (a CT with a FAMAS and a kit has no helmet). The Scout and the XM1014 count as cheaper than in the game: $1750 and $2000 |
 | `buy` | covers everything | the rifle chosen in `!guns` (T: AK-47 / Galil / SG 552, CT: M4A1 / FAMAS / AUG), the AWP for one player per team that opted in, the starting pistol, armor and helmet |
 | `free` | covers everything | a primary weapon and a pistol out of every weapon of the game, whatever the side: the ones chosen in `!guns`, or random ones every round (the default); armor and helmet |
 

@@ -26,7 +26,8 @@ char g_CategoryNames[][] = { "starter", "pistol", "smg", "shotgun", "rifle", "sn
 // Columns of g_Weapons.
 #define WEAPON_ID 0       // class name without "weapon_"; also what the cookies store
 #define WEAPON_NAME 1     // menu name
-#define WEAPON_PRICE 2    // CS:S buy menu price
+#define WEAPON_PRICE 2    // what the weapon takes out of a round budget: the CS:S buy
+                          // menu price, unless the row says otherwise
 #define WEAPON_SIDE 3     // "t", "ct" or "" for both
 #define WEAPON_CATEGORY 4 // one of g_CategoryNames
 
@@ -46,7 +47,8 @@ char g_Weapons[][][] = {
     { "p90",       "P90",          "2350", "",   "smg" },
 
     { "m3",        "M3",           "1700", "",   "shotgun" },
-    { "xm1014",    "XM1014",       "3000", "",   "shotgun" },
+    // $3000 in the game; cheaper here by the owner's decision, to leave money for the armor
+    { "xm1014",    "XM1014",       "2000", "",   "shotgun" },
 
     { "ak47",      "AK-47",        "2500", "t",  "rifle" },
     { "m4a1",      "M4A1",         "3100", "ct", "rifle" },
@@ -55,7 +57,8 @@ char g_Weapons[][][] = {
     { "sg552",     "SG 552",       "3500", "t",  "rifle" },
     { "aug",       "AUG",          "3500", "ct", "rifle" },
 
-    { "scout",     "Scout",        "2750", "",   "sniper" },
+    // $2750 in the game; cheaper here by the owner's decision, to leave money for the armor
+    { "scout",     "Scout",        "1750", "",   "sniper" },
     { "awp",       "AWP",          "4750", "",   "sniper" },
     { "g3sg1",     "G3SG1",        "5000", "t",  "sniper" },
     { "sg550",     "SG 550",       "4200", "ct", "sniper" },
