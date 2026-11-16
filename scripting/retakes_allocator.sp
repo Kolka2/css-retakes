@@ -163,8 +163,6 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast) {
 }
 
 public void Frame_AnnounceRound(any data) {
-    ReofferRoundNades();
-
     if (!g_AnnouncePending) {
         return;
     }

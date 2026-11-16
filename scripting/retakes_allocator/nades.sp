@@ -292,35 +292,21 @@ void Nades_OnFreezeEnd() {
  * the server: on a live CS:S server it stayed on the screen for about 4 more seconds.
  */
 static void HideClientMenu(int client) {
-    if (GetUserMessageId("ShowMenu") == INVALID_MESSAGE_ID) {
-        return;
-    }
-
-    // CSS-VERIFY: a ShowMenu message with no valid keys makes the client hide the menu
-    // it is showing, at once.
-    Handle message = StartMessageOne("ShowMenu", client, USERMSG_RELIABLE);
-    if (message != null) {
-        BfWrite bf = UserMessageToBfWrite(message);
-        bf.WriteShort(0); // valid keys
-        bf.WriteChar(0);  // display time
-        bf.WriteByte(0);  // more parts to come
-        bf.WriteString("");
-        EndMessage();
-    }
+    // A menu with no selectable keys makes the CS:S client hide the menu it is showing,
+    // at once (checked on a live server with a raw ShowMenu message). The raw message is
+    // not used any more: SourceMod took it for a menu of somebody else that never ends,
+    // GetClientMenu() stayed at MenuSource_External and the menu of the round was not
+    // shown in the next rounds.
+    // CSS-VERIFY: a panel with a title and no items is sent with no keys and hides the
+    // menu just as well; SourceMod forgets it after its one second.
+    Panel panel = new Panel();
+    panel.SetTitle(" ");
+    panel.Send(client, PanelHandler_Nothing, 1);
+    delete panel;
 }
 
-/**
- * Shows the menu of the round once more to the players that still have it open. Called
- * one frame after round_start: in the first round after a game restart the menu, opened
- * a second before the restart, was not seen by the player or looked dimmed (reported by
- * the owner; the cause is not known, the restart is the guess).
- */
-void ReofferRoundNades() {
-    for (int i = 1; i <= MaxClients; i++) {
-        if (g_RoundPickerMenu[i] != null && WantsRoundPicker(i)) {
-            ShowNadePicker(i, PICK_ROUND);
-        }
-    }
+public int PanelHandler_Nothing(Menu menu, MenuAction action, int param1, int param2) {
+    return 0;
 }
 
 void Nades_OnRoundEnd() {
