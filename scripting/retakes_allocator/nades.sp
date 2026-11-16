@@ -9,7 +9,8 @@
 //      * random every round (the default);
 //      * a list in the order of priority: the player gets the first N grenades of it;
 //      * asked every round: a menu opens when the loadouts are built (in the pause after
-//        round_end) and stays usable until the end of the freeze time.
+//        round_end) and stays usable until the end of the freeze time; what was not
+//        picked by then is given at random.
 
 // Everything a CS:S player can carry: an HE grenade, two flashbangs and a smoke grenade.
 // The letters are the ones Retakes_SetPlayerInfo understands.
@@ -145,7 +146,8 @@ static void RandomNades(int count, char nades[NADE_STRING_LENGTH]) {
 
 /**
  * Writes the grenades of one player for a round of the given type. A player that is asked
- * every round gets none here: OfferRoundNades() opens the menu when everybody is done.
+ * every round gets none here: OfferRoundNades() opens the menu when everybody is done,
+ * and Nades_OnFreezeEnd() gives random ones in place of the grenades that were not picked.
  */
 void PickNades(int client, int type, char nades[NADE_STRING_LENGTH]) {
     int count = g_NadeCountOverride ? GetRandomInt(g_NadeCountMin, g_NadeCountMax)
@@ -191,7 +193,19 @@ void Nades_OnRoundStart() {
     g_RoundStarted = true;
 }
 
+/**
+ * The freeze time is over: nobody picks grenades any more, and a player that was asked
+ * and did not pick all of the grenades in time gets random ones for the rest.
+ */
 void Nades_OnFreezeEnd() {
+    // (not live: a warmup was started after the loadouts had been built)
+    if (g_NadePickOpen && Retakes_Live()) {
+        for (int i = 1; i <= MaxClients; i++) {
+            if (g_RoundNadeLimit[i] > 0 && IsPlayer(i) && IsPlayerAlive(i)) {
+                FillRoundPicks(i);
+            }
+        }
+    }
     g_NadePickOpen = false;
 }
 
@@ -208,6 +222,35 @@ static void GiveNade(int client, int nade) {
         case 'h': GivePlayerItem(client, "weapon_hegrenade");
         case 'f': GivePlayerItem(client, "weapon_flashbang");
         case 's': GivePlayerItem(client, "weapon_smokegrenade");
+    }
+}
+
+/**
+ * Gives a player that is asked every round random grenades in place of the ones that were
+ * not picked: all of them if the menu was ignored, the rest if only some were picked.
+ * Called at the end of the freeze time, when retakes has already handed out the loadouts.
+ */
+static void FillRoundPicks(int client) {
+    int order[MAX_NADES];
+    for (int i = 0; i < MAX_NADES; i++) {
+        order[i] = i;
+    }
+    ShuffleInts(order, MAX_NADES);
+
+    bool given = false;
+    for (int i = 0; i < MAX_NADES && strlen(g_RoundNadePicks[client]) < g_RoundNadeLimit[client]; i++) {
+        int nade = g_NadePool[order[i]];
+        if (CanAddNade(g_RoundNadePicks[client], nade)) {
+            AppendNade(g_RoundNadePicks[client], nade);
+            // CSS-VERIFY: a grenade given with GivePlayerItem at round_freeze_end shows up
+            // in the player's inventory (a second flashbang as well).
+            GiveNade(client, nade);
+            given = true;
+        }
+    }
+
+    if (given) {
+        TellPhrase(client, "NadesAutoPicked");
     }
 }
 

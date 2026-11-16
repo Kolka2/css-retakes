@@ -131,4 +131,8 @@
 	{
 		"en"			"Too late: grenades are picked before the end of the freeze time."
 	}
+	"NadesAutoPicked"
+	{
+		"en"			"You did not pick all of your grenades in time: the rest are random."
+	}
 }
