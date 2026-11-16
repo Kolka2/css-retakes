@@ -20,6 +20,8 @@ char g_NadePool[] = "hffs";
 // Menu item info prefixes of the grenade picker: the saved list or this round's picks.
 #define PICK_LIST 'l'
 #define PICK_ROUND 'r'
+// In place of the grenade letter: the "stop asking me" item of the round menu.
+#define PICK_STOP_ASKING 'x'
 
 // The saved list of a player in the order of priority; empty = random every round.
 char g_NadeList[MAXPLAYERS+1][NADE_STRING_LENGTH];
@@ -201,8 +203,8 @@ void Nades_OnFreezeEnd() {
     // (not live: a warmup was started after the loadouts had been built)
     if (g_NadePickOpen && Retakes_Live()) {
         for (int i = 1; i <= MaxClients; i++) {
-            if (g_RoundNadeLimit[i] > 0 && IsPlayer(i) && IsPlayerAlive(i)) {
-                FillRoundPicks(i);
+            if (g_RoundNadeLimit[i] > 0 && IsPlayer(i) && IsPlayerAlive(i) && FillRoundPicks(i)) {
+                TellPhrase(i, "NadesAutoPicked");
             }
         }
     }
@@ -226,32 +228,80 @@ static void GiveNade(int client, int nade) {
 }
 
 /**
- * Gives a player that is asked every round random grenades in place of the ones that were
- * not picked: all of them if the menu was ignored, the rest if only some were picked.
- * Called at the end of the freeze time, when retakes has already handed out the loadouts.
+ * Adds one grenade to what a player that is asked every round has in this round.
  */
-static void FillRoundPicks(int client) {
-    int order[MAX_NADES];
-    for (int i = 0; i < MAX_NADES; i++) {
-        order[i] = i;
-    }
-    ShuffleInts(order, MAX_NADES);
+static void DeliverRoundPick(int client, int nade) {
+    AppendNade(g_RoundNadePicks[client], nade);
 
-    bool given = false;
-    for (int i = 0; i < MAX_NADES && strlen(g_RoundNadePicks[client]) < g_RoundNadeLimit[client]; i++) {
-        int nade = g_NadePool[order[i]];
-        if (CanAddNade(g_RoundNadePicks[client], nade)) {
-            AppendNade(g_RoundNadePicks[client], nade);
-            // CSS-VERIFY: a grenade given with GivePlayerItem at round_freeze_end shows up
-            // in the player's inventory (a second flashbang as well).
+    if (g_RoundStarted) {
+        // CSS-VERIFY: a grenade given with GivePlayerItem during the freeze time, or at
+        // round_freeze_end, shows up in the player's inventory (a second flashbang as
+        // well), and round_freeze_end fires every round, so nobody can pick grenades in
+        // the middle of a round.
+        if (IsPlayerAlive(client)) {
             GiveNade(client, nade);
-            given = true;
+        }
+    } else {
+        // Retakes has not handed out the loadouts yet: the pick goes into the stored one.
+        char primary[WEAPON_STRING_LENGTH];
+        char secondary[WEAPON_STRING_LENGTH];
+        char nades[NADE_STRING_LENGTH];
+        int health, armor;
+        bool helmet, kit;
+        Retakes_GetPlayerInfo(client, primary, secondary, nades, health, armor, helmet, kit);
+        Retakes_SetPlayerInfo(client, primary, secondary, g_RoundNadePicks[client], health, armor, helmet, kit);
+    }
+}
+
+/**
+ * Adds the grenades of a set, in its order, to this round's picks of a player, as long as
+ * the round allows more and the player can carry them. Returns if anything was added.
+ */
+static bool AddRoundPicksFrom(int client, const char[] nades) {
+    bool added = false;
+    for (int i = 0; nades[i] != '\0' && strlen(g_RoundNadePicks[client]) < g_RoundNadeLimit[client]; i++) {
+        if (CanAddNade(g_RoundNadePicks[client], nades[i])) {
+            DeliverRoundPick(client, nades[i]);
+            added = true;
         }
     }
+    return added;
+}
 
-    if (given) {
-        TellPhrase(client, "NadesAutoPicked");
+/**
+ * Gives a player that is asked every round random grenades in place of the ones that were
+ * not picked: all of them if the menu was ignored, the rest if only some were picked.
+ * Returns if anything was added.
+ */
+static bool FillRoundPicks(int client) {
+    char nades[NADE_STRING_LENGTH];
+    RandomNades(MAX_NADES, nades);
+    return AddRoundPicksFrom(client, nades);
+}
+
+/**
+ * The player does not want to be asked every round any more ("stop asking" in the menu
+ * of the round): from now on the saved list is used if there is one, random grenades if
+ * not. The grenades of this round that are still missing are decided the same way.
+ */
+static void StopAskingNades(int client) {
+    SaveNadeSetting(client, false);
+
+    if (g_NadePickOpen && g_RoundNadeLimit[client] > 0) {
+        if (g_NadeList[client][0] != '\0') {
+            AddRoundPicksFrom(client, g_NadeList[client]);
+        } else {
+            FillRoundPicks(client);
+        }
+        // nothing is added at the end of the freeze time
+        g_RoundNadeLimit[client] = 0;
     }
+
+    char setting[96];
+    char text[192];
+    FormatNadeSetting(client, setting, sizeof(setting));
+    Format(text, sizeof(text), "%T", "NadesStoppedAsking", client, setting);
+    Retakes_Message(client, "%s", text);
 }
 
 /**
@@ -267,25 +317,7 @@ static bool AddRoundPick(int client, int nade) {
         || !CanAddNade(g_RoundNadePicks[client], nade)) {
         return false;
     }
-    AppendNade(g_RoundNadePicks[client], nade);
-
-    if (g_RoundStarted) {
-        // CSS-VERIFY: a grenade given with GivePlayerItem during the freeze time shows up
-        // in the player's inventory (a second flashbang as well), and round_freeze_end
-        // fires every round, so nobody can pick grenades in the middle of a round.
-        if (IsPlayerAlive(client)) {
-            GiveNade(client, nade);
-        }
-    } else {
-        // Retakes has not handed out the loadouts yet: the pick goes into the stored one.
-        char primary[WEAPON_STRING_LENGTH];
-        char secondary[WEAPON_STRING_LENGTH];
-        char nades[NADE_STRING_LENGTH];
-        int health, armor;
-        bool helmet, kit;
-        Retakes_GetPlayerInfo(client, primary, secondary, nades, health, armor, helmet, kit);
-        Retakes_SetPlayerInfo(client, primary, secondary, g_RoundNadePicks[client], health, armor, helmet, kit);
-    }
+    DeliverRoundPick(client, nade);
 
     return strlen(g_RoundNadePicks[client]) < g_RoundNadeLimit[client];
 }
@@ -415,7 +447,7 @@ static void ShowNadePicker(int client, int target) {
     static char kinds[] = "hfs";
     char info[4];
     char phrase[16];
-    char text[32];
+    char text[64];
     for (int i = 0; kinds[i] != '\0'; i++) {
         if (CanAddNade(round ? g_RoundNadePicks[client] : g_NadeList[client], kinds[i])) {
             Format(info, sizeof(info), "%c%c", target, kinds[i]);
@@ -423,6 +455,12 @@ static void ShowNadePicker(int client, int target) {
             Format(text, sizeof(text), "%T", phrase, client);
             menu.AddItem(info, text);
         }
+    }
+
+    if (round) {
+        Format(info, sizeof(info), "%c%c", PICK_ROUND, PICK_STOP_ASKING);
+        Format(text, sizeof(text), "%T", "NadesStopAsking", client);
+        menu.AddItem(info, text);
     }
 
     menu.ExitBackButton = !round;
@@ -436,7 +474,9 @@ public int MenuHandler_NadePicker(Menu menu, MenuAction action, int param1, int 
         menu.GetItem(param2, info, sizeof(info));
         int nade = info[1];
 
-        if (info[0] == PICK_ROUND) {
+        if (info[0] == PICK_ROUND && nade == PICK_STOP_ASKING) {
+            StopAskingNades(client);
+        } else if (info[0] == PICK_ROUND) {
             if (AddRoundPick(client, nade)) {
                 ShowNadePicker(client, PICK_ROUND);
             }
