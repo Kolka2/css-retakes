@@ -333,9 +333,10 @@ static void GetEntityOrigin(int entity, float origin[3]) {
  * line - that is the bombsite CSGameState::UpdatePlantedBomb stores.
  */
 static int FindClosestZone(const float pos[3], int &zoneCount) {
-    // CSS-VERIFY: the zones counted this way are the zones of the bots: the count equals
-    // m_bombsiteCount of the bots, and a terrorist bot (which is told the bombsite by the
-    // game itself) holds the same index - both are compared in the debug log.
+    // Checked on a live server (32-bit Windows, de_dust2): the zones counted this way are
+    // the zones of the bots - the count equals m_bombsiteCount of the bots, and a terrorist
+    // bot (which is told the bombsite by the game itself) holds the same index. Both are
+    // compared in the debug log.
     int closest = SITE_UNKNOWN;
     float closestDistance = 0.0;
     zoneCount = 0;
@@ -394,11 +395,12 @@ static bool CheckGameState(int client, char[] why, int maxlength) {
         return false;
     }
 
-    // CSS-VERIFY: m_owner matches the address SourceMod reports for the bot. On a 32-bit
-    // server that is the address itself. A 64-bit SourceMod gives a "pseudo address" (an
-    // offset from the start of a memory region, and regions start at a page boundary), so
-    // only the low 12 bits can be compared; if SourceMod cannot make an address of the
-    // bot (it returns 0 for some), the check is skipped.
+    // m_owner matches the address SourceMod reports for the bot. On a 32-bit server that
+    // is the address itself (checked on a live server).
+    // CSS-VERIFY: on a 64-bit server the low 12 bits of the two match. A 64-bit SourceMod
+    // gives a "pseudo address" (an offset from the start of a memory region, and regions
+    // start at a page boundary), so only those bits can be compared; if SourceMod cannot
+    // make an address of the bot (it returns 0 for some), the check is skipped.
     int address = view_as<int>(GetEntityAddress(client));
     bool matches = wide ? (address & PAGE_MASK) == (ownerLow & PAGE_MASK) : address == ownerLow;
     if (address != 0 && !matches) {
@@ -493,9 +495,9 @@ static bool TellBot(int client) {
         site = SITE_UNKNOWN;
     }
 
-    // CSS-VERIFY: with these fields set a CT bot stops checking the bombsites and goes to
-    // the bomb: a bot on its way to a bombsite returns to its idle state on its next
-    // update and picks the "defuse the bomb" task with a path to the bomb position.
+    // Checked on a live server: with these fields set a CT bot stops checking the bombsites
+    // and goes to the bomb (a bot on its way to a bombsite returns to its idle state on
+    // its next update and picks the "defuse the bomb" task with a path to the bomb).
     SetEntData(client, base + g_OffPlantedSite, site, 4);
     SetEntDataVector(client, base + g_OffPlantedPos, g_BombPos);
     SetEntData(client, base + g_OffPosKnown, 1, 1);
@@ -602,8 +604,8 @@ public void Frame_TellBots(int serial) {
         return;
     }
 
-    // CSS-VERIFY: a frame after the bomb_planted event (or after the planted_c4 spawn hook)
-    // the entity exists and m_vecOrigin holds the place where the bomb lies.
+    // Checked on a live server: a frame after the bomb_planted event the entity exists, is
+    // ticking and m_vecOrigin holds the place where the bomb lies.
     int bomb = FindTickingBomb();
     if (bomb == -1) {
         DebugLog("bomb: no ticking planted_c4 entity found, nothing to tell");
