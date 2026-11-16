@@ -50,7 +50,9 @@ char g_Weapons[][][] = {
     // $3000 in the game; cheaper here by the owner's decision, to leave money for the armor
     { "xm1014",    "XM1014",       "2000", "",   "shotgun" },
 
-    { "ak47",      "AK-47",        "2500", "t",  "rifle" },
+    // $2500 in the game; dearer here by the owner's decision, so that in a force round
+    // it leaves no money for the armor, like the M4A1 of the other side
+    { "ak47",      "AK-47",        "2700", "t",  "rifle" },
     { "m4a1",      "M4A1",         "3100", "ct", "rifle" },
     { "galil",     "Galil",        "2000", "t",  "rifle" },
     { "famas",     "FAMAS",        "2250", "ct", "rifle" },
