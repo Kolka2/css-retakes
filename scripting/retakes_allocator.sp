@@ -59,7 +59,7 @@ public Plugin myinfo = {
     author = "Kolka2",
     description = "Pistol, bonus, force, buy and free choice rounds in a configurable cycle",
     version = PLUGIN_VERSION,
-    url = "https://github.com/splewis/csgo-retakes"
+    url = "https://github.com/Kolka2/css-retakes"
 };
 
 public void OnPluginStart() {

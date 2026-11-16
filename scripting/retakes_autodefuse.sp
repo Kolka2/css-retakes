@@ -32,10 +32,10 @@ ConVar g_hEnabled;
 
 public Plugin myinfo = {
     name = "CS:S Retakes: autodefuse",
-    author = "retakes-css port",
+    author = "Kolka2",
     description = "Finishes a defuse at once when no terrorist is alive and the bomb timer allows the defuse",
     version = AUTODEFUSE_VERSION,
-    url = "https://github.com/splewis/csgo-retakes"
+    url = "https://github.com/Kolka2/css-retakes"
 };
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {

@@ -82,10 +82,10 @@ float g_BombPos[3];
 
 public Plugin myinfo = {
     name = "CS:S Retakes: bot helper",
-    author = "retakes-css port",
+    author = "Kolka2",
     description = "Tells the CT bots where the bomb was planted",
     version = BOTHELPER_VERSION,
-    url = "https://github.com/splewis/csgo-retakes"
+    url = "https://github.com/Kolka2/css-retakes"
 };
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {

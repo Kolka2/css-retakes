@@ -7,10 +7,10 @@
 
 public Plugin myinfo = {
     name = "CS:S Retakes: site picker",
-    author = "splewis",
+    author = "splewis, Kolka2",
     description = "Adds admin commands to pick the bombsite being used",
     version = PLUGIN_VERSION,
-    url = "https://github.com/splewis/csgo-retakes"
+    url = "https://github.com/Kolka2/css-retakes"
 };
 
 bool g_forceSite;

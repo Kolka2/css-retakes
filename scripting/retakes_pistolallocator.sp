@@ -33,10 +33,10 @@ Handle g_PistolChoiceCookie;
 
 public Plugin myinfo = {
     name = "CS:S Retakes: Pistols and nades",
-    author = "splewis, BatMen, Ejz",
+    author = "splewis, BatMen, Ejz, Kolka2",
     description = "Defines a simple weapon allocation policy that gives Pistols and nades",
     version = PLUGIN_VERSION,
-    url = "https://github.com/splewis/csgo-retakes"
+    url = "https://github.com/Kolka2/css-retakes"
 };
 
 public void OnPluginStart() {

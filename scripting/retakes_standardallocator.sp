@@ -37,10 +37,10 @@ Handle g_hAwpChoiceCookie;
 
 public Plugin myinfo = {
     name = "CS:S Retakes: standard weapon allocator",
-    author = "splewis",
+    author = "splewis, Kolka2",
     description = "Defines a simple weapon allocation policy and lets players set weapon preferences",
     version = PLUGIN_VERSION,
-    url = "https://github.com/splewis/csgo-retakes"
+    url = "https://github.com/Kolka2/css-retakes"
 };
 
 public void OnPluginStart() {

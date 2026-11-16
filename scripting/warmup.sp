@@ -69,10 +69,10 @@ Handle g_hOnEnd;
 
 public Plugin myinfo = {
     name = "CS:S Warmup",
-    author = "retakes-css port",
+    author = "Kolka2",
     description = "A plugin-managed warmup for Counter-Strike: Source that any game mode can use",
     version = WARMUP_VERSION,
-    url = "https://github.com/splewis/csgo-retakes"
+    url = "https://github.com/Kolka2/css-retakes"
 };
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {

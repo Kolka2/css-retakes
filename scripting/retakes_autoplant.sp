@@ -72,10 +72,10 @@ bool g_LoggedDraw;
 
 public Plugin myinfo = {
     name = "CS:S Retakes: autoplant",
-    author = "retakes-css port",
+    author = "Kolka2",
     description = "Plants the bomb for the bomb carrier at the end of the freezetime",
     version = AUTOPLANT_VERSION,
-    url = "https://github.com/splewis/csgo-retakes"
+    url = "https://github.com/Kolka2/css-retakes"
 };
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {
