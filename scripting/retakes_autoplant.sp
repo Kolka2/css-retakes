@@ -28,14 +28,13 @@
  * the C4 during the freezetime at all.
  */
 
-#define AUTOPLANT_VERSION "0.5.0"
+#define AUTOPLANT_VERSION "0.5.1"
 
 #define START_DELAY 0.2     // seconds after round_start to stay away; Retakes hands the C4 out 0.1 s after it
 #define GIVE_UP_TIME 5.0    // seconds after the planned plant before the carrier is left alone
 #define MIN_BAR_TIME 0.5    // a progress bar shorter than this is not worth showing
 #define MAX_BAR_TIME 15     // m_iProgressBarDuration is 4 bits wide
 #define ARM_TIME 3.0        // seconds the game takes to arm the C4 (WEAPON_C4_ARM_TIME)
-#define PLACE_ANIM_TIME 0.75 // seconds before the plant at which the game plays the "putting the bomb down" animation
 #define CLICK_SOUND "c4.click"
 
 // When the game plays the keypad clicks, in seconds from the start of the arming: frames
@@ -230,7 +229,9 @@ public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
     }
 
     float now = GetGameTime();
-    float freezeTime = (g_hFreezeTime != null) ? g_hFreezeTime.FloatValue : 0.0;
+    // The game drops the fraction of mp_freezetime: with 1.5 the freezetime lasts one
+    // second (seen on a live CS:S server).
+    float freezeTime = (g_hFreezeTime != null) ? float(g_hFreezeTime.IntValue) : 0.0;
 
     float plantTime = now + freezeTime;
     if (plantTime < now + START_DELAY) {
@@ -368,10 +369,10 @@ static void FreezeTimeEffects(int client, float now) {
  * Drives the bomb carrier's user commands until the bomb is planted: pulls out the C4,
  * holds the attack button, keeps the carrier in place and cuts the arming time short.
  *
- * A human carrier starts PLACE_ANIM_TIME before the planned moment: the game then plays
- * the "putting the bomb down" animation of the view model, the one part of the arming
- * animation the client does not throw away (seen on a live CS:S server). Bots start at
- * the planned moment: the game does not let them arm the C4 during the freezetime.
+ * Arming starts at the planned moment and not earlier. Starting 0.75 s early for the
+ * "putting the bomb down" animation was tried on a live server: the view model just
+ * disappeared, and an attempt in the first 0.3 s of a round was refused by the game and
+ * followed by a second in which the C4 could not be armed.
  */
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3],
                              int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2]) {
@@ -381,15 +382,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
     float now = GetGameTime();
     FreezeTimeEffects(client, now);
-
-    float startTime = g_StartTime;
-    if (!IsFakeClient(client)) {
-        startTime -= PLACE_ANIM_TIME;
-        if (startTime < g_BarTime) {
-            startTime = g_BarTime;
-        }
-    }
-    if (now < startTime) {
+    if (now < g_StartTime) {
         return Plugin_Continue;
     }
     if (now > g_GiveUpTime) {
@@ -454,24 +447,16 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     // m_fArmedTime, for bots and humans alike (checked on a live CS:S server). Should
     // the two properties be missing, the button alone still plants the bomb, in the
     // usual 3 seconds.
-    //
-    // CSS-VERIFY: with the deadline less than 0.75 s away the game plays the "putting
-    // the bomb down" animation for a human carrier, and from the outside the short
-    // arming does not look like rapid fire (the 3 s one did).
     buttons |= IN_ATTACK;
 
     if (HasEntProp(c4, Prop_Send, "m_bStartedArming") && HasEntProp(c4, Prop_Send, "m_fArmedTime")
         && GetEntProp(c4, Prop_Send, "m_bStartedArming")) {
-        // The game has set the deadline to 3 seconds from the start of the arming. It
-        // is only ever moved closer: to the planned moment, or to "now" once that
-        // moment has passed.
-        float deadline = (g_PlantTime > now) ? g_PlantTime : now;
         if (!g_LoggedArming) {
             g_LoggedArming = true;
-            AutoplantDebug("the game is arming the C4 of %L, the bomb will be planted in %.2f s", client, deadline - now);
+            AutoplantDebug("the game is arming the C4 of %L, cutting the arming time", client);
         }
-        if (GetEntPropFloat(c4, Prop_Send, "m_fArmedTime") > deadline) {
-            SetEntPropFloat(c4, Prop_Send, "m_fArmedTime", deadline);
+        if (GetEntPropFloat(c4, Prop_Send, "m_fArmedTime") > now) {
+            SetEntPropFloat(c4, Prop_Send, "m_fArmedTime", now);
         }
     }
 
