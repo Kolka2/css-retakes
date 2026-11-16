@@ -36,6 +36,7 @@ Retakes для Counter-Strike: Source
 | Команда | Что делает |
 |---|---|
 | `!edit` (`sm_edit`) | войти в редактор и открыть меню; в редакторе все респаунятся, раунд не кончается, ботов нет |
+| `!endedit` (`sm_endedit`) | выйти из редактора и начать игру; то же, что пункт «Exit edit mode» в меню. Несохранённые спавны остаются в памяти и запишутся при смене карты или по `!savespawns` |
 | `!show a` / `!show b` | показать спавны сайта A или B (кольца: синие — CT, красные — T, зелёные — T «только бомбер», жёлтые — T «никогда бомбер») |
 | `!new ct a`, `!new t b` … | создать спавн там, где стоите (взгляд сохраняется); через меню можно выбрать тип T-спавна |
 | `!delete` | удалить ближайший спавн показанного сайта |
@@ -296,6 +297,7 @@ Spawns are shipped for de_dust2 only (`configs/retakes/de_dust2.cfg`, a test set
 | Command | What it does |
 |---|---|
 | `!edit` (`sm_edit`) | enter the editor and open its menu; in the editor everybody respawns, the round never ends, there are no bots |
+| `!endedit` (`sm_endedit`) | leave the editor and start the game; the same as "Exit edit mode" in the menu. Unsaved spawns stay in memory and are written on map change or by `!savespawns` |
 | `!show a` / `!show b` | show the spawns of a site (rings: blue — CT, red — T, green — T "bomb carrier only", yellow — T "never bomb carrier") |
 | `!new ct a`, `!new t b` … | create a spawn where you stand (the view angle is saved); the menu also lets you pick the T spawn type |
 | `!delete` | delete the nearest spawn of the shown site |

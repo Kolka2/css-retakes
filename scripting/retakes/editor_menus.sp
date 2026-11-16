@@ -93,7 +93,6 @@ public int EditorMenuHandler(Menu menu, MenuAction action, int param1, int param
 
     // These two leave the editor menu; every other item brings it back.
     if (StrEqual(choice, "end_edit")) {
-        Retakes_MessageToAll("Exiting edit mode.");
         ExitEditMode();
         return 0;
     }

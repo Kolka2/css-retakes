@@ -22,6 +22,7 @@ void PrecacheEditorSprites() {
  * Warmup_OnEnd then goes live.
  */
 void ExitEditMode() {
+    Retakes_MessageToAll("Exiting edit mode.");
     g_EditMode = false;
     if (Retakes_InWarmup()) {
         Warmup_End(false);

@@ -212,6 +212,7 @@ public void OnPluginStart() {
 
     RegAdminCmd("sm_edit", Command_EditSpawns, ADMFLAG_CHANGEMAP, "Launches the retakes spawn editor mode");
     RegAdminCmd("sm_spawns", Command_EditSpawns, ADMFLAG_CHANGEMAP, "Launches the retakes spawn editor mode");
+    RegAdminCmd("sm_endedit", Command_EndEdit, ADMFLAG_CHANGEMAP, "Leaves the retakes spawn editor mode");
 
     RegAdminCmd("sm_new", Command_AddSpawn, ADMFLAG_CHANGEMAP, "Creates a new retakes spawn");
     RegAdminCmd("sm_newspawn", Command_AddSpawn, ADMFLAG_CHANGEMAP, "Creates a new retakes spawn");

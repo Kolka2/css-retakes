@@ -40,9 +40,21 @@ public Action Command_EditSpawns(int client, int args) {
         Retakes_MessageToAll("!show <a/b> to display spawn points for a site");
         Retakes_MessageToAll("!new <ct/t> <a/b> to add a spawn point");
         Retakes_MessageToAll("!delete to delete the nearest spawn");
+        Retakes_MessageToAll("!endedit to leave edit mode");
     }
 
     GiveEditorMenu(client);
+    return Plugin_Handled;
+}
+
+/**
+ * Leaves edit mode, like the "Exit edit mode" item of the editor menu. The original
+ * plugin has no such command, it was added at the owner's request.
+ */
+public Action Command_EndEdit(int client, int args) {
+    if (CheckEditorCommand(client, true)) {
+        ExitEditMode();
+    }
     return Plugin_Handled;
 }
 
