@@ -38,9 +38,9 @@ Retakes для Counter-Strike: Source
 | `!edit` (`sm_edit`) | войти в редактор и открыть меню; в редакторе все респаунятся, раунд не кончается, ботов нет |
 | `!show a` / `!show b` | показать спавны сайта A или B (кольца: синие — CT, красные — T, зелёные — T «только бомбер», жёлтые — T «никогда бомбер») |
 | `!new ct a`, `!new t b` … | создать спавн там, где стоите (взгляд сохраняется); через меню можно выбрать тип T-спавна |
-| `!delete` | удалить ближайший спавн |
-| `!goto 10`, `!nearest` | телепорт к спавну по номеру (о несуществующем номере команда сообщит) / к ближайшему |
-| `!next`, `!prev` | телепорт к следующему / предыдущему спавну по порядку номеров, по кругу; то же есть в меню `!edit` |
+| `!delete` | удалить ближайший спавн показанного сайта |
+| `!goto 10`, `!nearest` | телепорт к спавну по номеру (о несуществующем номере команда сообщит; показ переключается на сайт этого спавна) / к ближайшему спавну показанного сайта |
+| `!next`, `!prev` | телепорт к следующему / предыдущему спавну по порядку номеров, по кругу; показ переключается на сайт спавна; то же есть в меню `!edit` |
 | `sm_iteratespawns` | по очереди облететь все спавны |
 | `!savespawns`, `!reloadspawns` | сохранить (в ответ — число записанных точек) / перечитать из файла, отбросив изменения |
 | `sm_deletemapspawns` | удалить все спавны карты; как и любая правка, попадает в файл при `!savespawns` или при смене карты, до этого `!reloadspawns` всё вернёт |
@@ -298,9 +298,9 @@ Spawns are shipped for de_dust2 only (`configs/retakes/de_dust2.cfg`, a test set
 | `!edit` (`sm_edit`) | enter the editor and open its menu; in the editor everybody respawns, the round never ends, there are no bots |
 | `!show a` / `!show b` | show the spawns of a site (rings: blue — CT, red — T, green — T "bomb carrier only", yellow — T "never bomb carrier") |
 | `!new ct a`, `!new t b` … | create a spawn where you stand (the view angle is saved); the menu also lets you pick the T spawn type |
-| `!delete` | delete the nearest spawn |
-| `!goto 10`, `!nearest` | teleport to a spawn by index (an index that does not exist is reported) / to the nearest one |
-| `!next`, `!prev` | teleport to the next / previous spawn in index order, wrapping around; also in the `!edit` menu |
+| `!delete` | delete the nearest spawn of the shown site |
+| `!goto 10`, `!nearest` | teleport to a spawn by index (an index that does not exist is reported; the shown site switches to the spawn's one) / to the nearest spawn of the shown site |
+| `!next`, `!prev` | teleport to the next / previous spawn in index order, wrapping around; the shown site switches to the spawn's one; also in the `!edit` menu |
 | `sm_iteratespawns` | visit every spawn in turn |
 | `!savespawns`, `!reloadspawns` | save (replies with the number of spawns written) / reload from the file, discarding changes |
 | `sm_deletemapspawns` | delete all spawns of the map; like any other edit it reaches the file on `!savespawns` or on a map change, until then `!reloadspawns` brings everything back |

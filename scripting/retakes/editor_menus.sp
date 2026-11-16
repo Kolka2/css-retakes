@@ -1,5 +1,51 @@
 // Menus of the spawn editor. Included only from retakes.sp.
 
+enum EditorMenuKind {
+    EditorMenu_Main,
+    EditorMenu_NewSpawn,
+};
+
+// The editor menu a client is looking at right now (null if none), to draw it again
+// when the shown bombsite changes behind it (a chat command, another admin).
+static Menu g_OpenEditorMenu[MAXPLAYERS+1];
+static EditorMenuKind g_OpenEditorMenuKind[MAXPLAYERS+1];
+static int g_OpenEditorMenuPosition[MAXPLAYERS+1];
+
+static void RememberEditorMenu(int client, Menu menu, EditorMenuKind kind, int menuPosition) {
+    g_OpenEditorMenu[client] = menu;
+    g_OpenEditorMenuKind[client] = kind;
+    g_OpenEditorMenuPosition[client] = menuPosition;
+}
+
+/**
+ * Called when a menu is closed for a client. The handle is compared because a menu
+ * replaced by a new one reports its cancellation too, and must not clear the new one.
+ */
+static void ForgetEditorMenu(int client, Menu menu) {
+    if (client >= 1 && client <= MaxClients && g_OpenEditorMenu[client] == menu) {
+        g_OpenEditorMenu[client] = null;
+    }
+}
+
+/**
+ * Draws the open editor menus again, for everybody who has one on the screen.
+ */
+void RefreshEditorMenus() {
+    for (int i = 1; i <= MaxClients; i++) {
+        if (g_OpenEditorMenu[i] == null) {
+            continue;
+        }
+
+        if (!IsPlayer(i)) {
+            g_OpenEditorMenu[i] = null;
+        } else if (g_OpenEditorMenuKind[i] == EditorMenu_Main) {
+            GiveEditorMenu(i, g_OpenEditorMenuPosition[i]);
+        } else {
+            GiveNewSpawnMenu(i);
+        }
+    }
+}
+
 void GiveEditorMenu(int client, int menuPosition=-1) {
     Menu menu = new Menu(EditorMenuHandler);
     menu.ExitButton = true;
@@ -15,10 +61,14 @@ void GiveEditorMenu(int client, int menuPosition=-1) {
     AddMenuOption(menu, "delete_map_spawns", "Delete all map spawns");
     AddMenuOption(menu, "reload_spawns", "Reload map spawns (discard current changes)");
 
+    bool shown;
     if (menuPosition == -1) {
-        menu.Display(client, MENU_TIME_FOREVER);
+        shown = menu.Display(client, MENU_TIME_FOREVER);
     } else {
-        menu.DisplayAt(client, menuPosition, MENU_TIME_FOREVER);
+        shown = menu.DisplayAt(client, menuPosition, MENU_TIME_FOREVER);
+    }
+    if (shown) {
+        RememberEditorMenu(client, menu, EditorMenu_Main, menuPosition);
     }
 }
 
@@ -27,11 +77,16 @@ public int EditorMenuHandler(Menu menu, MenuAction action, int param1, int param
         delete menu;
         return 0;
     }
+    if (action == MenuAction_Cancel) {
+        ForgetEditorMenu(param1, menu);
+        return 0;
+    }
     if (action != MenuAction_Select) {
         return 0;
     }
 
     int client = param1;
+    ForgetEditorMenu(client, menu);
     char choice[64];
     menu.GetItem(param2, choice, sizeof(choice));
     int menuPosition = GetMenuSelectionPosition();
@@ -109,10 +164,16 @@ void GiveNewSpawnMenu(int client) {
     menu.ExitButton = false;
     menu.ExitBackButton = true;
 
-    menu.Display(client, MENU_TIME_FOREVER);
+    if (menu.Display(client, MENU_TIME_FOREVER)) {
+        RememberEditorMenu(client, menu, EditorMenu_NewSpawn, -1);
+    }
 }
 
 public int GiveNewSpawnMenuHandler(Menu menu, MenuAction action, int param1, int param2) {
+    if (action == MenuAction_Select || action == MenuAction_Cancel) {
+        ForgetEditorMenu(param1, menu);
+    }
+
     if (action == MenuAction_Select) {
         int client = param1;
         char choice[64];
@@ -122,7 +183,7 @@ public int GiveNewSpawnMenuHandler(Menu menu, MenuAction action, int param1, int
         } else if (StrEqual(choice, "team")) {
             g_EditingSpawnTeams[client] = GetOtherTeam(g_EditingSpawnTeams[client]);
         } else if (StrEqual(choice, "site")) {
-            g_EditingSite = GetOtherSite(g_EditingSite);
+            SetEditingSite(GetOtherSite(g_EditingSite));
         } else if (StrEqual(choice, "type")) {
             g_EditingSpawnTypes[client] = NextSpawnType(g_EditingSpawnTypes[client]);
         } else {

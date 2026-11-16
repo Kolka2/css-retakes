@@ -93,7 +93,7 @@ public Action Command_AddSpawn(int client, int args) {
         }
 
         g_EditingSpawnTeams[client] = team;
-        g_EditingSite = site;
+        SetEditingSite(site);
         g_EditingSpawnTypes[client] = SpawnType_Normal;
         AddSpawn(client);
     } else {
@@ -202,7 +202,7 @@ public Action Command_GotoSpawn(int client, int args) {
 
     int spawn = StringToInt(buffer);
     if (IsValidSpawn(spawn)) {
-        MoveToSpawnInEditor(client, spawn);
+        VisitSpawnInEditor(client, spawn);
     } else {
         // the original plugin stayed silent here
         ReplyToCommand(client, "There is no spawn #%d (the numbers go from 0 to %d, deleted spawns are skipped).",

@@ -35,8 +35,20 @@ void MovePlayerToEditMode(int client) {
     CS_RespawnPlayer(client);
 }
 
+/**
+ * Changes the bombsite the editor shows (the rings, "delete nearest" and new spawns all
+ * follow it). The editor menus that are open show the site in their items, so they are
+ * drawn again.
+ */
+void SetEditingSite(Bombsite site) {
+    if (g_EditingSite != site) {
+        g_EditingSite = site;
+        RefreshEditorMenus();
+    }
+}
+
 void ShowSpawns(Bombsite site) {
-    g_EditingSite = site;
+    SetEditingSite(site);
     Retakes_MessageToAll("Showing spawns for bombsite \x04%s.", SITESTRING(site));
 
     int ct_count = 0;
@@ -196,6 +208,16 @@ void MoveToSpawnInEditor(int client, int spawnIndex) {
 }
 
 /**
+ * Teleports the editor to a spawn and switches the shown bombsite to the spawn's one, so
+ * that the rings around the client and "delete nearest" are about the place the client
+ * is in. (In the original plugin !goto left the shown site alone.)
+ */
+void VisitSpawnInEditor(int client, int spawnIndex) {
+    SetEditingSite(g_SpawnSites[spawnIndex]);
+    MoveToSpawnInEditor(client, spawnIndex);
+}
+
+/**
  * Teleports the editor to the next (direction 1) or the previous (direction -1) spawn,
  * simply by spawn number, wrapping around at the ends. Deleted spawns are skipped.
  * The walk starts from the spawn the client visited last (any teleport command sets it).
@@ -222,9 +244,7 @@ void StepToSpawnInEditor(int client, int direction) {
         }
 
         if (IsValidSpawn(index)) {
-            // show the rings of the site the spawn belongs to
-            g_EditingSite = g_SpawnSites[index];
-            MoveToSpawnInEditor(client, index);
+            VisitSpawnInEditor(client, index);
             return;
         }
     }
