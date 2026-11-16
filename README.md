@@ -122,10 +122,12 @@ Retakes для Counter-Strike: Source
 - `retakes_sitepicker` — админ-команда `sm_site a|b|any`: играть только на одном сайте.
 - `retakes_autoplant` — автоплент: бомба закладывается за бомбера там, где он стоит (бомбер-человек или бот), и к началу раунда уже тикает. Закладку выполняет сама игра (плагин только «зажимает» бомберу атаку с C4 в руках и убирает трёхсекундное ожидание), gamedata не нужна. Квары (файл `cfg/sourcemod/retakes/retakes_autoplant.cfg`):
   - `sm_retakes_autoplant_enabled` (по умолчанию `1`) — включить;
-  - `sm_retakes_autoplant_progressbar` (по умолчанию `1`) — бомбер-человек во фризтайме видит шкалу прогресса (как при разминировании); она заполняется к моменту закладки. При `mp_freezetime` меньше 1 шкалы нет, при большем 15 она появляется за 15 секунд до конца;
-  - `sm_retakes_autoplant_sound` (по умолчанию `1`) — в последние секунды фризтайма от бомбера (человека или бота) слышны щелчки набора кода, как при ручной закладке.
+  - `sm_retakes_autoplant_progressbar` (по умолчанию `1`) — бомбер-человек во фризтайме видит шкалу прогресса (как при разминировании); она заполняется к моменту закладки. При `mp_freezetime` меньше 0,7 шкалы нет, при большем 15 она появляется за 15 секунд до конца;
+  - `sm_retakes_autoplant_sound` (по умолчанию `1`) — в последние секунды фризтайма от бомбера (человека или бота) слышны семь щелчков набора кода, как при ручной закладке. Если фризтайм короче трёх секунд, щелчки начинаются сразу после старта раунда и могут закончиться уже после закладки.
 
-  Бомба закладывается мгновенно в момент конца фризтайма. Если бомбер стоит вне зоны закладки или бомба не заложилась за 5 секунд после конца фризтайма, плагин отступает и бомбер ставит бомбу сам. С `sm_retakes_debug 1` пишет лог `logs/retakes_autoplant_debug.log`. Закладка проверена на сервере, шкала и щелчки — пока не подтверждены; в готовом архиве плагин лежит в `plugins/disabled/`.
+  Бомбер-человек в последние 0,75 секунды фризтайма видит анимацию опускания бомбы (анимацию набора кода клиент игры не показывает).
+
+  Бомба закладывается мгновенно в момент конца фризтайма. Если бомбер стоит вне зоны закладки или бомба не заложилась за 5 секунд после конца фризтайма, плагин отступает и бомбер ставит бомбу сам. С `sm_retakes_debug 1` пишет лог `logs/retakes_autoplant_debug.log`. Закладка, шкала и щелчки проверены на сервере, анимация опускания бомбы — пока нет; в готовом архиве плагин лежит в `plugins/disabled/`.
 
 ### Аллокатор с типами раундов (retakes_allocator)
 
@@ -400,10 +402,12 @@ Optional plugins, installed next to `retakes.smx`. Use only one allocator.
 - `retakes_sitepicker` — admin command `sm_site a|b|any` to play a single site.
 - `retakes_autoplant` — autoplant: the bomb is planted for the bomb carrier (human or bot) where the carrier stands, and is already ticking when the round goes live. The game itself does the plant (the plugin only holds the attack button for the carrier with the C4 out and removes the three-second wait), no gamedata is needed. Cvars (config `cfg/sourcemod/retakes/retakes_autoplant.cfg`):
   - `sm_retakes_autoplant_enabled` (default `1`) — on/off;
-  - `sm_retakes_autoplant_progressbar` (default `1`) — a human carrier sees a progress bar (the one of the defuse) during the freezetime; it fills up by the moment of the plant. No bar with `mp_freezetime` below 1; above 15 it shows up 15 seconds before the end;
-  - `sm_retakes_autoplant_sound` (default `1`) — in the last seconds of the freezetime the keypad clicks of a bomb being armed are played at the carrier (human or bot), as in a plant by hand.
+  - `sm_retakes_autoplant_progressbar` (default `1`) — a human carrier sees a progress bar (the one of the defuse) during the freezetime; it fills up by the moment of the plant. No bar with `mp_freezetime` below 0.7; above 15 it shows up 15 seconds before the end;
+  - `sm_retakes_autoplant_sound` (default `1`) — in the last seconds of the freezetime the keypad clicks of a bomb being armed are played at the carrier (human or bot), all seven of them, as in a plant by hand. With a freezetime shorter than three seconds the clicks start right after the round start and may end after the bomb is planted.
 
-  The bomb is planted in an instant the moment the freezetime ends. If the carrier is outside a bomb target or the bomb is not planted within 5 seconds after the freezetime, the plugin backs off and the carrier plants by hand. With `sm_retakes_debug 1` it writes `logs/retakes_autoplant_debug.log`. The plant was checked on a live server, the progress bar and the clicks are not confirmed yet; the prebuilt archive has the plugin in `plugins/disabled/`.
+  A human carrier sees the "putting the bomb down" animation in the last 0.75 seconds of the freezetime (the game client does not show the keypad animation).
+
+  The bomb is planted in an instant the moment the freezetime ends. If the carrier is outside a bomb target or the bomb is not planted within 5 seconds after the freezetime, the plugin backs off and the carrier plants by hand. With `sm_retakes_debug 1` it writes `logs/retakes_autoplant_debug.log`. The plant, the progress bar and the clicks were checked on a live server, the "putting down" animation was not yet; the prebuilt archive has the plugin in `plugins/disabled/`.
 
 ### Round type allocator (retakes_allocator)
 
