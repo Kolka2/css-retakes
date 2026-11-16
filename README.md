@@ -127,7 +127,7 @@ Retakes для Counter-Strike: Source
 
   Анимации закладки у бомбера нет: клиент игры её не показывает, когда кнопку «нажимает» сервер. Дробную часть `mp_freezetime` игра отбрасывает (при `1.5` фризтайм длится 1 секунду), плагин считает так же.
 
-  Бомба закладывается мгновенно в момент конца фризтайма. Если бомбер стоит вне зоны закладки или бомба не заложилась за 5 секунд после конца фризтайма, плагин отступает и бомбер ставит бомбу сам. С `sm_retakes_debug 1` пишет лог `logs/retakes_autoplant_debug.log`. Если у бомбера в руках другое оружие, C4 сначала достаётся, и закладка запаздывает на полсекунды-секунду. Закладка, шкала и щелчки проверены на сервере; в готовом архиве плагин лежит в `plugins/`, но выключен кваром.
+  Бомба закладывается мгновенно в момент конца фризтайма. Если бомбер стоит вне зоны закладки или бомба не заложилась за 5 секунд после конца фризтайма, плагин отступает и бомбер ставит бомбу сам. С `sm_retakes_debug 1` пишет лог `logs/retakes_autoplant_debug.log`. Игра закладывает бомбу только из C4 в руках, поэтому бомберу-человеку с другим оружием C4 выбирается за секунду до конца фризтайма. Закладка, шкала и щелчки проверены на сервере; в готовом архиве плагин лежит в `plugins/`, но выключен кваром.
 
 ### Аллокатор с типами раундов (retakes_allocator)
 
@@ -407,7 +407,7 @@ Optional plugins, installed next to `retakes.smx`. Use only one allocator.
 
   The carrier sees no planting animation: the game client does not show it when the button is "pressed" by the server. The game drops the fraction of `mp_freezetime` (with `1.5` the freezetime lasts 1 second), and so does the plugin.
 
-  The bomb is planted in an instant the moment the freezetime ends. If the carrier is outside a bomb target or the bomb is not planted within 5 seconds after the freezetime, the plugin backs off and the carrier plants by hand. With `sm_retakes_debug 1` it writes `logs/retakes_autoplant_debug.log`. If the carrier holds another weapon, the C4 is pulled out first and the plant comes half a second to a second late. The plant, the progress bar and the clicks were checked on a live server; the prebuilt archive has the plugin in `plugins/`, switched off by the cvar.
+  The bomb is planted in an instant the moment the freezetime ends. If the carrier is outside a bomb target or the bomb is not planted within 5 seconds after the freezetime, the plugin backs off and the carrier plants by hand. With `sm_retakes_debug 1` it writes `logs/retakes_autoplant_debug.log`. The game only plants from a C4 that is in the hands, so a human carrier holding another weapon is switched to the C4 a second before the end of the freezetime. The plant, the progress bar and the clicks were checked on a live server; the prebuilt archive has the plugin in `plugins/`, switched off by the cvar.
 
 ### Round type allocator (retakes_allocator)
 

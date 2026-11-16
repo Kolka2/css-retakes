@@ -31,13 +31,14 @@
  * in which the C4 could not be armed.
  */
 
-#define AUTOPLANT_VERSION "1.0.0"
+#define AUTOPLANT_VERSION "1.0.1"
 
 #define START_DELAY 0.2     // seconds after round_start to stay away; Retakes hands the C4 out 0.1 s after it
 #define GIVE_UP_TIME 5.0    // seconds after the planned plant before the carrier is left alone
 #define MIN_BAR_TIME 0.5    // a progress bar shorter than this is not worth showing
 #define MAX_BAR_TIME 15     // m_iProgressBarDuration is 4 bits wide
 #define ARM_TIME 3.0        // seconds the game takes to arm the C4 (WEAPON_C4_ARM_TIME)
+#define DRAW_LEAD_TIME 1.0  // seconds before the plant at which a human carrier is switched to the C4
 #define CLICK_SOUND "c4.click"
 
 // When the game plays the keypad clicks, in seconds from the start of the arming: frames
@@ -67,6 +68,7 @@ bool g_ClickFailed;         // the "no such sound" line is in the log
 int g_LoggedCarrier;        // the carrier the "started" line was written for
 bool g_LoggedArming;
 bool g_LoggedNotInZone;
+bool g_LoggedDraw;
 
 public Plugin myinfo = {
     name = "CS:S Retakes: autoplant",
@@ -181,6 +183,7 @@ static void StartAttempt(float plantTime) {
     g_LoggedCarrier = -1;
     g_LoggedArming = false;
     g_LoggedNotInZone = false;
+    g_LoggedDraw = false;
 }
 
 /**
@@ -379,6 +382,25 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     float now = GetGameTime();
     CarrierEffects(client, now);
     if (now < g_PlantTime) {
+        // The game only plants from a C4 that is in the hands, and pulling it out takes
+        // 0.5-0.8 s (seen on a live CS:S server: a human carrier with another weapon out
+        // got the bomb planted that much late). So a human carrier is switched to the C4
+        // a second ahead. Bots are left alone here: their plant is on time as it is.
+        // CSS-VERIFY: with the C4 selected a second ahead the plant is on time, and the
+        // early switch does not disturb the carrier during the freezetime.
+        if (client == g_Carrier && now >= g_PlantTime - DRAW_LEAD_TIME
+            && !IsFakeClient(client) && IsPlayerAlive(client)) {
+            int carried = GetClientC4(client);
+            if (carried != -1 && GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon") != carried) {
+                if (!g_LoggedDraw) {
+                    g_LoggedDraw = true;
+                    AutoplantDebug("%L holds another weapon, the C4 is pulled out %.2f s before the plant",
+                                   client, g_PlantTime - now);
+                }
+                weapon = carried;
+                return Plugin_Changed;
+            }
+        }
         return Plugin_Continue;
     }
     if (now > g_GiveUpTime) {
