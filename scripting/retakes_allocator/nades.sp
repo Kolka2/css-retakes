@@ -392,10 +392,11 @@ static void DeliverRoundPick(int client, int nade) {
     AppendNade(g_RoundNadePicks[client], nade);
 
     if (g_RoundStarted) {
-        // CSS-VERIFY: a grenade given with GivePlayerItem during the freeze time, or at
+        // A grenade given with GivePlayerItem during the freeze time, or at
         // round_freeze_end, shows up in the player's inventory (a second flashbang as
-        // well), and round_freeze_end fires every round, so nobody can pick grenades in
-        // the middle of a round.
+        // well), and round_freeze_end fires every round, also with mp_freezetime 0, so
+        // nobody can pick grenades in the middle of a round. Checked on a live CS:S
+        // server.
         if (IsPlayerAlive(client)) {
             GiveNade(client, nade);
         }
