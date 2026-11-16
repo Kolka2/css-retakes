@@ -39,6 +39,12 @@ bool g_NadePickOpen;
 // grenade picked now has to be given directly.
 bool g_RoundStarted;
 
+// The "grenades for this round" menu a client has on the screen (null if none); it is
+// closed when the freeze time ends.
+Menu g_RoundPickerMenu[MAXPLAYERS+1];
+// True while a grenade is being given to the client: see Hook_NadeWeaponSwitch.
+bool g_GivingNade[MAXPLAYERS+1];
+
 // sm_retakes_alloc_nades_count, parsed.
 bool g_NadeCountOverride;
 int g_NadeCountMin;
@@ -209,6 +215,15 @@ void Nades_OnFreezeEnd() {
         }
     }
     g_NadePickOpen = false;
+
+    // The menu of the round has nothing to offer any more.
+    for (int i = 1; i <= MaxClients; i++) {
+        Menu menu = g_RoundPickerMenu[i];
+        if (menu != null) {
+            g_RoundPickerMenu[i] = null;
+            menu.Cancel();
+        }
+    }
 }
 
 void Nades_OnRoundEnd() {
@@ -220,11 +235,28 @@ void Nades_OnRoundEnd() {
  * Gives a client one grenade by its letter.
  */
 static void GiveNade(int client, int nade) {
+    g_GivingNade[client] = true;
     switch (nade) {
         case 'h': GivePlayerItem(client, "weapon_hegrenade");
         case 'f': GivePlayerItem(client, "weapon_flashbang");
         case 's': GivePlayerItem(client, "weapon_smokegrenade");
     }
+    g_GivingNade[client] = false;
+}
+
+void Nades_HookClient(int client) {
+    SDKHook(client, SDKHook_WeaponSwitch, Hook_NadeWeaponSwitch);
+}
+
+/**
+ * The game takes a new grenade into the hands of a player that holds the C4 (seen on a
+ * live server: it broke the planting of the bomb; other weapons stay in the hands). No
+ * weapon switch is allowed while the plugin gives a grenade.
+ */
+public Action Hook_NadeWeaponSwitch(int client, int weapon) {
+    // CSS-VERIFY: the switch to a grenade that was just given goes through this hook,
+    // inside the GivePlayerItem call, and refusing it leaves the C4 in the hands.
+    return g_GivingNade[client] ? Plugin_Handled : Plugin_Continue;
 }
 
 /**
@@ -464,10 +496,19 @@ static void ShowNadePicker(int client, int target) {
     }
 
     menu.ExitBackButton = !round;
-    menu.Display(client, MENU_TIME_LENGTH);
+    if (menu.Display(client, MENU_TIME_LENGTH) && round) {
+        g_RoundPickerMenu[client] = menu;
+    }
 }
 
 public int MenuHandler_NadePicker(Menu menu, MenuAction action, int param1, int param2) {
+    // The menu is gone from the screen. The handle is compared because a menu replaced by
+    // a new one reports its cancellation too, and must not clear the new one.
+    if ((action == MenuAction_Select || action == MenuAction_Cancel)
+        && param1 >= 1 && param1 <= MaxClients && g_RoundPickerMenu[param1] == menu) {
+        g_RoundPickerMenu[param1] = null;
+    }
+
     if (action == MenuAction_Select) {
         int client = param1;
         char info[4];

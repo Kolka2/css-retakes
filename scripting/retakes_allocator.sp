@@ -1,6 +1,7 @@
 #include <sourcemod>
 #include <cstrike>
 #include <clientprefs>
+#include <sdkhooks>
 #include "include/retakes.inc"
 #include "retakes/generic.sp"
 
@@ -76,8 +77,11 @@ public void OnPluginStart() {
     for (int i = 1; i <= MaxClients; i++) {
         if (IsClientConnected(i)) {
             OnClientConnected(i);
-            if (IsClientInGame(i) && AreClientCookiesCached(i)) {
-                OnClientCookiesCached(i);
+            if (IsClientInGame(i)) {
+                OnClientPutInServer(i);
+                if (AreClientCookiesCached(i)) {
+                    OnClientCookiesCached(i);
+                }
             }
         }
     }
@@ -94,6 +98,10 @@ public void NadeCountChanged(ConVar convar, const char[] oldValue, const char[] 
 public void OnClientConnected(int client) {
     ResetChoices(client);
     ResetNades(client);
+}
+
+public void OnClientPutInServer(int client) {
+    Nades_HookClient(client);
 }
 
 public void OnClientCookiesCached(int client) {
