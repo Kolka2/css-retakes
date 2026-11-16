@@ -132,7 +132,7 @@ Retakes для Counter-Strike: Source
   - `sm_retakes_autodefuse_enabled` (по умолчанию `0`) — включить автодефьюз; с `0` плагин загружен, но ничего не делает.
 
   Проверка делается один раз, в момент начала разминирования: если последний террорист погиб, когда CT уже разминирует, оно идёт до конца обычным порядком (или CT может отпустить и начать заново). В разминке и в редакторе спавнов плагин не работает. С `sm_retakes_debug 1` пишет лог `logs/retakes_autodefuse_debug.log`. На сервере пока не проверен; в готовом архиве лежит в `plugins/`, выключен кваром.
-- `retakes_bothelper` — помощник ботам: CT-боты сразу идут к заложенной бомбе, а не проверяют сайты по очереди. Подробно — в разделе [Помощник ботам](#помощник-ботам-retakes_bothelper). **Нужен файл gamedata; на сервере пока не проверен; на Linux пока не работает** (нет смещений для `linux64`). В готовом архиве лежит в `plugins/disabled/`.
+- `retakes_bothelper` — помощник ботам: CT-боты сразу идут к заложенной бомбе, а не проверяют сайты по очереди. Подробно — в разделе [Помощник ботам](#помощник-ботам-retakes_bothelper). **Нужен файл gamedata; на сервере пока не проверен.** В готовом архиве лежит в `plugins/disabled/`.
 
 ### Помощник ботам (retakes_bothelper)
 
@@ -140,7 +140,7 @@ CT-бот CS:S узнаёт из события закладки, что бом�
 
 - Срабатывает один раз за раунд: по событию `bomb_planted` или по появлению сущности `planted_c4`, что случится раньше. CT-бот, появившийся после закладки, получает позицию через 0,1 с после спавна.
 - Работает и без Retakes (на любом сервере CS:S). С Retakes — только в живой игре: в разминке, в редакторе спавнов и при `sm_retakes_enabled 0` ничего не делает.
-- Нужен файл `addons/sourcemod/gamedata/retakes_bothelper.games.txt` (в репозитории — `gamedata/`). В нём смещения полей в памяти бота; сейчас они есть только для 64-битного сервера Windows (версия игры 11003710).
+- Нужен файл `addons/sourcemod/gamedata/retakes_bothelper.games.txt` (в репозитории — `gamedata/`). В нём смещения полей в памяти бота; они есть для 64-битных серверов Windows и Linux (версия игры 11003710) и у этих систем разные.
 - Вызвать функцию игры напрямую SourceMod 1.12 на 64-битном сервере не может, поэтому плагин пишет поля сам. Перед каждой записью он проверяет, что по этим смещениям лежит то, что ожидается. Если gamedata нет, в нём нет записи для вашей системы или проверка не прошла, плагин пишет **одну ошибку** в `logs/errors_*.log` и больше ничего не делает; сервер работает как обычно.
 - Не используйте вместе с плагинами, которые создают «ботов» через `CreateFakeClient` (кроме SourceTV): это не боты игры, плагин увидит несовпадение и выключится до перезагрузки.
 
@@ -450,7 +450,7 @@ Optional plugins, installed next to `retakes.smx`. Use only one allocator.
   - `sm_retakes_autodefuse_enabled` (default `0`) — turns the autodefuse on; with `0` the plugin is loaded but does nothing.
 
   The check is made once, when the defuse starts: if the last terrorist dies while a CT is already defusing, that defuse runs its normal course (or the CT may let go and start again). The plugin does nothing during the warmup and in the spawn editor. With `sm_retakes_debug 1` it writes `logs/retakes_autodefuse_debug.log`. Not checked on a live server yet; the prebuilt archive has the plugin in `plugins/`, switched off by the cvar.
-- `retakes_bothelper` — bot helper: the CT bots go straight to the planted bomb instead of checking the bombsites one by one. See [Bot helper](#bot-helper-retakes_bothelper). **Needs a gamedata file; not checked on a live server yet; does not work on Linux yet** (no `linux64` offsets). The prebuilt archive has it in `plugins/disabled/`.
+- `retakes_bothelper` — bot helper: the CT bots go straight to the planted bomb instead of checking the bombsites one by one. See [Bot helper](#bot-helper-retakes_bothelper). **Needs a gamedata file; not checked on a live server yet.** The prebuilt archive has it in `plugins/disabled/`.
 
 ### Bot helper (retakes_bothelper)
 
@@ -458,7 +458,7 @@ A CS:S CT bot learns from the plant event that the bomb was planted, but not whe
 
 - It acts once per round: on the `bomb_planted` event or when a `planted_c4` entity appears, whichever comes first. A CT bot that spawns after the plant is told 0.1 s after its spawn.
 - It works without Retakes too (on any CS:S server). With Retakes it only acts in a live game: nothing happens in the warmup, in the spawn editor or with `sm_retakes_enabled 0`.
-- It needs `addons/sourcemod/gamedata/retakes_bothelper.games.txt` (`gamedata/` in the repository). The file holds the offsets of the fields in the bot's memory; for now only for a 64-bit Windows server (game version 11003710).
+- It needs `addons/sourcemod/gamedata/retakes_bothelper.games.txt` (`gamedata/` in the repository). The file holds the offsets of the fields in the bot's memory; they are there for 64-bit Windows and Linux servers (game version 11003710) and differ between the two.
 - SourceMod 1.12 cannot call the game's function directly on a 64-bit server, so the plugin writes the fields itself. Before every write it checks that the memory at those offsets holds what is expected. If the gamedata is missing, has no entry for your system or the check fails, the plugin writes **one error** to `logs/errors_*.log` and does nothing more; the server runs as usual.
 - Do not combine it with plugins that create "bots" through `CreateFakeClient` (other than SourceTV): those are not bots of the game, the plugin will see the mismatch and switch itself off until it is reloaded.
 
