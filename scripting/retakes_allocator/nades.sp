@@ -40,6 +40,11 @@ bool g_RoundStarted;
 // The "grenades for this round" menu a client has on the screen (null if none); it is
 // closed when the freeze time ends.
 Menu g_RoundPickerMenu[MAXPLAYERS+1];
+// When that menu was sent and when the round started (game time): see LostInRestart.
+float g_RoundPickerShownAt[MAXPLAYERS+1];
+float g_RoundStartTime;
+#define PICKER_RESEND_WINDOW 3.0 // a menu sent this close before a round start is sent again
+#define PICKER_RESEND_DELAY 0.3  // ... this long after the round start, at the earliest
 // The player closed that menu (or let it time out): it is not shown again in this round.
 bool g_RoundPickerDismissed[MAXPLAYERS+1];
 // Runs while the grenades of a round can be picked: see OfferRoundNades.
@@ -211,8 +216,26 @@ static void ShowPendingRoundPickers() {
         MenuSource source = GetClientMenu(i);
         if (source == MenuSource_None || source == MenuSource_External) {
             ShowNadePicker(i, PICK_ROUND);
+        } else if (g_RoundPickerMenu[i] != null && LostInRestart(i)) {
+            AllocDebug("nades: menu of the round of %N was sent right before the round start, sending it again", i);
+            ShowNadePicker(i, PICK_ROUND);
         }
     }
+}
+
+/**
+ * Returns if the menu of the round a client has open has to be sent again: a menu sent
+ * right before a round start does not reach the screen (seen on a live server in the
+ * first round after a warmup, where the loadouts are built at the moment the game
+ * restarts; SourceMod reports it as shown). A menu sent seconds before the round start,
+ * as in every other round, stays on the screen and is left alone.
+ */
+static bool LostInRestart(int client) {
+    float now = GetGameTime();
+    return g_RoundStarted
+        && now >= g_RoundStartTime + PICKER_RESEND_DELAY
+        && g_RoundPickerShownAt[client] <= g_RoundStartTime + 0.1
+        && g_RoundPickerShownAt[client] >= g_RoundStartTime - PICKER_RESEND_WINDOW;
 }
 
 /**
@@ -248,6 +271,7 @@ void Nades_OnMapStart() {
 
 void Nades_OnRoundStart() {
     g_RoundStarted = true;
+    g_RoundStartTime = GetGameTime();
     AllocDebug("event: round_start (grenades can be picked: %d)", g_NadePickOpen);
 }
 
@@ -565,6 +589,7 @@ static void ShowNadePicker(int client, int target) {
         AllocDebug("nades: menu of the round (%d/%d) -> %N, shown: %d", picked, limit, client, shown);
         if (shown) {
             g_RoundPickerMenu[client] = menu;
+            g_RoundPickerShownAt[client] = GetGameTime();
         }
     }
 }
