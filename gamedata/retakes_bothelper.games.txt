@@ -3,8 +3,10 @@
     /**
      * Gamedata of the retakes_bothelper plugin (Counter-Strike: Source, 64-bit server).
      *
-     * Checked against the 64-bit server binaries of PatchVersion 11003710: server.dll of
-     * Windows (cstrike/bin/x64) and the server .so of Linux.
+     * Checked against the server binaries of PatchVersion 11003710: server.dll of Windows,
+     * 32-bit (cstrike/bin, key "windows") and 64-bit (cstrike/bin/x64, key "windows64"),
+     * and the 64-bit server .so of Linux (key "linux64"). A 32-bit Linux server has no
+     * entries: there the plugin writes one error to the log and does nothing.
      * How to check it again after a game update: README, "retakes_bothelper".
      */
     "cstrike"
@@ -14,11 +16,12 @@
             /**
              * Where the bot's CSGameState object (CCSBot::m_gameState) lies inside the bot.
              * CCSBot::OnBombPlanted starts with it:
-             *   add rcx, 42B0h / call CSGameState::OnBombPlanted    (Windows)
+             *   add rcx, 42B0h / call CSGameState::OnBombPlanted    (Windows, 64-bit)
              *   add rdi, 42E0h / call CSGameState::OnBombPlanted    (Linux)
              */
             "CCSBot::m_gameState"
             {
+                "windows"       "14068"
                 "windows64"     "17072"
                 "linux64"       "17120"
             }
@@ -31,36 +34,43 @@
              */
             "CSGameState::m_isRoundOver"
             {
+                "windows"       "4"
                 "windows64"     "8"
                 "linux64"       "8"
             }
             "CSGameState::m_bombState"
             {
+                "windows"       "8"
                 "windows64"     "12"
                 "linux64"       "12"
             }
             "CSGameState::m_bombsiteSearchOrder"
             {
+                "windows"       "48"
                 "windows64"     "52"
                 "linux64"       "52"
             }
             "CSGameState::m_bombsiteCount"
             {
+                "windows"       "64"
                 "windows64"     "68"
                 "linux64"       "68"
             }
             "CSGameState::m_plantedBombsite"
             {
+                "windows"       "72"
                 "windows64"     "76"
                 "linux64"       "76"
             }
             "CSGameState::m_isPlantedBombPosKnown"
             {
+                "windows"       "76"
                 "windows64"     "80"
                 "linux64"       "80"
             }
             "CSGameState::m_plantedBombPos"
             {
+                "windows"       "80"
                 "windows64"     "84"
                 "linux64"       "84"
             }

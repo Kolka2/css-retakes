@@ -140,7 +140,7 @@ CT-бот CS:S узнаёт из события закладки, что бом�
 
 - Срабатывает один раз за раунд: по событию `bomb_planted` или по появлению сущности `planted_c4`, что случится раньше. CT-бот, появившийся после закладки, получает позицию через 0,1 с после спавна.
 - Работает и без Retakes (на любом сервере CS:S). С Retakes — только в живой игре: в разминке, в редакторе спавнов и при `sm_retakes_enabled 0` ничего не делает.
-- Нужен файл `addons/sourcemod/gamedata/retakes_bothelper.games.txt` (в репозитории — `gamedata/`). В нём смещения полей в памяти бота; они есть для 64-битных серверов Windows и Linux (версия игры 11003710) и у этих систем разные.
+- Нужен файл `addons/sourcemod/gamedata/retakes_bothelper.games.txt` (в репозитории — `gamedata/`). В нём смещения полей в памяти бота; они есть для серверов Windows (32 и 64 бита: `srcds.exe` и `srcds_win64.exe`) и 64-битного Linux (версия игры 11003710), у каждого свои. На 32-битном сервере Linux плагин не работает.
 - Вызвать функцию игры напрямую SourceMod 1.12 на 64-битном сервере не может, поэтому плагин пишет поля сам. Перед каждой записью он проверяет, что по этим смещениям лежит то, что ожидается. Если gamedata нет, в нём нет записи для вашей системы или проверка не прошла, плагин пишет **одну ошибку** в `logs/errors_*.log` и больше ничего не делает; сервер работает как обычно.
 - Не используйте вместе с плагинами, которые создают «ботов» через `CreateFakeClient` (кроме SourceTV): это не боты игры, плагин увидит несовпадение и выключится до перезагрузки.
 
@@ -164,7 +164,7 @@ CT-бот CS:S узнаёт из события закладки, что бом�
    - в конце этой функции четыре записи относительно первого аргумента: номер сайта (`m_plantedBombsite`), три числа позиции подряд (`m_plantedBombPos`), байт `1` (`m_isPlantedBombPosKnown`) и число `2` (`m_bombState`). Их смещения — значения одноимённых ключей gamedata;
    - найти, откуда эта функция вызывается (`CCSBot::OnBombBeep`): прямо перед вызовом стоит `lea rcx, [регистр + N]` (на Linux `lea rdi, …`). `N` — это `CCSBot::m_gameState`;
    - `m_isRoundOver`, `m_bombsiteSearchOrder` и `m_bombsiteCount` идут в том же объекте раньше (сейчас 8, 52 и 68); если четыре смещения из функции не изменились, не изменились и они.
-4. Записать значения в gamedata **десятичными числами** в ключ своей системы (`windows64` или `linux64`), выполнить `sm plugins reload retakes_bothelper` и посмотреть строку загрузки в логе.
+4. Записать значения в gamedata **десятичными числами** в ключ своей системы (`windows`, `windows64` или `linux64`), выполнить `sm plugins reload retakes_bothelper` и посмотреть строку загрузки в логе.
 5. Включить `sm_retakes_bothelper_debug 1` и сыграть раунд: в логе должны быть строки `told … bombsite N, position …` для каждого CT-бота, а строки `check failed` быть не должно.
 
 ### Аллокатор с типами раундов (retakes_allocator)
@@ -458,7 +458,7 @@ A CS:S CT bot learns from the plant event that the bomb was planted, but not whe
 
 - It acts once per round: on the `bomb_planted` event or when a `planted_c4` entity appears, whichever comes first. A CT bot that spawns after the plant is told 0.1 s after its spawn.
 - It works without Retakes too (on any CS:S server). With Retakes it only acts in a live game: nothing happens in the warmup, in the spawn editor or with `sm_retakes_enabled 0`.
-- It needs `addons/sourcemod/gamedata/retakes_bothelper.games.txt` (`gamedata/` in the repository). The file holds the offsets of the fields in the bot's memory; they are there for 64-bit Windows and Linux servers (game version 11003710) and differ between the two.
+- It needs `addons/sourcemod/gamedata/retakes_bothelper.games.txt` (`gamedata/` in the repository). The file holds the offsets of the fields in the bot's memory; they are there for Windows servers (32 and 64 bit: `srcds.exe` and `srcds_win64.exe`) and 64-bit Linux (game version 11003710), each with its own. The plugin does not work on a 32-bit Linux server.
 - SourceMod 1.12 cannot call the game's function directly on a 64-bit server, so the plugin writes the fields itself. Before every write it checks that the memory at those offsets holds what is expected. If the gamedata is missing, has no entry for your system or the check fails, the plugin writes **one error** to `logs/errors_*.log` and does nothing more; the server runs as usual.
 - Do not combine it with plugins that create "bots" through `CreateFakeClient` (other than SourceTV): those are not bots of the game, the plugin will see the mismatch and switch itself off until it is reloaded.
 
@@ -482,7 +482,7 @@ On load the plugin writes one line to the SourceMod log: its version, whether th
    - the end of that function has four writes relative to its first argument: the bombsite index (`m_plantedBombsite`), the three numbers of the position in a row (`m_plantedBombPos`), the byte `1` (`m_isPlantedBombPosKnown`) and the number `2` (`m_bombState`). Their offsets are the values of the gamedata keys of the same names;
    - find where that function is called from (`CCSBot::OnBombBeep`): right before the call there is `lea rcx, [register + N]` (`lea rdi, …` on Linux). `N` is `CCSBot::m_gameState`;
    - `m_isRoundOver`, `m_bombsiteSearchOrder` and `m_bombsiteCount` come earlier in the same object (8, 52 and 68 now); if the four offsets of the function have not changed, neither have they.
-4. Write the values to the gamedata file as **decimal numbers** under the key of your system (`windows64` or `linux64`), run `sm plugins reload retakes_bothelper` and look at the load line in the log.
+4. Write the values to the gamedata file as **decimal numbers** under the key of your system (`windows`, `windows64` or `linux64`), run `sm plugins reload retakes_bothelper` and look at the load line in the log.
 5. Set `sm_retakes_bothelper_debug 1` and play a round: the log should have a `told … bombsite N, position …` line for every CT bot and no `check failed` line.
 
 ### Round type allocator (retakes_allocator)

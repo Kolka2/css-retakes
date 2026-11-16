@@ -30,7 +30,7 @@
  * error to the log and stops working until it is reloaded.
  */
 
-#define BOTHELPER_VERSION "0.1.0"
+#define BOTHELPER_VERSION "0.1.1"
 
 #define GAMEDATA_FILE "retakes_bothelper.games"
 
@@ -384,20 +384,24 @@ static int FindClosestZone(const float pos[3], int &zoneCount) {
 static bool CheckGameState(int client, char[] why, int maxlength) {
     int base = g_OffGameState;
 
-    // The first field, m_owner, is a pointer to the bot the game state belongs to.
+    // The first field, m_owner, is a pointer to the bot the game state belongs to. The
+    // next field, m_isRoundOver, follows it directly, so its offset is the pointer size.
+    bool wide = g_OffRoundOver >= 8;
     int ownerLow = GetEntData(client, base, 4);
-    int ownerHigh = GetEntData(client, base + 4, 4);
+    int ownerHigh = wide ? GetEntData(client, base + 4, 4) : 0;
     if (ownerLow == 0 && ownerHigh == 0) {
         FormatEx(why, maxlength, "m_owner is null");
         return false;
     }
 
-    // CSS-VERIFY: the low 12 bits of m_owner equal those of the address SourceMod reports
-    // for the bot (a 64-bit SourceMod gives a "pseudo address": an offset from the start
-    // of a memory region, and regions start at a page boundary). If SourceMod cannot make
-    // an address of the bot (it returns 0 for some), this check is skipped.
+    // CSS-VERIFY: m_owner matches the address SourceMod reports for the bot. On a 32-bit
+    // server that is the address itself. A 64-bit SourceMod gives a "pseudo address" (an
+    // offset from the start of a memory region, and regions start at a page boundary), so
+    // only the low 12 bits can be compared; if SourceMod cannot make an address of the
+    // bot (it returns 0 for some), the check is skipped.
     int address = view_as<int>(GetEntityAddress(client));
-    if (address != 0 && (address & PAGE_MASK) != (ownerLow & PAGE_MASK)) {
+    bool matches = wide ? (address & PAGE_MASK) == (ownerLow & PAGE_MASK) : address == ownerLow;
+    if (address != 0 && !matches) {
         FormatEx(why, maxlength, "m_owner (%08X%08X) does not point to the bot (address %08X)", ownerHigh, ownerLow, address);
         return false;
     }
