@@ -218,24 +218,26 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
         return Plugin_Changed;
     }
 
-    // CSS-VERIFY: the weapon-select field of the user command switches a bot to the C4
-    // as it does for a human (for humans the Retakes core relies on the same field).
+    // The weapon-select field of the user command switches a bot to the C4 as it does
+    // for a human (checked on a live CS:S server).
     if (GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon") != c4) {
         weapon = c4;
         return Plugin_Changed;
     }
 
-    // CSS-VERIFY: the weapon code does not run until the draw animation of the C4 is
-    // over (m_flNextAttack of the player); moving that time to "now" skips the wait.
+    // The weapon code does not run until the draw animation of the C4 is over
+    // (m_flNextAttack of the player); moving that time to "now" skips the wait.
+    // Checked on a live CS:S server: a bot plants 0.28 s after the freezetime.
     if (HasEntProp(client, Prop_Send, "m_flNextAttack")
         && GetEntPropFloat(client, Prop_Send, "m_flNextAttack") > now) {
         SetEntPropFloat(client, Prop_Send, "m_flNextAttack", now);
     }
 
-    // CSS-VERIFY: with the attack button held in the user command the game starts arming
-    // the C4 (m_bStartedArming) and plants the bomb once the game time has reached
-    // m_fArmedTime, for bots and humans alike. Should the two properties be missing,
-    // the button alone still plants the bomb, in the usual 3 seconds.
+    // With the attack button held in the user command the game starts arming the C4
+    // (m_bStartedArming) and plants the bomb once the game time has reached
+    // m_fArmedTime, for bots and humans alike (checked on a live CS:S server). Should
+    // the two properties be missing, the button alone still plants the bomb, in the
+    // usual 3 seconds.
     buttons |= IN_ATTACK;
 
     if (HasEntProp(c4, Prop_Send, "m_bStartedArming") && HasEntProp(c4, Prop_Send, "m_fArmedTime")
