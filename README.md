@@ -5,7 +5,7 @@ Retakes для Counter-Strike: Source
 
 Режим Retakes: террористы появляются на бомбплейсе с бомбой, контр-террористы — на путях подхода и должны отбить точку и разминировать бомбу. Играть можно людьми, ботами и вперемешку.
 
-> **Статус.** Код собирается компилятором SourcePawn 1.12 без предупреждений, но на живом сервере автором порта **не проверялся**. Всё, что зависит от поведения движка, помечено в коде комментариями `// CSS-VERIFY:` и вынесено в [PORT/TEST_CHECKLIST.md](PORT/TEST_CHECKLIST.md). Ход работ и отклонения от плана — в [PORT/PROGRESS.md](PORT/PROGRESS.md).
+> **Статус.** Порт проверялся на живом сервере CS:S по ходу разработки: ядро, разминка, редактор спавнов, боты, аллокатор `retakes_allocator` и автоплент. Не проверены на сервере: `retakes_autodefuse` и работа `retakes_bothelper` на 64-битном сервере (он проверен на 32-битном сервере Windows). Такие места помечены в коде комментариями `// CSS-VERIFY:`. Как устроен порт и чем CS:S отличается от CS:GO для плагина — в [PORTING.md](PORTING.md).
 
 ## Требования
 
@@ -267,8 +267,8 @@ CT-бот CS:S узнаёт из события закладки, что бом�
 
 ## Известные ограничения
 
-- Не проверено на живом сервере — см. статус в начале и [PORT/TEST_CHECKLIST.md](PORT/TEST_CHECKLIST.md).
-- Автозакладки бомбы нет: бомбу ставит бомбер (человек или бот), как в оригинале.
+- Не всё проверено на живом сервере — см. статус в начале.
+- В ядре автозакладки бомбы нет: бомбу ставит бомбер (человек или бот), как в оригинале. Автозакладку делает аддон `retakes_autoplant`.
 - Между концом раунда и началом следующего игроки уже переведены в новые команды: в CS:S нет события «перед началом раунда», и это единственный момент, когда команды можно сменить до респауна.
 - Первый раунд после разминки и после `mp_restartgame` игроки появляются дважды подряд (игра спаунит, затем плагин переспаунивает на спавнах ретейка).
 - Если игра добавила бота посреди раунда, он до следующего раунда сидит в наблюдателях. Из-за этого после выхода из редактора спавнов и при входе на пустой сервер первый раунд может пройти 1 на 1: игра добавляет ботов по одному, и команды собираются, когда зашёл только первый.
@@ -276,6 +276,8 @@ CT-бот CS:S узнаёт из события закладки, что бом�
 - Кваров тайм-аутов, halftime и т. п. в CS:S нет; интеграция с PugSetup удалена.
 
 ## Для разработчиков
+
+Как плагин общается с игрой, чем CS:S отличается от CS:GO и почему порт устроен именно так, описано в [PORTING.md](PORTING.md).
 
 API аддонов описан в [scripting/include/retakes.inc](scripting/include/retakes.inc) и совпадает с оригинальным (имена нативов, форвардов и кваров не менялись). Отличия:
 
@@ -303,12 +305,14 @@ API аддонов описан в [scripting/include/retakes.inc](scripting/inc
 
 ## Сборка
 
+Компилятора SourcePawn и include-файлов SourceMod в репозитории нет. Возьмите их из пакета SourceMod 1.12 (<https://www.sourcemod.net/downloads.php>): из папки `addons/sourcemod/scripting/` пакета скопируйте в папку `tools/` этого репозитория компилятор (`spcomp` на Linux, `spcomp64.exe` или `spcomp.exe` на Windows) и папку `include/` целиком, как `tools/include/`.
+
 ```
 ./build.sh            # все плагины → build/*.smx
 ./build.sh retakes    # один плагин
 ```
 
-Компилятор SourcePawn 1.12 и include-файлы SourceMod 1.12 лежат в `tools/`. На Windows запускать из Git Bash. Внешние зависимости (smlib и т. п.) не нужны.
+На Windows запускать из Git Bash. Другой компилятор задаётся переменной `SPCOMP=/путь/к/spcomp`. Внешние зависимости (smlib и т. п.) не нужны.
 
 ## Лицензия
 
@@ -323,7 +327,7 @@ A port of [splewis/csgo-retakes](https://github.com/splewis/csgo-retakes) (v0.3.
 
 Retakes: the terrorists spawn inside a bombsite with the bomb, the counter-terrorists spawn on the rotation routes and have to retake the site and defuse. It can be played by humans, by bots, or by a mix of both.
 
-> **Status.** The code compiles with the SourcePawn 1.12 compiler without warnings, but the port author has **not tested it on a live server**. Everything that depends on engine behaviour is marked with `// CSS-VERIFY:` comments in the code and listed in [PORT/TEST_CHECKLIST.md](PORT/TEST_CHECKLIST.md) (in Russian).
+> **Status.** The port was tested on a live CS:S server during development: the core, the warmup, the spawn editor, bots, the `retakes_allocator` allocator and the autoplant. Not tested on a server: `retakes_autodefuse`, and `retakes_bothelper` on a 64-bit server (it was tested on a 32-bit Windows server). Such places are marked with `// CSS-VERIFY:` comments in the code. How the port works and how CS:S differs from CS:GO for a plugin is described in [PORTING.md](PORTING.md) (in Russian).
 
 ## Requirements
 
@@ -585,8 +589,8 @@ For game mode developers — `scripting/include/warmup.inc`: natives `Warmup_IsA
 
 ## Known limitations
 
-- Not tested on a live server yet — see the status note above.
-- There is no auto-plant: the bomb carrier (human or bot) plants the bomb, as in the original.
+- Not everything is tested on a live server — see the status note above.
+- The core has no auto-plant: the bomb carrier (human or bot) plants the bomb, as in the original. The `retakes_autoplant` addon plants it automatically.
 - Between the end of a round and the start of the next one the players are already on their new teams: CS:S has no "before round start" event, and this is the only moment the teams can be changed before the respawn.
 - On the first round after the warmup and after `mp_restartgame` the players spawn twice in a row (the game spawns them, then the plugin respawns them on the retake spawns).
 - A bot added by the game in the middle of a round sits in spectators until the next round. Because of this the first round after leaving the spawn editor, or after joining an empty server, may be played 1 vs 1: the game adds bots one at a time and the teams are set when only the first one has joined.
@@ -594,6 +598,8 @@ For game mode developers — `scripting/include/warmup.inc`: natives `Warmup_IsA
 - The PugSetup integration was removed.
 
 ## For plugin developers
+
+How a plugin talks to the game, how CS:S differs from CS:GO and why the port is built the way it is: see [PORTING.md](PORTING.md) (in Russian).
 
 The addon API is described in [scripting/include/retakes.inc](scripting/include/retakes.inc) and matches the original (native, forward and cvar names are unchanged). Differences:
 
@@ -621,12 +627,14 @@ The allocator `scripting/retakes_allocator.sp` only uses this API; its files are
 
 ## Building
 
+The SourcePawn compiler and the SourceMod include files are not in the repository. Take them from the SourceMod 1.12 package (<https://www.sourcemod.net/downloads.php>): from its `addons/sourcemod/scripting/` folder copy the compiler (`spcomp` on Linux, `spcomp64.exe` or `spcomp.exe` on Windows) and the whole `include/` folder into `tools/` of this repository, the latter as `tools/include/`.
+
 ```
 ./build.sh            # every plugin → build/*.smx
 ./build.sh retakes    # a single plugin
 ```
 
-The SourcePawn 1.12 compiler and the SourceMod 1.12 includes are vendored in `tools/`. On Windows run it from Git Bash. No external dependencies are needed.
+On Windows run it from Git Bash. Another compiler can be set with `SPCOMP=/path/to/spcomp`. No external dependencies are needed.
 
 ## License
 

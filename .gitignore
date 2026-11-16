@@ -1,3 +1,9 @@
 builds
 build/
 logs/
+# SourcePawn compiler and SourceMod include files: see "Building" in README.md
+tools/
+# Working files of the AI agent
+CLAUDE.md
+.claude/
+PORT/
