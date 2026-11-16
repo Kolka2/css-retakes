@@ -267,6 +267,7 @@ static void AllocateTeam(ArrayList players, bool ct) {
  */
 void AllocateRound(ArrayList tPlayers, ArrayList ctPlayers) {
     PickRoundType();
+    AllocDebug("round: loadouts are built, type \"%s\"", g_RoundTypes[g_RoundType][TYPE_TOKEN]);
     ResetRoundNades();
     AllocateTeam(tPlayers, false);
     AllocateTeam(ctPlayers, true);

@@ -42,6 +42,10 @@ bool g_RoundStarted;
 // The "grenades for this round" menu a client has on the screen (null if none); it is
 // closed when the freeze time ends.
 Menu g_RoundPickerMenu[MAXPLAYERS+1];
+// The player closed that menu (or let it time out): it is not shown again in this round.
+bool g_RoundPickerDismissed[MAXPLAYERS+1];
+// Runs while the grenades of a round can be picked: see OfferRoundNades.
+Handle g_hRoundPickerTimer;
 // True while a grenade is being given to the client: see Hook_NadeWeaponSwitch.
 bool g_GivingNade[MAXPLAYERS+1];
 
@@ -166,6 +170,7 @@ void PickNades(int client, int type, char nades[NADE_STRING_LENGTH]) {
     } else if (g_NadeAsk[client]) {
         nades[0] = '\0';
         g_RoundNadeLimit[client] = count;
+        AllocDebug("nades: %N is asked, %d grenade(s) in this round", client, count);
     } else if (g_NadeList[client][0] == '\0') {
         RandomNades(count, nades);
     } else {
@@ -181,24 +186,66 @@ void ResetRoundNades() {
     for (int i = 1; i <= MaxClients; i++) {
         g_RoundNadeLimit[i] = 0;
         g_RoundNadePicks[i][0] = '\0';
+        g_RoundPickerDismissed[i] = false;
     }
 }
 
 /**
- * Opens the grenade menu for the players that are asked every round. Called when the
- * loadouts of the round are built.
+ * Returns if a player should be looking at the grenade menu of the round: the grenades
+ * can still be picked, some are left to pick, and the player did not close the menu.
  */
-void OfferRoundNades() {
-    g_NadePickOpen = true;
+static bool WantsRoundPicker(int client) {
+    return g_NadePickOpen && IsPlayer(client) && !g_RoundPickerDismissed[client]
+        && strlen(g_RoundNadePicks[client]) < g_RoundNadeLimit[client];
+}
+
+/**
+ * Shows the grenade menu of the round to everybody who should see it and has no menu on
+ * the screen. A menu the player has open (!guns, any other plugin) is never replaced:
+ * the grenade menu comes when that one is closed.
+ */
+static void ShowPendingRoundPickers() {
     for (int i = 1; i <= MaxClients; i++) {
-        if (g_RoundNadeLimit[i] > 0 && IsPlayer(i)) {
+        if (WantsRoundPicker(i) && GetClientMenu(i) == MenuSource_None) {
             ShowNadePicker(i, PICK_ROUND);
         }
     }
 }
 
+/**
+ * Opens the grenade menu for the players that are asked every round. Called when the
+ * loadouts of the round are built. While the grenades can be picked, a timer brings the
+ * menu to those who could not see it at once.
+ */
+void OfferRoundNades() {
+    g_NadePickOpen = true;
+    AllocDebug("nades: the grenades of the round can be picked (round started: %d)", g_RoundStarted);
+    ShowPendingRoundPickers();
+    if (g_hRoundPickerTimer == null) {
+        g_hRoundPickerTimer = CreateTimer(0.5, Timer_RoundPickers, _, TIMER_REPEAT);
+    }
+}
+
+public Action Timer_RoundPickers(Handle timer) {
+    if (!g_NadePickOpen) {
+        g_hRoundPickerTimer = null;
+        return Plugin_Stop;
+    }
+    ShowPendingRoundPickers();
+    return Plugin_Continue;
+}
+
+/**
+ * A map change ends a round without round_end.
+ */
+void Nades_OnMapStart() {
+    g_RoundStarted = false;
+    g_NadePickOpen = false;
+}
+
 void Nades_OnRoundStart() {
     g_RoundStarted = true;
+    AllocDebug("event: round_start (grenades can be picked: %d)", g_NadePickOpen);
 }
 
 /**
@@ -206,10 +253,20 @@ void Nades_OnRoundStart() {
  * and did not pick all of the grenades in time gets random ones for the rest.
  */
 void Nades_OnFreezeEnd() {
+    AllocDebug("event: round_freeze_end (grenades can be picked: %d, round started: %d, live: %d)",
+               g_NadePickOpen, g_RoundStarted, Retakes_Live());
+
+    // A freeze end that comes before the round the loadouts were built for has started
+    // (around a game restart) is not the one that closes the picking.
+    if (!g_RoundStarted) {
+        return;
+    }
+
     // (not live: a warmup was started after the loadouts had been built)
     if (g_NadePickOpen && Retakes_Live()) {
         for (int i = 1; i <= MaxClients; i++) {
             if (g_RoundNadeLimit[i] > 0 && IsPlayer(i) && IsPlayerAlive(i) && FillRoundPicks(i)) {
+                AllocDebug("nades: %N did not pick in time, now has \"%s\"", i, g_RoundNadePicks[i]);
                 TellPhrase(i, "NadesAutoPicked");
             }
         }
@@ -222,6 +279,7 @@ void Nades_OnFreezeEnd() {
         if (menu != null) {
             g_RoundPickerMenu[i] = null;
             menu.Cancel();
+            AllocDebug("nades: menu of the round of client %d closed at the freeze end", i);
             if (IsClientInGame(i) && GetClientMenu(i) == MenuSource_None) {
                 HideClientMenu(i);
             }
@@ -254,21 +312,19 @@ static void HideClientMenu(int client) {
 /**
  * Shows the menu of the round once more to the players that still have it open. Called
  * one frame after round_start: in the first round after a game restart the menu, opened
- * a second before the restart, was not seen by the player (reported by the owner; the
- * cause is not known, the restart is the guess).
+ * a second before the restart, was not seen by the player or looked dimmed (reported by
+ * the owner; the cause is not known, the restart is the guess).
  */
 void ReofferRoundNades() {
-    if (!g_NadePickOpen) {
-        return;
-    }
     for (int i = 1; i <= MaxClients; i++) {
-        if (g_RoundPickerMenu[i] != null && IsPlayer(i)) {
+        if (g_RoundPickerMenu[i] != null && WantsRoundPicker(i)) {
             ShowNadePicker(i, PICK_ROUND);
         }
     }
 }
 
 void Nades_OnRoundEnd() {
+    AllocDebug("event: round_end");
     g_RoundStarted = false;
     g_NadePickOpen = false;
 }
@@ -537,8 +593,12 @@ static void ShowNadePicker(int client, int target) {
     }
 
     menu.ExitBackButton = !round;
-    if (menu.Display(client, MENU_TIME_LENGTH) && round) {
-        g_RoundPickerMenu[client] = menu;
+    bool shown = menu.Display(client, MENU_TIME_LENGTH);
+    if (round) {
+        AllocDebug("nades: menu of the round (%d/%d) -> %N, shown: %d", picked, limit, client, shown);
+        if (shown) {
+            g_RoundPickerMenu[client] = menu;
+        }
     }
 }
 
@@ -548,6 +608,15 @@ public int MenuHandler_NadePicker(Menu menu, MenuAction action, int param1, int 
     if ((action == MenuAction_Select || action == MenuAction_Cancel)
         && param1 >= 1 && param1 <= MaxClients && g_RoundPickerMenu[param1] == menu) {
         g_RoundPickerMenu[param1] = null;
+
+        if (action == MenuAction_Cancel) {
+            AllocDebug("nades: menu of the round of client %d cancelled, reason %d", param1, param2);
+            // Closed by the player, or left alone until it timed out: it does not come
+            // back in this round. (A menu pushed out by another one does.)
+            if (param2 == MenuCancel_Exit || param2 == MenuCancel_Timeout) {
+                g_RoundPickerDismissed[param1] = true;
+            }
+        }
     }
 
     if (action == MenuAction_Select) {

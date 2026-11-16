@@ -27,6 +27,26 @@ ConVar g_hNadesCountCvar;
 // Set when the loadouts of a round are built, cleared when the round type is announced.
 bool g_AnnouncePending;
 
+/**
+ * Writes a line to logs/retakes_allocator_debug.log when sm_retakes_debug (the cvar of
+ * retakes) is on.
+ */
+void AllocDebug(const char[] format, any ...) {
+    static ConVar debugCvar;
+    if (debugCvar == null) {
+        debugCvar = FindConVar("sm_retakes_debug");
+    }
+    if (debugCvar == null || !debugCvar.BoolValue) {
+        return;
+    }
+
+    char text[256];
+    VFormat(text, sizeof(text), format, 2);
+    char path[PLATFORM_MAX_PATH];
+    BuildPath(Path_SM, path, sizeof(path), "logs/retakes_allocator_debug.log");
+    LogToFileEx(path, "%s", text);
+}
+
 #include "retakes_allocator/weapons.sp"
 #include "retakes_allocator/choices.sp"
 #include "retakes_allocator/rounds.sp"
@@ -98,6 +118,10 @@ public void NadeCountChanged(ConVar convar, const char[] oldValue, const char[] 
 public void OnClientConnected(int client) {
     ResetChoices(client);
     ResetNades(client);
+}
+
+public void OnMapStart() {
+    Nades_OnMapStart();
 }
 
 public void OnClientPutInServer(int client) {
