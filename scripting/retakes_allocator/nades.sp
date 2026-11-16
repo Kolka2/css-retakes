@@ -222,6 +222,48 @@ void Nades_OnFreezeEnd() {
         if (menu != null) {
             g_RoundPickerMenu[i] = null;
             menu.Cancel();
+            if (IsClientInGame(i) && GetClientMenu(i) == MenuSource_None) {
+                HideClientMenu(i);
+            }
+        }
+    }
+}
+
+/**
+ * Takes a cancelled menu off the screen of a client. Cancelling a menu only ends it on
+ * the server: on a live CS:S server it stayed on the screen for about 4 more seconds.
+ */
+static void HideClientMenu(int client) {
+    if (GetUserMessageId("ShowMenu") == INVALID_MESSAGE_ID) {
+        return;
+    }
+
+    // CSS-VERIFY: a ShowMenu message with no valid keys makes the client hide the menu
+    // it is showing, at once.
+    Handle message = StartMessageOne("ShowMenu", client, USERMSG_RELIABLE);
+    if (message != null) {
+        BfWrite bf = UserMessageToBfWrite(message);
+        bf.WriteShort(0); // valid keys
+        bf.WriteChar(0);  // display time
+        bf.WriteByte(0);  // more parts to come
+        bf.WriteString("");
+        EndMessage();
+    }
+}
+
+/**
+ * Shows the menu of the round once more to the players that still have it open. Called
+ * one frame after round_start: in the first round after a game restart the menu, opened
+ * a second before the restart, was not seen by the player (reported by the owner; the
+ * cause is not known, the restart is the guess).
+ */
+void ReofferRoundNades() {
+    if (!g_NadePickOpen) {
+        return;
+    }
+    for (int i = 1; i <= MaxClients; i++) {
+        if (g_RoundPickerMenu[i] != null && IsPlayer(i)) {
+            ShowNadePicker(i, PICK_ROUND);
         }
     }
 }
@@ -251,11 +293,10 @@ void Nades_HookClient(int client) {
 /**
  * The game takes a new grenade into the hands of a player that holds the C4 (seen on a
  * live server: it broke the planting of the bomb; other weapons stay in the hands). No
- * weapon switch is allowed while the plugin gives a grenade.
+ * weapon switch is allowed while the plugin gives a grenade: the switch happens inside
+ * the GivePlayerItem call and goes through this hook (checked on a live CS:S server).
  */
 public Action Hook_NadeWeaponSwitch(int client, int weapon) {
-    // CSS-VERIFY: the switch to a grenade that was just given goes through this hook,
-    // inside the GivePlayerItem call, and refusing it leaves the C4 in the hands.
     return g_GivingNade[client] ? Plugin_Handled : Plugin_Continue;
 }
 
