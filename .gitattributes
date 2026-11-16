@@ -1,5 +1,5 @@
-# Скрипты и исходники — всегда LF (bash не запускает build.sh с CRLF)
+# Scripts always use LF (bash does not run build.sh with CRLF)
 *.sh text eol=lf
-# Компиляторы — бинарные файлы
+# The compilers are binary files
 tools/spcomp binary
 tools/*.exe binary

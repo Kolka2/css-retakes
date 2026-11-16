@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Пересобирает плагины и архивы в build/dist/:
-#   retakes-css-server.zip — то, что распаковывается в папку cstrike/ сервера;
-#   retakes-css-source.zip — исходники (git archive HEAD);
-#   css-port.patch, patches/ — отличия от исходного коммита splewis (без tools/).
-# Файлы берутся из коммита HEAD (кроме .smx из build/), поэтому запускать после коммита:
-# незакоммиченные правки в архивы не попадут.
-# Нужен 7z или zip.
+# Rebuilds the plugins and the archives in build/dist/:
+#   retakes-css-server.zip - what gets unpacked into the cstrike/ folder of a server;
+#   retakes-css-source.zip - the sources (git archive HEAD);
+#   css-port.patch, patches/ - the differences from the base commit of splewis.
+# The files are taken from the HEAD commit (except the .smx from build/), so run it after
+# a commit: uncommitted changes do not get into the archives.
+# Needs 7z or zip.
 set -eu
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 DIST="$ROOT/build/dist"
@@ -13,7 +13,7 @@ BASE=9aae157
 cd "$ROOT"
 
 if [ -n "$(git status --porcelain)" ]; then
-    echo "!! есть незакоммиченные изменения: в архивы попадёт только HEAD" >&2
+    echo "!! there are uncommitted changes: the archives only get HEAD" >&2
 fi
 
 ./build.sh
@@ -25,13 +25,12 @@ git archive HEAD | tar -x -C "$STAGE"
 S="$STAGE/server"
 SM="$S/addons/sourcemod"
 mkdir -p "$SM/plugins/disabled" "$SM/scripting/include" "$SM/configs" "$S/cfg"
-# retakes_allocator — основной аллокатор (решение владельца); остальные лежат в disabled/,
-# потому что одновременно должен работать только один аллокатор.
-# retakes_autoplant лежит в plugins/, но выключен кваром sm_retakes_autoplant_enabled 0
-# (решение владельца). retakes_autodefuse — так же: в plugins/, выключен кваром
-# sm_retakes_autodefuse_enabled 0.
-# retakes_bothelper лежит в plugins/ и включён (sm_retakes_bothelper_enabled 1): принят
-# владельцем после теста на 32-битном сервере Windows. Ему нужен файл из gamedata/.
+# retakes_allocator is the main allocator; the other ones go to disabled/, because only
+# one allocator may run at a time.
+# retakes_autoplant and retakes_autodefuse are in plugins/, but switched off by their
+# cvars (sm_retakes_autoplant_enabled 0, sm_retakes_autodefuse_enabled 0).
+# retakes_bothelper is in plugins/ and switched on (sm_retakes_bothelper_enabled 1); it
+# was tested on a 32-bit Windows server and needs its file from gamedata/.
 cp build/retakes.smx build/warmup.smx build/retakes_allocator.smx \
    build/retakes_autoplant.smx build/retakes_autodefuse.smx \
    build/retakes_bothelper.smx "$SM/plugins/"
@@ -44,13 +43,14 @@ cp -r "$STAGE/cfg/sourcemod" "$S/cfg/sourcemod"
 cp "$STAGE/scripting/include/retakes.inc" "$STAGE/scripting/include/warmup.inc" \
    "$SM/scripting/include/"
 cp "$STAGE/README.md" "$S/README_retakes.md"
+cp "$STAGE/README.ru.md" "$S/README_retakes.ru.md"
 cp "$STAGE/LICENSE" "$S/LICENSE_retakes"
 
 mkdir -p "$DIST"
 rm -rf "$DIST/retakes-css-server.zip" "$DIST/retakes-css-source.zip" \
        "$DIST/css-port.patch" "$DIST/patches"
 
-# Имя архива относительное: 7z для Windows не понимает MSYS-пути вида /d/...
+# The archive name is relative: 7z for Windows does not understand MSYS paths like /d/...
 (
     cd "$S"
     if command -v 7z >/dev/null 2>&1; then
