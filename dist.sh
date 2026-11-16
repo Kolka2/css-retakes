@@ -28,9 +28,10 @@ mkdir -p "$SM/plugins/disabled" "$SM/scripting/include" "$SM/configs" "$S/cfg"
 # retakes_allocator — основной аллокатор (решение владельца); остальные лежат в disabled/,
 # потому что одновременно должен работать только один аллокатор.
 # retakes_autoplant лежит в plugins/, но выключен кваром sm_retakes_autoplant_enabled 0
-# (решение владельца).
+# (решение владельца). retakes_autodefuse — так же: в plugins/, выключен кваром
+# sm_retakes_autodefuse_enabled 0.
 cp build/retakes.smx build/warmup.smx build/retakes_allocator.smx \
-   build/retakes_autoplant.smx "$SM/plugins/"
+   build/retakes_autoplant.smx build/retakes_autodefuse.smx "$SM/plugins/"
 cp build/retakes_standardallocator.smx build/retakes_pistolallocator.smx \
    build/retakes_sitepicker.smx "$SM/plugins/disabled/"
 cp -r "$STAGE/translations" "$SM/translations"

@@ -24,7 +24,7 @@ Retakes для Counter-Strike: Source
    - `translations/` → `addons/sourcemod/translations/`
    - `cfg/sourcemod/retakes/` → `cfg/sourcemod/retakes/`
    - `configs/retakes/` → `addons/sourcemod/configs/retakes/`
-3. Аллокатор оружия — один из трёх (см. [Аддоны](#аддоны)); основной — `build/retakes_allocator.smx` → `addons/sourcemod/plugins/`. В готовом архиве `retakes-css-server.zip` он уже лежит в `plugins/` (там же `retakes_autoplant`, выключенный кваром), два других аллокатора и `retakes_sitepicker` — в `plugins/disabled/`.
+3. Аллокатор оружия — один из трёх (см. [Аддоны](#аддоны)); основной — `build/retakes_allocator.smx` → `addons/sourcemod/plugins/`. В готовом архиве `retakes-css-server.zip` он уже лежит в `plugins/` (там же `retakes_autoplant` и `retakes_autodefuse`, выключенные кварами), два других аллокатора и `retakes_sitepicker` — в `plugins/disabled/`.
 4. Запустите карту с двумя бомбплейсами и расставьте спавны (см. ниже). Без спавнов режим не начнётся: плагин раз в раунд пишет об этом в чат.
 
 При первом запуске создаётся `cfg/sourcemod/retakes/retakes.cfg` с кварами плагина. Файл `cfg/sourcemod/retakes/retakes_game.cfg` выполняется на старте каждой карты и настраивает игру (балансировку команд, лимиты, поведение ботов); прежние значения возвращаются при выключении плагина.
@@ -128,6 +128,10 @@ Retakes для Counter-Strike: Source
   Анимации закладки у бомбера нет: клиент игры её не показывает, когда кнопку «нажимает» сервер. Дробную часть `mp_freezetime` игра отбрасывает (при `1.5` фризтайм длится 1 секунду), плагин считает так же.
 
   Бомба закладывается мгновенно в момент конца фризтайма. Если бомбер стоит вне зоны закладки или бомба не заложилась за 5 секунд после конца фризтайма, плагин отступает и бомбер ставит бомбу сам. С `sm_retakes_debug 1` пишет лог `logs/retakes_autoplant_debug.log`. Игра закладывает бомбу только из C4 в руках, поэтому бомберу-человеку с другим оружием C4 выбирается за секунду до конца фризтайма. Закладка, шкала и щелчки проверены на сервере; в готовом архиве плагин лежит в `plugins/`, но выключен кваром.
+- `retakes_autodefuse` — автодефьюз: если CT начал разминирование, когда живых террористов нет, а до взрыва остаётся больше времени, чем нужно на это разминирование, оно завершается сразу. Набор сапёра учитывается: с ним нужно 5 секунд, без него 10, так что при 7 секундах до взрыва CT с набором разминирует мгновенно, а CT без набора разминирует как обычно (и не успевает). Если жив хотя бы один террорист или времени не хватает, плагин не вмешивается. Разминирование завершает сама игра (плагин только переносит момент его окончания на «сейчас»), gamedata не нужна. Квар (файл `cfg/sourcemod/retakes/retakes_autodefuse.cfg`):
+  - `sm_retakes_autodefuse_enabled` (по умолчанию `0`) — включить автодефьюз; с `0` плагин загружен, но ничего не делает.
+
+  Проверка делается один раз, в момент начала разминирования: если последний террорист погиб, когда CT уже разминирует, оно идёт до конца обычным порядком (или CT может отпустить и начать заново). В разминке и в редакторе спавнов плагин не работает. С `sm_retakes_debug 1` пишет лог `logs/retakes_autodefuse_debug.log`. На сервере пока не проверен; в готовом архиве лежит в `plugins/`, выключен кваром.
 
 ### Аллокатор с типами раундов (retakes_allocator)
 
@@ -304,7 +308,7 @@ The plugin refuses to load on any other game.
    - `translations/` → `addons/sourcemod/translations/`
    - `cfg/sourcemod/retakes/` → `cfg/sourcemod/retakes/`
    - `configs/retakes/` → `addons/sourcemod/configs/retakes/`
-3. A weapon allocator, one of the three (see [Addon plugins](#addon-plugins)); the main one is `build/retakes_allocator.smx` → `addons/sourcemod/plugins/`. The prebuilt `retakes-css-server.zip` already has it in `plugins/` (next to `retakes_autoplant`, which is switched off by its cvar), with the other two allocators and `retakes_sitepicker` in `plugins/disabled/`.
+3. A weapon allocator, one of the three (see [Addon plugins](#addon-plugins)); the main one is `build/retakes_allocator.smx` → `addons/sourcemod/plugins/`. The prebuilt `retakes-css-server.zip` already has it in `plugins/` (next to `retakes_autoplant` and `retakes_autodefuse`, which are switched off by their cvars), with the other two allocators and `retakes_sitepicker` in `plugins/disabled/`.
 4. Start a map with two bombsites and create the spawns (see below). The mode does not start without spawns; the plugin says so in chat every round.
 
 `cfg/sourcemod/retakes/retakes.cfg` is generated on the first run. `cfg/sourcemod/retakes/retakes_game.cfg` is executed on every map start and sets the game up (team balancing, limits, bot behaviour); the previous values are restored when the plugin is disabled.
@@ -408,6 +412,10 @@ Optional plugins, installed next to `retakes.smx`. Use only one allocator.
   The carrier sees no planting animation: the game client does not show it when the button is "pressed" by the server. The game drops the fraction of `mp_freezetime` (with `1.5` the freezetime lasts 1 second), and so does the plugin.
 
   The bomb is planted in an instant the moment the freezetime ends. If the carrier is outside a bomb target or the bomb is not planted within 5 seconds after the freezetime, the plugin backs off and the carrier plants by hand. With `sm_retakes_debug 1` it writes `logs/retakes_autoplant_debug.log`. The game only plants from a C4 that is in the hands, so a human carrier holding another weapon is switched to the C4 a second before the end of the freezetime. The plant, the progress bar and the clicks were checked on a live server; the prebuilt archive has the plugin in `plugins/`, switched off by the cvar.
+- `retakes_autodefuse` — autodefuse: when a CT starts defusing while no terrorist is alive and the bomb has more time left than that defuse needs, the defuse is finished at once. The defuse kit counts: a defuse takes 5 seconds with a kit and 10 without, so with 7 seconds left a CT with a kit defuses in an instant, while a CT without one defuses as usual (and is late). With a terrorist alive or not enough time the plugin stays out. The game itself ends the defuse (the plugin only moves the moment it is complete to "now"), no gamedata is needed. Cvar (config `cfg/sourcemod/retakes/retakes_autodefuse.cfg`):
+  - `sm_retakes_autodefuse_enabled` (default `0`) — turns the autodefuse on; with `0` the plugin is loaded but does nothing.
+
+  The check is made once, when the defuse starts: if the last terrorist dies while a CT is already defusing, that defuse runs its normal course (or the CT may let go and start again). The plugin does nothing during the warmup and in the spawn editor. With `sm_retakes_debug 1` it writes `logs/retakes_autodefuse_debug.log`. Not checked on a live server yet; the prebuilt archive has the plugin in `plugins/`, switched off by the cvar.
 
 ### Round type allocator (retakes_allocator)
 
