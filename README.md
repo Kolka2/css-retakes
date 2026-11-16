@@ -120,7 +120,11 @@ Retakes для Counter-Strike: Source
 - `retakes_pistolallocator` — пистолетные раунды: Glock и USP (с бронёй), P228, Five-SeveN, Desert Eagle, Dual Elites (без брони) или случайный.
 - `retakes_allocator` — раунды разных типов: пистолетные, бонусные, форс-бай, закупочные и «свободный выбор» любого оружия, по кругу или в случайном порядке; гранаты по выбору игрока. Подробно — в разделе [Аллокатор с типами раундов](#аллокатор-с-типами-раундов-retakes_allocator).
 - `retakes_sitepicker` — админ-команда `sm_site a|b|any`: играть только на одном сайте.
-- `retakes_autoplant` — автоплент: сразу после фризтайма бомба закладывается за бомбера там, где он стоит (бомбер-человек или бот). Закладку выполняет сама игра (плагин только «зажимает» бомберу атаку с C4 в руках и убирает трёхсекундное ожидание), gamedata не нужна. Квар `sm_retakes_autoplant_enabled` (по умолчанию `1`), файл `cfg/sourcemod/retakes/retakes_autoplant.cfg`. Если бомбер стоит вне зоны закладки или бомба не заложилась за 5 секунд, плагин отступает и бомбер ставит бомбу сам. С `sm_retakes_debug 1` пишет лог `logs/retakes_autoplant_debug.log`. На сервере пока не проверен; в готовом архиве лежит в `plugins/disabled/`.
+- `retakes_autoplant` — автоплент: бомба закладывается за бомбера там, где он стоит (бомбер-человек или бот), и к началу раунда уже тикает. Закладку выполняет сама игра (плагин только «зажимает» бомберу атаку с C4 в руках и подгоняет время взвода), gamedata не нужна. Квары (файл `cfg/sourcemod/retakes/retakes_autoplant.cfg`):
+  - `sm_retakes_autoplant_enabled` (по умолчанию `1`) — включить;
+  - `sm_retakes_autoplant_animation` (по умолчанию `1`) — `1`: бомбер начинает закладку за 3 секунды до конца фризтайма (видна обычная анимация набора кода, слышен писк), бомба ложится в момент конца фризтайма; при `mp_freezetime` меньше 3 анимация короче; `0`: бомба закладывается мгновенно сразу после фризтайма.
+
+  Если бомбер стоит вне зоны закладки или бомба не заложилась за 5 секунд после конца фризтайма, плагин отступает и бомбер ставит бомбу сам. С `sm_retakes_debug 1` пишет лог `logs/retakes_autoplant_debug.log`. Мгновенная закладка проверена на сервере, закладка с анимацией во фризтайме — пока нет; в готовом архиве плагин лежит в `plugins/disabled/`.
 
 ### Аллокатор с типами раундов (retakes_allocator)
 
@@ -393,7 +397,11 @@ Optional plugins, installed next to `retakes.smx`. Use only one allocator.
 - `retakes_pistolallocator` — pistol rounds: Glock and USP (with armor), P228, Five-SeveN, Desert Eagle, Dual Elites (no armor) or random.
 - `retakes_allocator` — rounds of different types: pistol, bonus, force buy, buy and "free choice" of any weapon, in a circle or in a random order; grenades chosen by the player. See [Round type allocator](#round-type-allocator-retakes_allocator).
 - `retakes_sitepicker` — admin command `sm_site a|b|any` to play a single site.
-- `retakes_autoplant` — autoplant: right after the freezetime the bomb is planted for the bomb carrier (human or bot) where the carrier stands. The game itself does the plant (the plugin only holds the attack button for the carrier with the C4 out and removes the three-second wait), no gamedata is needed. Cvar `sm_retakes_autoplant_enabled` (default `1`), config `cfg/sourcemod/retakes/retakes_autoplant.cfg`. If the carrier is outside a bomb target or the bomb is not planted within 5 seconds, the plugin backs off and the carrier plants by hand. With `sm_retakes_debug 1` it writes `logs/retakes_autoplant_debug.log`. Not tested on a live server yet; the prebuilt archive has it in `plugins/disabled/`.
+- `retakes_autoplant` — autoplant: the bomb is planted for the bomb carrier (human or bot) where the carrier stands, and is already ticking when the round goes live. The game itself does the plant (the plugin only holds the attack button for the carrier with the C4 out and adjusts the arming time), no gamedata is needed. Cvars (config `cfg/sourcemod/retakes/retakes_autoplant.cfg`):
+  - `sm_retakes_autoplant_enabled` (default `1`) — on/off;
+  - `sm_retakes_autoplant_animation` (default `1`) — `1`: the carrier starts planting 3 seconds before the end of the freezetime (the usual keypad animation and beeps), the bomb is planted the moment the freezetime ends; with `mp_freezetime` below 3 the animation is shorter; `0`: the bomb is planted in an instant right after the freezetime.
+
+  If the carrier is outside a bomb target or the bomb is not planted within 5 seconds after the freezetime, the plugin backs off and the carrier plants by hand. With `sm_retakes_debug 1` it writes `logs/retakes_autoplant_debug.log`. The instant plant was checked on a live server, the animated plant during the freezetime was not yet; the prebuilt archive has the plugin in `plugins/disabled/`.
 
 ### Round type allocator (retakes_allocator)
 
