@@ -25,10 +25,13 @@
  * The plant is not stretched over the freezetime to show the arming animation. That was
  * tried on a live server: the client predicts the C4 without the attack button, so the
  * carrier only saw the last second of the animation, and the game does not let bots arm
- * the C4 during the freezetime at all.
+ * the C4 during the freezetime at all. Starting 0.75 s early for the "putting the bomb
+ * down" animation alone did not work either: the view model just disappeared, and an
+ * attempt in the first 0.3 s of a round was refused by the game and followed by a second
+ * in which the C4 could not be armed.
  */
 
-#define AUTOPLANT_VERSION "0.5.2"
+#define AUTOPLANT_VERSION "1.0.0"
 
 #define START_DELAY 0.2     // seconds after round_start to stay away; Retakes hands the C4 out 0.1 s after it
 #define GIVE_UP_TIME 5.0    // seconds after the planned plant before the carrier is left alone
@@ -50,10 +53,9 @@ ConVar g_hFreezeTime;
 
 /** Round state **/
 bool g_Pending;             // the bomb of this round still has to be planted by the plugin
-float g_StartTime;          // when the carrier starts arming the C4
 float g_PlantTime;          // when the bomb is to be planted
 float g_GiveUpTime;
-float g_BarTime;            // when the carrier may be looked for (the C4 is handed out by then)
+float g_SearchTime;         // when the carrier may be looked for (the C4 is handed out by then)
 int g_Carrier;              // the bomb carrier found during the freezetime, or 0
 int g_BarClient;            // the human carrier that sees the progress bar, or 0
 int g_BarSeconds;           // length of that bar
@@ -83,7 +85,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 }
 
 public void OnPluginStart() {
-    g_hEnabled = CreateConVar("sm_retakes_autoplant_enabled", "1", "Whether the bomb is planted for the bomb carrier at the end of the freezetime", _, true, 0.0, true, 1.0);
+    g_hEnabled = CreateConVar("sm_retakes_autoplant_enabled", "0","Whether the bomb is planted for the bomb carrier at the end of the freezetime", _, true, 0.0, true, 1.0);
 
     g_hProgressBar = CreateConVar("sm_retakes_autoplant_progressbar", "1", "Whether a human bomb carrier sees a progress bar during the freezetime that fills up by the moment the bomb is planted", _, true, 0.0, true, 1.0);
 
@@ -171,10 +173,9 @@ static bool IsActive() {
  */
 static void StartAttempt(float plantTime) {
     g_Pending = true;
-    g_StartTime = plantTime;
     g_PlantTime = plantTime;
     g_GiveUpTime = plantTime + GIVE_UP_TIME;
-    g_BarTime = GetGameTime() + START_DELAY;
+    g_SearchTime = GetGameTime() + START_DELAY;
     g_Carrier = 0;
     g_NextClick = sizeof(g_ClickTimes);
     g_LoggedCarrier = -1;
@@ -187,25 +188,10 @@ static void StartAttempt(float plantTime) {
  * filling up at startTime and is full after `seconds`.
  */
 static void ShowProgressBar(int client, int seconds, float startTime) {
-    // CS:S has the m_iProgressBarDuration / m_flProgressBarStartTime properties and its
-    // HUD draws the bar from them for a player that is not defusing; the bar is full at
-    // startTime + seconds (checked on a live CS:S server). Without the properties the
-    // older BarTime user message is tried.
-    if (HasEntProp(client, Prop_Send, "m_iProgressBarDuration")) {
-        if (HasEntProp(client, Prop_Send, "m_flProgressBarStartTime")) {
-            SetEntPropFloat(client, Prop_Send, "m_flProgressBarStartTime", startTime);
-        }
-        SetEntProp(client, Prop_Send, "m_iProgressBarDuration", seconds);
-        return;
-    }
-
-    if (GetUserMessageId("BarTime") != INVALID_MESSAGE_ID) {
-        Handle message = StartMessageOne("BarTime", client);
-        if (message != null) {
-            BfWriteShort(message, seconds);
-            EndMessage();
-        }
-    }
+    // The HUD of CS:S draws the bar from these two properties for a player that is not
+    // defusing; the bar is full at startTime + seconds (checked on a live CS:S server).
+    SetEntPropFloat(client, Prop_Send, "m_flProgressBarStartTime", startTime);
+    SetEntProp(client, Prop_Send, "m_iProgressBarDuration", seconds);
 }
 
 /**
@@ -265,9 +251,6 @@ public void Event_RoundFreezeEnd(Event event, const char[] name, bool dontBroadc
     if (g_PlantTime > now) {
         g_PlantTime = now;
     }
-    if (g_StartTime > now) {
-        g_StartTime = now;
-    }
     g_GiveUpTime = now + GIVE_UP_TIME;
 }
 
@@ -322,10 +305,11 @@ public void OnGameFrame() {
 
 /**
  * What the carrier gets during the freezetime instead of the arming animation: a progress
- * bar (humans only) and the keypad clicks. Called for every user command before the plant.
+ * bar (humans only) and the keypad clicks. Called for every user command until the bomb
+ * is planted.
  */
-static void FreezeTimeEffects(int client, float now) {
-    if (now < g_BarTime) {
+static void CarrierEffects(int client, float now) {
+    if (now < g_SearchTime) {
         return;
     }
 
@@ -369,12 +353,10 @@ static void FreezeTimeEffects(int client, float now) {
         ShowProgressBar(client, seconds, g_BarStartTime);
         AutoplantDebug("progress bar of %d s shown to %L, the plant is due in %.2f s", seconds, client, left);
     } else if (g_BarClient == client && left > 0.0
-               && HasEntProp(client, Prop_Send, "m_iProgressBarDuration")
                && GetEntProp(client, Prop_Send, "m_iProgressBarDuration") == 0) {
-        // The game clears the bar when the C4 is put away (CC4::Holster; seen on a live
-        // CS:S server: the bar vanished on a weapon switch). It is put back with the
-        // same start time, so it goes on from where it would have been.
-        // CSS-VERIFY: the restored bar shows up again and still ends at the plant.
+        // The game clears the bar when the C4 is put away (CC4::Holster). It is put back
+        // with the same start time, so it goes on from where it would have been (checked
+        // on a live CS:S server).
         ShowProgressBar(client, g_BarSeconds, g_BarStartTime);
         if (!g_LoggedBarRestore) {
             g_LoggedBarRestore = true;
@@ -386,11 +368,7 @@ static void FreezeTimeEffects(int client, float now) {
 /**
  * Drives the bomb carrier's user commands until the bomb is planted: pulls out the C4,
  * holds the attack button, keeps the carrier in place and cuts the arming time short.
- *
- * Arming starts at the planned moment and not earlier. Starting 0.75 s early for the
- * "putting the bomb down" animation was tried on a live server: the view model just
- * disappeared, and an attempt in the first 0.3 s of a round was refused by the game and
- * followed by a second in which the C4 could not be armed.
+ * Arming starts at the planned moment and not earlier, see the top of the file.
  */
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3],
                              int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2]) {
@@ -399,8 +377,8 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     }
 
     float now = GetGameTime();
-    FreezeTimeEffects(client, now);
-    if (now < g_StartTime) {
+    CarrierEffects(client, now);
+    if (now < g_PlantTime) {
         return Plugin_Continue;
     }
     if (now > g_GiveUpTime) {
@@ -462,13 +440,10 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
     // With the attack button held in the user command the game starts arming the C4
     // (m_bStartedArming) and plants the bomb once the game time has reached
-    // m_fArmedTime, for bots and humans alike (checked on a live CS:S server). Should
-    // the two properties be missing, the button alone still plants the bomb, in the
-    // usual 3 seconds.
+    // m_fArmedTime, for bots and humans alike (checked on a live CS:S server).
     buttons |= IN_ATTACK;
 
-    if (HasEntProp(c4, Prop_Send, "m_bStartedArming") && HasEntProp(c4, Prop_Send, "m_fArmedTime")
-        && GetEntProp(c4, Prop_Send, "m_bStartedArming")) {
+    if (GetEntProp(c4, Prop_Send, "m_bStartedArming")) {
         if (!g_LoggedArming) {
             g_LoggedArming = true;
             AutoplantDebug("the game is arming the C4 of %L, cutting the arming time", client);
