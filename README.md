@@ -132,6 +132,40 @@ Retakes для Counter-Strike: Source
   - `sm_retakes_autodefuse_enabled` (по умолчанию `0`) — включить автодефьюз; с `0` плагин загружен, но ничего не делает.
 
   Проверка делается один раз, в момент начала разминирования: если последний террорист погиб, когда CT уже разминирует, оно идёт до конца обычным порядком (или CT может отпустить и начать заново). В разминке и в редакторе спавнов плагин не работает. С `sm_retakes_debug 1` пишет лог `logs/retakes_autodefuse_debug.log`. На сервере пока не проверен; в готовом архиве лежит в `plugins/`, выключен кваром.
+- `retakes_bothelper` — помощник ботам: CT-боты сразу идут к заложенной бомбе, а не проверяют сайты по очереди. Подробно — в разделе [Помощник ботам](#помощник-ботам-retakes_bothelper). **Нужен файл gamedata; на сервере пока не проверен; на Linux пока не работает** (нет смещений для `linux64`). В готовом архиве лежит в `plugins/disabled/`.
+
+### Помощник ботам (retakes_bothelper)
+
+CT-бот CS:S узнаёт из события закладки, что бомба заложена, но не где: место ему становится известно, только когда он окажется ближе 1500 юнитов к пищащей бомбе или когда о ней сообщит по радио другой бот. До этого боты обходят сайты по очереди. Плагин в момент появления бомбы записывает каждому живому CT-боту её позицию и сайт — в те же поля памяти бота, которые заполняет сама игра, когда бот находит бомбу. Дальше работает штатный ИИ: бот строит маршрут и идёт разминировать. Движение, обзор и стрельбу ботов плагин не трогает; людей и ботов-террористов — тоже.
+
+- Срабатывает один раз за раунд: по событию `bomb_planted` или по появлению сущности `planted_c4`, что случится раньше. CT-бот, появившийся после закладки, получает позицию через 0,1 с после спавна.
+- Работает и без Retakes (на любом сервере CS:S). С Retakes — только в живой игре: в разминке, в редакторе спавнов и при `sm_retakes_enabled 0` ничего не делает.
+- Нужен файл `addons/sourcemod/gamedata/retakes_bothelper.games.txt` (в репозитории — `gamedata/`). В нём смещения полей в памяти бота; сейчас они есть только для 64-битного сервера Windows (версия игры 11003710).
+- Вызвать функцию игры напрямую SourceMod 1.12 на 64-битном сервере не может, поэтому плагин пишет поля сам. Перед каждой записью он проверяет, что по этим смещениям лежит то, что ожидается. Если gamedata нет, в нём нет записи для вашей системы или проверка не прошла, плагин пишет **одну ошибку** в `logs/errors_*.log` и больше ничего не делает; сервер работает как обычно.
+- Не используйте вместе с плагинами, которые создают «ботов» через `CreateFakeClient` (кроме SourceTV): это не боты игры, плагин увидит несовпадение и выключится до перезагрузки.
+
+Квары (файл `cfg/sourcemod/retakes/retakes_bothelper.cfg`):
+
+| Квар | По умолчанию | Смысл |
+|---|---|---|
+| `sm_retakes_bothelper_enabled` | `1` | включить |
+| `sm_retakes_bothelper_delay` | `0.0` | задержка в секундах между появлением бомбы и сообщением позиции ботам |
+| `sm_retakes_bothelper_debug` | `0` | лог `logs/retakes_bothelper_debug.log`: каким ботам сообщена позиция, сама позиция, непройденные проверки |
+| `sm_retakes_bothelper_version` | — | версия |
+
+При загрузке плагин пишет в лог SourceMod одну строку: версия, загружен ли gamedata, найден ли Retakes.
+
+**После обновления игры.** Смещения могут сдвинуться. Признаки: в `errors_*.log` строка `The game state of … does not look right` или `has no offset`, либо боты снова обходят сайты. Что делать:
+
+1. Ничего не править наугад: с неверными смещениями плагин сам отказывается работать, серверу это не вредит.
+2. Самый простой путь — прислать разработчику новый бинарник сервера (`cstrike/bin/linux64/server.so` или `cstrike/bin/x64/server.dll`) и строку `PatchVersion` из `cstrike/steam.inf`.
+3. Чтобы проверить самому, нужен дизассемблер (Ghidra, IDA; для Linux хватит `objdump`):
+   - найти строку `ERROR: Bomb planted outside of a zone!` и маленькую (около 100 байт) функцию, которая на неё ссылается, — это `CSGameState::UpdatePlantedBomb`. На Linux она находится по имени: `objdump -d -M intel server.so | grep -A40 '<_ZN11CSGameState17UpdatePlantedBombERK6Vector>:'`;
+   - в конце этой функции четыре записи относительно первого аргумента: номер сайта (`m_plantedBombsite`), три числа позиции подряд (`m_plantedBombPos`), байт `1` (`m_isPlantedBombPosKnown`) и число `2` (`m_bombState`). Их смещения — значения одноимённых ключей gamedata;
+   - найти, откуда эта функция вызывается (`CCSBot::OnBombBeep`): прямо перед вызовом стоит `lea rcx, [регистр + N]` (на Linux `lea rdi, …`). `N` — это `CCSBot::m_gameState`;
+   - `m_isRoundOver`, `m_bombsiteSearchOrder` и `m_bombsiteCount` идут в том же объекте раньше (сейчас 8, 52 и 68); если четыре смещения из функции не изменились, не изменились и они.
+4. Записать значения в gamedata **десятичными числами** в ключ своей системы (`windows64` или `linux64`), выполнить `sm plugins reload retakes_bothelper` и посмотреть строку загрузки в логе.
+5. Включить `sm_retakes_bothelper_debug 1` и сыграть раунд: в логе должны быть строки `told … bombsite N, position …` для каждого CT-бота, а строки `check failed` быть не должно.
 
 ### Аллокатор с типами раундов (retakes_allocator)
 
@@ -416,6 +450,40 @@ Optional plugins, installed next to `retakes.smx`. Use only one allocator.
   - `sm_retakes_autodefuse_enabled` (default `0`) — turns the autodefuse on; with `0` the plugin is loaded but does nothing.
 
   The check is made once, when the defuse starts: if the last terrorist dies while a CT is already defusing, that defuse runs its normal course (or the CT may let go and start again). The plugin does nothing during the warmup and in the spawn editor. With `sm_retakes_debug 1` it writes `logs/retakes_autodefuse_debug.log`. Not checked on a live server yet; the prebuilt archive has the plugin in `plugins/`, switched off by the cvar.
+- `retakes_bothelper` — bot helper: the CT bots go straight to the planted bomb instead of checking the bombsites one by one. See [Bot helper](#bot-helper-retakes_bothelper). **Needs a gamedata file; not checked on a live server yet; does not work on Linux yet** (no `linux64` offsets). The prebuilt archive has it in `plugins/disabled/`.
+
+### Bot helper (retakes_bothelper)
+
+A CS:S CT bot learns from the plant event that the bomb was planted, but not where: it only finds out when it gets within 1500 units of the beeping bomb or when another bot reports it over the radio. Until then the bots check the bombsites one by one. The moment the bomb shows up, the plugin writes its position and bombsite to every living CT bot — into the same fields of the bot's memory the game fills in when a bot finds the bomb. The stock AI does the rest: the bot plans a path and goes to defuse. The plugin does not touch the bots' movement, aim or shooting, nor humans or terrorist bots.
+
+- It acts once per round: on the `bomb_planted` event or when a `planted_c4` entity appears, whichever comes first. A CT bot that spawns after the plant is told 0.1 s after its spawn.
+- It works without Retakes too (on any CS:S server). With Retakes it only acts in a live game: nothing happens in the warmup, in the spawn editor or with `sm_retakes_enabled 0`.
+- It needs `addons/sourcemod/gamedata/retakes_bothelper.games.txt` (`gamedata/` in the repository). The file holds the offsets of the fields in the bot's memory; for now only for a 64-bit Windows server (game version 11003710).
+- SourceMod 1.12 cannot call the game's function directly on a 64-bit server, so the plugin writes the fields itself. Before every write it checks that the memory at those offsets holds what is expected. If the gamedata is missing, has no entry for your system or the check fails, the plugin writes **one error** to `logs/errors_*.log` and does nothing more; the server runs as usual.
+- Do not combine it with plugins that create "bots" through `CreateFakeClient` (other than SourceTV): those are not bots of the game, the plugin will see the mismatch and switch itself off until it is reloaded.
+
+Cvars (config `cfg/sourcemod/retakes/retakes_bothelper.cfg`):
+
+| Cvar | Default | Meaning |
+|---|---|---|
+| `sm_retakes_bothelper_enabled` | `1` | switch |
+| `sm_retakes_bothelper_delay` | `0.0` | seconds between the bomb showing up and the bots being told |
+| `sm_retakes_bothelper_debug` | `0` | log `logs/retakes_bothelper_debug.log`: which bots were told, the position, the failed checks |
+| `sm_retakes_bothelper_version` | — | version |
+
+On load the plugin writes one line to the SourceMod log: its version, whether the gamedata was loaded and whether Retakes was found.
+
+**After a game update.** The offsets may move. Signs: a line `The game state of … does not look right` or `has no offset` in `errors_*.log`, or the bots checking the bombsites again. What to do:
+
+1. Do not edit by guess: with wrong offsets the plugin refuses to work by itself, and that does not harm the server.
+2. The easiest way is to send the developer the new server binary (`cstrike/bin/linux64/server.so` or `cstrike/bin/x64/server.dll`) and the `PatchVersion` line of `cstrike/steam.inf`.
+3. To check it yourself you need a disassembler (Ghidra, IDA; `objdump` is enough on Linux):
+   - find the string `ERROR: Bomb planted outside of a zone!` and the small (about 100 bytes) function that refers to it — that is `CSGameState::UpdatePlantedBomb`. On Linux it is found by name: `objdump -d -M intel server.so | grep -A40 '<_ZN11CSGameState17UpdatePlantedBombERK6Vector>:'`;
+   - the end of that function has four writes relative to its first argument: the bombsite index (`m_plantedBombsite`), the three numbers of the position in a row (`m_plantedBombPos`), the byte `1` (`m_isPlantedBombPosKnown`) and the number `2` (`m_bombState`). Their offsets are the values of the gamedata keys of the same names;
+   - find where that function is called from (`CCSBot::OnBombBeep`): right before the call there is `lea rcx, [register + N]` (`lea rdi, …` on Linux). `N` is `CCSBot::m_gameState`;
+   - `m_isRoundOver`, `m_bombsiteSearchOrder` and `m_bombsiteCount` come earlier in the same object (8, 52 and 68 now); if the four offsets of the function have not changed, neither have they.
+4. Write the values to the gamedata file as **decimal numbers** under the key of your system (`windows64` or `linux64`), run `sm plugins reload retakes_bothelper` and look at the load line in the log.
+5. Set `sm_retakes_bothelper_debug 1` and play a round: the log should have a `told … bombsite N, position …` line for every CT bot and no `check failed` line.
 
 ### Round type allocator (retakes_allocator)
 
