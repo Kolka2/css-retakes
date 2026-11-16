@@ -30,13 +30,13 @@ mkdir -p "$SM/plugins/disabled" "$SM/scripting/include" "$SM/configs" "$S/cfg"
 # retakes_autoplant лежит в plugins/, но выключен кваром sm_retakes_autoplant_enabled 0
 # (решение владельца). retakes_autodefuse — так же: в plugins/, выключен кваром
 # sm_retakes_autodefuse_enabled 0.
+# retakes_bothelper лежит в plugins/ и включён (sm_retakes_bothelper_enabled 1): принят
+# владельцем после теста на 32-битном сервере Windows. Ему нужен файл из gamedata/.
 cp build/retakes.smx build/warmup.smx build/retakes_allocator.smx \
-   build/retakes_autoplant.smx build/retakes_autodefuse.smx "$SM/plugins/"
+   build/retakes_autoplant.smx build/retakes_autodefuse.smx \
+   build/retakes_bothelper.smx "$SM/plugins/"
 cp build/retakes_standardallocator.smx build/retakes_pistolallocator.smx \
    build/retakes_sitepicker.smx "$SM/plugins/disabled/"
-# retakes_bothelper пишет в память ботов по смещениям из gamedata и на сервере ещё не
-# проверен: лежит в disabled/, пока владелец его не примет. Его gamedata — всегда на месте.
-cp build/retakes_bothelper.smx "$SM/plugins/disabled/"
 cp -r "$STAGE/gamedata" "$SM/gamedata"
 cp -r "$STAGE/translations" "$SM/translations"
 cp -r "$STAGE/configs/retakes" "$SM/configs/retakes"

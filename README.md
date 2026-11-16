@@ -132,7 +132,7 @@ Retakes для Counter-Strike: Source
   - `sm_retakes_autodefuse_enabled` (по умолчанию `0`) — включить автодефьюз; с `0` плагин загружен, но ничего не делает.
 
   Проверка делается один раз, в момент начала разминирования: если последний террорист погиб, когда CT уже разминирует, оно идёт до конца обычным порядком (или CT может отпустить и начать заново). В разминке и в редакторе спавнов плагин не работает. С `sm_retakes_debug 1` пишет лог `logs/retakes_autodefuse_debug.log`. На сервере пока не проверен; в готовом архиве лежит в `plugins/`, выключен кваром.
-- `retakes_bothelper` — помощник ботам: CT-боты сразу идут к заложенной бомбе, а не проверяют сайты по очереди. Подробно — в разделе [Помощник ботам](#помощник-ботам-retakes_bothelper). **Нужен файл gamedata; на сервере пока не проверен.** В готовом архиве лежит в `plugins/disabled/`.
+- `retakes_bothelper` — помощник ботам: CT-боты сразу идут к заложенной бомбе, а не проверяют сайты по очереди. Подробно — в разделе [Помощник ботам](#помощник-ботам-retakes_bothelper). **Нужен файл gamedata.** Проверен на 32-битном сервере Windows; на 64-битных серверах (Windows, Linux) пока не проверен. В готовом архиве лежит в `plugins/` и включён, gamedata — в `addons/sourcemod/gamedata/`.
 
 ### Помощник ботам (retakes_bothelper)
 
@@ -450,7 +450,7 @@ Optional plugins, installed next to `retakes.smx`. Use only one allocator.
   - `sm_retakes_autodefuse_enabled` (default `0`) — turns the autodefuse on; with `0` the plugin is loaded but does nothing.
 
   The check is made once, when the defuse starts: if the last terrorist dies while a CT is already defusing, that defuse runs its normal course (or the CT may let go and start again). The plugin does nothing during the warmup and in the spawn editor. With `sm_retakes_debug 1` it writes `logs/retakes_autodefuse_debug.log`. Not checked on a live server yet; the prebuilt archive has the plugin in `plugins/`, switched off by the cvar.
-- `retakes_bothelper` — bot helper: the CT bots go straight to the planted bomb instead of checking the bombsites one by one. See [Bot helper](#bot-helper-retakes_bothelper). **Needs a gamedata file; not checked on a live server yet.** The prebuilt archive has it in `plugins/disabled/`.
+- `retakes_bothelper` — bot helper: the CT bots go straight to the planted bomb instead of checking the bombsites one by one. See [Bot helper](#bot-helper-retakes_bothelper). **Needs a gamedata file.** Checked on a 32-bit Windows server; not checked on 64-bit servers (Windows, Linux) yet. The prebuilt archive has it in `plugins/`, switched on, with the gamedata in `addons/sourcemod/gamedata/`.
 
 ### Bot helper (retakes_bothelper)
 
