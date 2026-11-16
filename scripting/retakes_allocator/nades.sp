@@ -20,8 +20,6 @@ char g_NadePool[] = "hffs";
 // Menu item info prefixes of the grenade picker: the saved list or this round's picks.
 #define PICK_LIST 'l'
 #define PICK_ROUND 'r'
-// In place of the grenade letter: the "stop asking me" item of the round menu.
-#define PICK_STOP_ASKING 'x'
 
 // The saved list of a player in the order of priority; empty = random every round.
 char g_NadeList[MAXPLAYERS+1][NADE_STRING_LENGTH];
@@ -201,12 +199,17 @@ static bool WantsRoundPicker(int client) {
 
 /**
  * Shows the grenade menu of the round to everybody who should see it and has no menu on
- * the screen. A menu the player has open (!guns, any other plugin) is never replaced:
- * the grenade menu comes when that one is closed.
+ * the screen. A SourceMod menu the player has open (!guns, any other plugin) is never
+ * replaced: the grenade menu comes when that one is closed. Menus sent past SourceMod
+ * (MenuSource_External) are not waited for: see HideClientMenu().
  */
 static void ShowPendingRoundPickers() {
     for (int i = 1; i <= MaxClients; i++) {
-        if (WantsRoundPicker(i) && GetClientMenu(i) == MenuSource_None) {
+        if (!WantsRoundPicker(i)) {
+            continue;
+        }
+        MenuSource source = GetClientMenu(i);
+        if (source == MenuSource_None || source == MenuSource_External) {
             ShowNadePicker(i, PICK_ROUND);
         }
     }
@@ -292,21 +295,29 @@ void Nades_OnFreezeEnd() {
  * the server: on a live CS:S server it stayed on the screen for about 4 more seconds.
  */
 static void HideClientMenu(int client) {
-    // A menu with no selectable keys makes the CS:S client hide the menu it is showing,
-    // at once (checked on a live server with a raw ShowMenu message). The raw message is
-    // not used any more: SourceMod took it for a menu of somebody else that never ends,
-    // GetClientMenu() stayed at MenuSource_External and the menu of the round was not
-    // shown in the next rounds.
-    // CSS-VERIFY: a panel with a title and no items is sent with no keys and hides the
-    // menu just as well; SourceMod forgets it after its one second.
-    Panel panel = new Panel();
-    panel.SetTitle(" ");
-    panel.Send(client, PanelHandler_Nothing, 1);
-    delete panel;
-}
+    if (GetUserMessageId("ShowMenu") == INVALID_MESSAGE_ID) {
+        return;
+    }
 
-public int PanelHandler_Nothing(Menu menu, MenuAction action, int param1, int param2) {
-    return 0;
+    // A ShowMenu message with no valid keys makes the CS:S client hide the menu it is
+    // showing, at once (checked on a live server). An empty SourceMod panel does not: it
+    // flashed as an empty frame for its second.
+    //
+    // SourceMod takes the message for a menu of somebody else (MenuSource_External). With
+    // a display time of 0 that "menu" never ended, and the menu of the round, which did
+    // not replace other menus, was not shown in the next rounds (seen on a live server).
+    // CSS-VERIFY: with a display time of one second SourceMod forgets it after a second.
+    // ShowPendingRoundPickers() does not depend on that: it shows the menu over an
+    // external one.
+    Handle message = StartMessageOne("ShowMenu", client, USERMSG_RELIABLE);
+    if (message != null) {
+        BfWrite bf = UserMessageToBfWrite(message);
+        bf.WriteShort(0); // valid keys
+        bf.WriteChar(1);  // display time, seconds
+        bf.WriteByte(0);  // more parts to come
+        bf.WriteString("");
+        EndMessage();
+    }
 }
 
 void Nades_OnRoundEnd() {
@@ -394,30 +405,6 @@ static bool FillRoundPicks(int client) {
     return AddRoundPicksFrom(client, nades);
 }
 
-/**
- * The player does not want to be asked every round any more ("stop asking" in the menu
- * of the round): from now on the saved list is used if there is one, random grenades if
- * not. The grenades of this round that are still missing are decided the same way.
- */
-static void StopAskingNades(int client) {
-    SaveNadeSetting(client, false);
-
-    if (g_NadePickOpen && g_RoundNadeLimit[client] > 0) {
-        if (g_NadeList[client][0] != '\0') {
-            AddRoundPicksFrom(client, g_NadeList[client]);
-        } else {
-            FillRoundPicks(client);
-        }
-        // nothing is added at the end of the freeze time
-        g_RoundNadeLimit[client] = 0;
-    }
-
-    char setting[96];
-    char text[192];
-    FormatNadeSetting(client, setting, sizeof(setting));
-    Format(text, sizeof(text), "%T", "NadesStoppedAsking", client, setting);
-    Retakes_Message(client, "%s", text);
-}
 
 /**
  * A player that is asked every round picked a grenade in the menu.
@@ -572,12 +559,6 @@ static void ShowNadePicker(int client, int target) {
         }
     }
 
-    if (round) {
-        Format(info, sizeof(info), "%c%c", PICK_ROUND, PICK_STOP_ASKING);
-        Format(text, sizeof(text), "%T", "NadesStopAsking", client);
-        menu.AddItem(info, text);
-    }
-
     menu.ExitBackButton = !round;
     bool shown = menu.Display(client, MENU_TIME_LENGTH);
     if (round) {
@@ -611,9 +592,7 @@ public int MenuHandler_NadePicker(Menu menu, MenuAction action, int param1, int 
         menu.GetItem(param2, info, sizeof(info));
         int nade = info[1];
 
-        if (info[0] == PICK_ROUND && nade == PICK_STOP_ASKING) {
-            StopAskingNades(client);
-        } else if (info[0] == PICK_ROUND) {
+        if (info[0] == PICK_ROUND) {
             if (AddRoundPick(client, nade)) {
                 ShowNadePicker(client, PICK_ROUND);
             }

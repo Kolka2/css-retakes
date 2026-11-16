@@ -131,15 +131,6 @@
 	{
 		"en"			"Too late: grenades are picked before the end of the freeze time."
 	}
-	"NadesStopAsking"
-	{
-		"en"			"Stop asking me"
-	}
-	"NadesStoppedAsking"
-	{
-		"#format"		"{1:s}"
-		"en"			"The grenade menu will not open any more. Your grenades: {1}. To change it: !guns, Grenades."
-	}
 	"NadesAutoPicked"
 	{
 		"en"			"You did not pick all of your grenades in time: the rest are random."

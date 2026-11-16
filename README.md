@@ -149,7 +149,7 @@ Retakes для Counter-Strike: Source
 - Гранаты в режиме `choice`, меню `!guns` → «Гранаты»:
   - «Случайные каждый раунд» — так по умолчанию;
   - «Выбрать гранаты по приоритету» — список до четырёх гранат (осколочная, две световые, дымовая); в раунде игрок получает первые N из списка, где N — число гранат этого раунда;
-  - «Спрашивать каждый раунд» — меню открывается в паузе перед раундом и принимает выбор до конца фризтайма; гранаты, которые игрок не успел выбрать (все или часть), в конце фризтайма выдаются случайно. В этом же меню есть пункт «Больше не спрашивать»: меню перестаёт открываться, гранаты дальше берутся из сохранённого списка по приоритету, а если его нет — случайно.
+  - «Спрашивать каждый раунд» — меню открывается в паузе перед раундом и принимает выбор до конца фризтайма; гранаты, которые игрок не успел выбрать (все или часть), в конце фризтайма выдаются случайно. Меню не вытесняет другое открытое меню (например, `!guns`) и появляется, когда то закрыто; в конце фризтайма оно закрывается само.
 - Как повторить варианты: «до одной случайной» — `random` и `0-1`; «одна по выбору» — `choice` и `1`; «любой набор по выбору» — `choice` и `4`; «полный рандом» — `random` и `0-4`.
 - Боты получают винтовки по умолчанию, случайное оружие в `free` и случайные гранаты.
 
@@ -410,7 +410,7 @@ Cvars (`cfg/sourcemod/retakes/retakes_allocator.cfg` is created on the first run
 - Grenades in the `choice` mode, `!guns` → "Grenades":
   - "Random every round" — the default;
   - "Choose grenades by priority" — a list of up to four grenades (HE, two flashbangs, smoke); in a round the player gets the first N of the list, N being the number of grenades of that round;
-  - "Ask me every round" — a menu opens in the pause before the round and takes picks until the end of the freeze time; the grenades the player did not pick by then (all or some of them) are given at random when the freeze time ends. The same menu has a "Stop asking me" item: the menu no longer opens, and the grenades come from the saved priority list, or at random if there is none.
+  - "Ask me every round" — a menu opens in the pause before the round and takes picks until the end of the freeze time; the grenades the player did not pick by then (all or some of them) are given at random when the freeze time ends. The menu does not replace another open menu (`!guns`, for one) and comes up when that one is closed; it closes by itself when the freeze time ends.
 - Presets: "up to one random" — `random` and `0-1`; "one of your choice" — `choice` and `1`; "any set of your choice" — `choice` and `4`; "fully random" — `random` and `0-4`.
 - Bots get the default rifles, random weapons in `free` and random grenades.
 
