@@ -279,6 +279,11 @@ public void OnPluginStart() {
 }
 
 public void OnPluginEnd() {
+    // As on map change (OnMapEnd), unsaved spawn edits are not written.
+    if (g_DirtySpawns) {
+        LogMessage("Unsaved spawn changes were discarded on plugin unload (sm_savespawns saves them)");
+    }
+
     if (g_SavedCvars != null) {
         RestoreCvars(g_SavedCvars, true);
     }
