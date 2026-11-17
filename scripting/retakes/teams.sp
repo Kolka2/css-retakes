@@ -68,9 +68,9 @@ bool HasPickedClass(int client) {
 void CloseClassMenu(int client) {
     int team = GetClientTeam(client);
     EnsureClientClass(client, team);
-    // CSS-VERIFY: hiding the "class_ter" / "class_ct" panel from the server closes the model
-    // menu on the client. If it does not, a click in it is still harmless: the class is set
-    // now, so Command_JoinClass blocks the joinclass that would kill the player.
+    // Checked on a live CS:S server: hiding the "class_ter" / "class_ct" panel from the
+    // server closes the model menu on the client. With the class set, Command_JoinClass
+    // would also block a stray joinclass that would kill the player.
     ShowVGUIPanel(client, (team == CS_TEAM_T) ? "class_ter" : "class_ct", _, false);
 }
 
