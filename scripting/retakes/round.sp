@@ -145,7 +145,13 @@ static void PlacePlayers() {
 
         // The game respawns everybody on a team at round restart, including the players
         // the plugin moved in from spectators (seen on a live server). This is a safety net.
+        // A player who has not picked a model is not spawned by the game: the plugin
+        // picks one and closes the model menu before respawning the player.
         if (!IsPlayerAlive(i)) {
+            if (!HasPickedClass(i)) {
+                DebugLog("round_start: %L has not picked a model, giving a random one and closing the model menu", i);
+                CloseClassMenu(i);
+            }
             DebugLog("round_start: %L was not spawned by the game, respawning", i);
             CS_RespawnPlayer(i);
         }

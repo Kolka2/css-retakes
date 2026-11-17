@@ -60,6 +60,21 @@ bool HasPickedClass(int client) {
 }
 
 /**
+ * Answers the class menu for a player who joined a team but has not picked a model:
+ * gives a random class of the team and closes the menu. Called before the plugin
+ * respawns such a player itself (e.g. one who joined a team in the warmup and left the
+ * menu open); otherwise the menu stays on the screen during the round.
+ */
+void CloseClassMenu(int client) {
+    int team = GetClientTeam(client);
+    EnsureClientClass(client, team);
+    // CSS-VERIFY: hiding the "class_ter" / "class_ct" panel from the server closes the model
+    // menu on the client. If it does not, a click in it is still harmless: the class is set
+    // now, so Command_JoinClass blocks the joinclass that would kill the player.
+    ShowVGUIPanel(client, (team == CS_TEAM_T) ? "class_ter" : "class_ct", _, false);
+}
+
+/**
  * Switches a player to a new team.
  */
 void SwitchPlayerTeam(int client, int team) {

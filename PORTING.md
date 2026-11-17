@@ -135,6 +135,8 @@ In CS:GO the economy is switched off with cvars (`mp_startmoney 0`, `mp_*cashawa
 
 In CS:S a player picks a model (`joinclass`) after picking a team, and until the model is picked (`m_iClass` is 0) they do not spawn. A plugin that moves a player from spectators to a team itself must set the class itself, otherwise the player gets the model menu. A second `joinclass` kills a living player.
 
+A player can join a team in the warmup and leave the model menu open. When the match starts, the game does not spawn such a player, and Retakes respawns them itself (they are on a team for the round). Before that it sets a random class of the team and hides the menu (`ShowVGUIPanel` with `class_ter` / `class_ct`), otherwise the menu would stay on the screen during the round.
+
 `CS_SwitchTeam` changes the team without death and without a model change (the model is updated by `CS_UpdateClientModel` or the next respawn). `ChangeClientTeam` kills the player; the port uses it to move players to spectators.
 
 The `player_team` event in CS:S has a `silent` field, but the client ignores it and still prints "player joined team" in chat.
