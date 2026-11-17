@@ -37,11 +37,16 @@
  * is planted a tick later. Left alone, it would play in the live round. So the plugin
  * holds back the game's temp entity of its own plant and sends the same temp entity
  * itself, PLANT_ANIM_TIME before the end of the freezetime, with the carrier holding the
- * C4 (the clients pick the animation by the weapon in the hands). If that cannot be done
- * before the plant, there is no animation at all.
+ * C4 (the clients pick the animation by the weapon in the hands). If the whole animation
+ * does not fit into the freezetime (mp_freezetime below ANIM_MIN_FREEZETIME, or the C4
+ * came into the hands too late), there is no animation at all.
+ *
+ * The clients show a muzzle flash and an ejected shell during the planting animation of
+ * the C4. That is the game's own: it is there with the plugin switched off and in a
+ * single player game (seen by the owner in SourceTV and local demos).
  */
 
-#define AUTOPLANT_VERSION "1.1.3"
+#define AUTOPLANT_VERSION "1.2.0"
 
 #define START_DELAY 0.2     // seconds after round_start to stay away; Retakes hands the C4 out 0.1 s after it
 #define GIVE_UP_TIME 5.0    // seconds after the planned plant before the carrier is left alone
@@ -57,6 +62,8 @@
 #define PLANT_TE "Bomb Plant"   // temp entity the game sends when the arming starts (TE_PlantBomb)
 #define PLANT_ANIM_TIME 2.8     // seconds before the plant at which the planting animation is sent
 #define ANIM_DRAW_LEAD 0.5      // seconds before the animation at which the carrier is switched to the C4
+#define ANIM_MIN_FREEZETIME 3.0 // no planting animation with a shorter freezetime
+#define ANIM_MAX_LATE 0.2       // seconds the animation may start late; later it would run into the round
 
 // When the game plays the keypad clicks, in seconds from the start of the arming: frames
 // 27, 37, 45, 51, 57, 63 and 67 of the 83 frames the arming animation plays in 2.25 s
@@ -90,12 +97,10 @@ bool g_LoggedDraw;
 /** Planting animation **/
 bool g_PlantTEHooked;       // the planting temp entity is hooked, the plugin sends the animation itself
 bool g_SendingPlantTE;      // the temp entity being sent is the plugin's own
+bool g_AnimPlanned;         // the planting animation of this round fits into the freezetime
 bool g_AnimSent;            // the planting animation of this round is sent
 bool g_LoggedAnimHeldBack;
 bool g_LoggedSwitchRefused;
-int g_LoggedAnimEvents;     // debug lines about the carrier's other animation temp entities this round
-
-#define MAX_LOGGED_ANIM_EVENTS 10
 
 public Plugin myinfo = {
     name = "CS:S Retakes: autoplant",
@@ -139,11 +144,6 @@ public void OnPluginStart() {
         g_PlantTEHooked = false;
         LogError("The temp entity \"%s\" was not found: the planting animation plays after the plant", PLANT_TE);
     }
-
-    // Debug only: what else the clients are told to animate on the carrier while the
-    // plugin plants (both names are in sm_print_telist of a live CS:S server).
-    AddTempEntHook("PlayerAnimEvent", OnDebugTempEnt);
-    AddTempEntHook("Shotgun Shot", OnDebugTempEnt);
 
     for (int i = 1; i <= MaxClients; i++) {
         if (IsClientInGame(i)) {
@@ -234,6 +234,8 @@ static void StartAttempt(float plantTime) {
     g_PlantTime = plantTime;
     g_GiveUpTime = plantTime + GIVE_UP_TIME;
     g_SearchTime = GetGameTime() + START_DELAY;
+    // With a shorter freezetime the animation would end in the live round: there is none.
+    g_AnimPlanned = g_PlantTEHooked && plantTime - GetGameTime() >= ANIM_MIN_FREEZETIME;
     g_Carrier = 0;
     g_NextClick = sizeof(g_ClickTimes);
     g_LoggedCarrier = -1;
@@ -243,7 +245,6 @@ static void StartAttempt(float plantTime) {
     g_AnimSent = false;
     g_LoggedAnimHeldBack = false;
     g_LoggedSwitchRefused = false;
-    g_LoggedAnimEvents = 0;
 }
 
 /**
@@ -291,7 +292,8 @@ public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
     }
 
     StartAttempt(plantTime);
-    AutoplantDebug("round_start: freezetime %.1f s, the plant is due in %.2f s", freezeTime, plantTime - now);
+    AutoplantDebug("round_start: freezetime %.1f s, the plant is due in %.2f s, planting animation: %s",
+                   freezeTime, plantTime - now, g_AnimPlanned ? "yes" : "no");
 }
 
 /**
@@ -442,7 +444,9 @@ public Action OnPlantTempEnt(const char[] te_name, const int[] players, int numC
         int player = TE_IsValidProp("m_iPlayer") ? TE_ReadNum("m_iPlayer") + 1 : 0;
         if (player >= 1 && player <= MaxClients && IsClientInGame(player)) {
             AutoplantDebug("the game's planting animation of %L is held back (%s, the plugin's one was %s)",
-                           player, player == g_Carrier ? "the carrier" : "NOT the carrier",
+                           // With no freezetime the carrier is only found by the plant
+                           // itself (g_LoggedCarrier), not during the freezetime (g_Carrier).
+                           player, (player == g_Carrier || player == g_LoggedCarrier) ? "the carrier" : "NOT the carrier",
                            g_AnimSent ? "sent" : "not sent");
         } else {
             AutoplantDebug("the game's planting animation of client %d is held back (the plugin's one was %s)",
@@ -492,11 +496,11 @@ static void SendPlantAnimation(int client) {
 /**
  * Returns if the carrier is to be held with the C4 in the hands now, before the plant:
  * a second ahead for a human, and PLANT_ANIM_TIME + ANIM_DRAW_LEAD ahead for anybody
- * when the plugin sends the planting animation.
+ * when the plugin is to send the planting animation this round.
  */
 static bool IsDrawTime(int client, float now) {
     float lead = DRAW_LEAD_TIME;
-    if (g_PlantTEHooked) {
+    if (g_AnimPlanned) {
         lead = PLANT_ANIM_TIME + ANIM_DRAW_LEAD;
     } else if (IsFakeClient(client)) {
         return false;
@@ -533,49 +537,6 @@ public Action Hook_WeaponSwitch(int client, int weapon) {
 }
 
 /**
- * Debug only: logs the animation events (PlayerAnimEvent) and the shots (Shotgun Shot)
- * of the carrier while the plugin plants, to find out what the clients play on it.
- * Changes nothing.
- */
-public Action OnDebugTempEnt(const char[] te_name, const int[] players, int numClients, float delay) {
-    if (!g_Pending || g_Carrier == 0 || g_LoggedAnimEvents >= MAX_LOGGED_ANIM_EVENTS) {
-        return Plugin_Continue;
-    }
-
-    int player = 0;
-    int value = -1;
-    if (StrEqual(te_name, "Shotgun Shot")) {
-        if (TE_IsValidProp("m_iPlayer")) {
-            player = TE_ReadNum("m_iPlayer") + 1;
-        }
-        if (TE_IsValidProp("m_iWeaponID")) {
-            value = TE_ReadNum("m_iWeaponID");
-        }
-    } else {
-        if (TE_IsValidProp("m_hPlayer")) {
-            // A handle: the entity index is in the low bits.
-            player = TE_ReadNum("m_hPlayer") & 0x7FF;
-        }
-        if (TE_IsValidProp("m_iEvent")) {
-            value = TE_ReadNum("m_iEvent");
-        }
-    }
-    if (player != g_Carrier) {
-        return Plugin_Continue;
-    }
-
-    g_LoggedAnimEvents++;
-    char classname[32] = "none";
-    int active = GetEntPropEnt(g_Carrier, Prop_Send, "m_hActiveWeapon");
-    if (active > MaxClients && IsValidEntity(active)) {
-        GetEntityClassname(active, classname, sizeof(classname));
-    }
-    AutoplantDebug("%s of the carrier %L (event/weapon id %d), %s in the hands, %.2f s before the plant",
-                   te_name, g_Carrier, value, classname, g_PlantTime - GetGameTime());
-    return Plugin_Continue;
-}
-
-/**
  * Before the planned plant: switches the carrier to the C4 in time and sends the
  * planting animation PLANT_ANIM_TIME before the plant. Returns true if the user command
  * was changed.
@@ -591,11 +552,18 @@ static bool BeforePlant(int client, float now, int &weapon) {
     bool holding = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon") == carried;
 
     // The animation is only sent when the bomb is going to be planted right there: with
-    // the C4 in the hands and inside a bomb target. If the moment is missed (the C4 came
-    // into the hands too late), it is sent as soon as possible before the plant.
-    if (g_PlantTEHooked && !g_AnimSent && holding && now >= g_PlantTime - PLANT_ANIM_TIME
+    // the C4 in the hands and inside a bomb target. If the moment is missed by more than
+    // ANIM_MAX_LATE (the C4 came into the hands too late), there is no animation: it
+    // would end in the live round.
+    if (g_AnimPlanned && !g_AnimSent && holding && now >= g_PlantTime - PLANT_ANIM_TIME
         && (!HasEntProp(client, Prop_Send, "m_bInBombZone") || GetEntProp(client, Prop_Send, "m_bInBombZone"))) {
-        SendPlantAnimation(client);
+        if (now <= g_PlantTime - PLANT_ANIM_TIME + ANIM_MAX_LATE) {
+            SendPlantAnimation(client);
+        } else {
+            g_AnimSent = true;
+            AutoplantDebug("%L got the C4 too late for the planting animation (the plant is due in %.2f s), no animation",
+                           client, g_PlantTime - now);
+        }
     }
 
     // The game only plants from a C4 that is in the hands, and pulling it out takes
