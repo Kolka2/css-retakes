@@ -24,7 +24,7 @@ Retakes для Counter-Strike: Source
    - `translations/` → `addons/sourcemod/translations/`
    - `cfg/sourcemod/retakes/` → `cfg/sourcemod/retakes/`
    - `configs/retakes/` → `addons/sourcemod/configs/retakes/`
-3. Аллокатор оружия — один из трёх (см. [Аддоны](#аддоны)); основной — `build/retakes_allocator.smx` → `addons/sourcemod/plugins/`. В архиве `retakes-css-server.zip` он уже лежит в `plugins/` (там же `retakes_autoplant` и `retakes_autodefuse`, выключенные кварами), два других аллокатора и `retakes_sitepicker` — в `plugins/disabled/`.
+3. Аллокатор оружия — один из трёх (см. [Аддоны](#аддоны)); основной — `build/retakes_allocator.smx` → `addons/sourcemod/plugins/`. В архиве `retakes-css-server.zip` он уже лежит в `plugins/` (там же `retakes_autoplant` и `retakes_autodefuse`, выключенные кварами, и `retakes_sitepicker`, который ничего не меняет, пока админ не введёт `sm_site a|b`), два других аллокатора — в `plugins/disabled/`.
 4. Запустите карту с двумя бомбплейсами и расставьте спавны (см. ниже). Без спавнов режим не начнётся: плагин раз в раунд пишет об этом в чат.
 
 При первом запуске создаётся `cfg/sourcemod/retakes/retakes.cfg` с кварами плагина. Файл `cfg/sourcemod/retakes/retakes_game.cfg` выполняется на старте каждой карты и настраивает игру (балансировку команд, лимиты, поведение ботов); прежние значения возвращаются при выключении плагина.

@@ -24,7 +24,7 @@ The plugin refuses to load on any other game.
    - `translations/` → `addons/sourcemod/translations/`
    - `cfg/sourcemod/retakes/` → `cfg/sourcemod/retakes/`
    - `configs/retakes/` → `addons/sourcemod/configs/retakes/`
-3. A weapon allocator, one of the three (see [Addon plugins](#addon-plugins)); the main one is `build/retakes_allocator.smx` → `addons/sourcemod/plugins/`. The `retakes-css-server.zip` archive already has it in `plugins/` (next to `retakes_autoplant` and `retakes_autodefuse`, which are switched off by their cvars), with the other two allocators and `retakes_sitepicker` in `plugins/disabled/`.
+3. A weapon allocator, one of the three (see [Addon plugins](#addon-plugins)); the main one is `build/retakes_allocator.smx` → `addons/sourcemod/plugins/`. The `retakes-css-server.zip` archive already has it in `plugins/` (next to `retakes_autoplant` and `retakes_autodefuse`, which are switched off by their cvars, and `retakes_sitepicker`, which does nothing until an admin runs `sm_site a|b`), with the other two allocators in `plugins/disabled/`.
 4. Start a map with two bombsites and create the spawns (see below). The mode does not start without spawns; the plugin says so in chat every round.
 
 `cfg/sourcemod/retakes/retakes.cfg` is generated on the first run. `cfg/sourcemod/retakes/retakes_game.cfg` is executed on every map start and sets the game up (team balancing, limits, bot behaviour); the previous values are restored when the plugin is disabled.
