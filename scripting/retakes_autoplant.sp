@@ -46,7 +46,7 @@
  * single player game (seen by the owner in SourceTV and local demos).
  */
 
-#define AUTOPLANT_VERSION "1.2.0"
+#define AUTOPLANT_VERSION "1.2.1"
 
 #define START_DELAY 0.2     // seconds after round_start to stay away; Retakes hands the C4 out 0.1 s after it
 #define GIVE_UP_TIME 5.0    // seconds after the planned plant before the carrier is left alone
@@ -77,6 +77,7 @@ ConVar g_hSound;
 ConVar g_hFreezeTime;
 
 /** Round state **/
+bool g_RoundEnded;          // round_end came and no round_start since
 bool g_Pending;             // the bomb of this round still has to be planted by the plugin
 float g_PlantTime;          // when the bomb is to be planted
 float g_GiveUpTime;
@@ -162,6 +163,7 @@ public void HookPlantTempEnt() {
 }
 
 public void OnMapStart() {
+    g_RoundEnded = false;
     g_Pending = false;
     g_Carrier = 0;
     g_BarClient = 0;
@@ -275,6 +277,7 @@ static void HideProgressBar() {
  * planted early in the new round.
  */
 public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast) {
+    g_RoundEnded = false;
     g_Pending = false;
     HideProgressBar();
     if (!IsActive()) {
@@ -303,9 +306,11 @@ public void Event_RoundFreezeEnd(Event event, const char[] name, bool dontBroadc
     float now = GetGameTime();
 
     if (!g_Pending) {
-        // Either the bomb is planted already, or no round_start was seen for this round
-        // (e.g. the plugin was loaded during the freezetime).
-        if (IsActive() && FindEntityByClassname(-1, "planted_c4") == -1) {
+        // Either the bomb is planted already, or the round has ended (the game can send
+        // round_end before round_freeze_end: seen on a live CS:S server, and the bomb was
+        // then planted in the ended round), or no round_start was seen for this round
+        // (e.g. the plugin was loaded during the freezetime). Only the last case plants.
+        if (!g_RoundEnded && IsActive() && FindEntityByClassname(-1, "planted_c4") == -1) {
             StartAttempt(now + START_DELAY);
             AutoplantDebug("round_freeze_end without a planned plant, planting now");
         }
@@ -323,6 +328,7 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast) {
     if (g_Pending) {
         AutoplantDebug("round_end before the bomb was planted");
     }
+    g_RoundEnded = true;
     g_Pending = false;
     g_NextClick = sizeof(g_ClickTimes);
     HideProgressBar();
@@ -383,8 +389,11 @@ static void CarrierEffects(int client, float now) {
             return;
         }
         g_Carrier = client;
-        g_LoggedCarrier = client;
-        AutoplantDebug("the bomb carrier is %L", client);
+        if (g_LoggedCarrier != client) {
+            // With no freezetime the plant itself may have found the carrier first.
+            g_LoggedCarrier = client;
+            AutoplantDebug("the bomb carrier is %L", client);
+        }
 
         // The clicks are laid out as if the carrier had started arming the C4 three
         // seconds before the planned plant. If that moment is already in the past (a
@@ -512,9 +521,9 @@ static bool IsDrawTime(int client, float now) {
  * A bot switched to the C4 by the user command puts it away again at once (its own
  * weapon choice), and the two kept taking turns until the end of the freezetime (seen on
  * a live CS:S server). So while a bot carrier is to hold the C4, no other weapon may be
- * taken into its hands. Humans are not held this way: their client would predict the
- * switch and show weapons jumping.
- * CSS-VERIFY: the bot carrier keeps the C4 in the hands and does not flicker.
+ * taken into its hands (checked on a live CS:S server: the bot keeps the C4 without
+ * flickering). Humans are not held this way: their client would predict the switch and
+ * show weapons jumping.
  */
 public Action Hook_WeaponSwitch(int client, int weapon) {
     if (!g_Pending || client != g_Carrier || !IsFakeClient(client) || !IsDrawTime(client, GetGameTime())) {
