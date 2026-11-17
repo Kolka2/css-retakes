@@ -29,6 +29,8 @@ The plugin refuses to load on any other game.
 
 `cfg/sourcemod/retakes/retakes.cfg` is generated on the first run. `cfg/sourcemod/retakes/retakes_game.cfg` is executed on every map start and sets the game up (team balancing, limits, bot behaviour); the previous values are restored when the plugin is disabled.
 
+The same file switches the map rotation to its own list: `mapcyclefile "mapcycle_retakes.txt"`. The list is not shipped: create `mapcycle_retakes.txt` next to the standard `mapcycle.txt` of your server and put the maps that have spawns in it, one per line (for the shipped spawns: `de_dust2`, `de_cache`, `de_nuke`, `de_strike_mirage`). To keep the usual rotation, delete this line from `retakes_game.cfg`.
+
 ## Spawns
 
 Spawns are shipped for four maps: `de_dust2`, `de_cache`, `de_nuke` and `de_strike_mirage` (`configs/retakes/`). There are none for other maps: the original files were made for the CS:GO maps and do not fit the CS:S maps. Create them once with the built-in editor (map-change admin flag, `g`):
