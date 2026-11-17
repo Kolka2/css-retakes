@@ -41,7 +41,7 @@
  * before the plant, there is no animation at all.
  */
 
-#define AUTOPLANT_VERSION "1.1.1"
+#define AUTOPLANT_VERSION "1.1.2"
 
 #define START_DELAY 0.2     // seconds after round_start to stay away; Retakes hands the C4 out 0.1 s after it
 #define GIVE_UP_TIME 5.0    // seconds after the planned plant before the carrier is left alone
@@ -55,7 +55,8 @@
 // CSS-VERIFY: the plugin's temp entity plays the planting animation on the carrier, and
 // the animation takes PLANT_ANIM_TIME.
 #define PLANT_TE "Bomb Plant"   // temp entity the game sends when the arming starts (TE_PlantBomb)
-#define PLANT_ANIM_TIME 3.0     // seconds before the plant at which the planting animation is sent
+#define PLANT_ANIM_TIME 2.8     // seconds before the plant at which the planting animation is sent;
+                                // started 3.0 s ahead, it ended a little before the round start
 #define ANIM_DRAW_LEAD 0.5      // seconds before the animation at which the carrier is switched to the C4
 
 // When the game plays the keypad clicks, in seconds from the start of the arming: frames
