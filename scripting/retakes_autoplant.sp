@@ -29,9 +29,18 @@
  * down" animation alone did not work either: the view model just disappeared, and an
  * attempt in the first 0.3 s of a round was refused by the game and followed by a second
  * in which the C4 could not be armed.
+ *
+ * The planting animation of the player model (crouching and putting the bomb down) is a
+ * different thing: the game sends it to the other players as a temp entity when the
+ * arming starts (FX_PlantBomb), and the clients play it to the end even though the bomb
+ * is planted a tick later. Left alone, it would play in the live round. So the plugin
+ * holds back the game's temp entity of its own plant and sends the same temp entity
+ * itself, PLANT_ANIM_TIME before the end of the freezetime, with the carrier holding the
+ * C4 (the clients pick the animation by the weapon in the hands). If that cannot be done
+ * before the plant, there is no animation at all.
  */
 
-#define AUTOPLANT_VERSION "1.0.1"
+#define AUTOPLANT_VERSION "1.1.0"
 
 #define START_DELAY 0.2     // seconds after round_start to stay away; Retakes hands the C4 out 0.1 s after it
 #define GIVE_UP_TIME 5.0    // seconds after the planned plant before the carrier is left alone
@@ -40,6 +49,12 @@
 #define ARM_TIME 3.0        // seconds the game takes to arm the C4 (WEAPON_C4_ARM_TIME)
 #define DRAW_LEAD_TIME 1.0  // seconds before the plant at which a human carrier is switched to the C4
 #define CLICK_SOUND "c4.click"
+
+// CSS-VERIFY: the name of the planting temp entity (sm_print_telist) and the length of
+// the planting animation of the player model.
+#define PLANT_TE "Bomb Plant"   // temp entity the game sends when the arming starts (TE_PlantBomb)
+#define PLANT_ANIM_TIME 3.0     // seconds before the plant at which the planting animation is sent
+#define ANIM_DRAW_LEAD 0.5      // seconds before the animation at which the carrier is switched to the C4
 
 // When the game plays the keypad clicks, in seconds from the start of the arming: frames
 // 27, 37, 45, 51, 57, 63 and 67 of the 83 frames the arming animation plays in 2.25 s
@@ -69,6 +84,12 @@ int g_LoggedCarrier;        // the carrier the "started" line was written for
 bool g_LoggedArming;
 bool g_LoggedNotInZone;
 bool g_LoggedDraw;
+
+/** Planting animation **/
+bool g_PlantTEHooked;       // the planting temp entity is hooked, the plugin sends the animation itself
+bool g_SendingPlantTE;      // the temp entity being sent is the plugin's own
+bool g_AnimSent;            // the planting animation of this round is sent
+bool g_LoggedAnimHeldBack;
 
 public Plugin myinfo = {
     name = "CS:S Retakes: autoplant",
@@ -103,6 +124,20 @@ public void OnPluginStart() {
     HookEvent("round_freeze_end", Event_RoundFreezeEnd);
     HookEvent("round_end", Event_RoundEnd);
     HookEvent("bomb_planted", Event_BombPlanted);
+
+    // AddTempEntHook throws on an unknown name. Called through Call_Finish, that error
+    // only ends HookPlantTempEnt: the plugin still loads, without the animation of its own
+    // and with the game's animation after the plant, as before.
+    Call_StartFunction(null, HookPlantTempEnt);
+    if (Call_Finish() != SP_ERROR_NONE || !g_PlantTEHooked) {
+        g_PlantTEHooked = false;
+        LogError("The temp entity \"%s\" was not found: the planting animation plays after the plant", PLANT_TE);
+    }
+}
+
+public void HookPlantTempEnt() {
+    AddTempEntHook(PLANT_TE, OnPlantTempEnt);
+    g_PlantTEHooked = true;
 }
 
 public void OnMapStart() {
@@ -184,6 +219,8 @@ static void StartAttempt(float plantTime) {
     g_LoggedArming = false;
     g_LoggedNotInZone = false;
     g_LoggedDraw = false;
+    g_AnimSent = false;
+    g_LoggedAnimHeldBack = false;
 }
 
 /**
@@ -369,6 +406,106 @@ static void CarrierEffects(int client, float now) {
 }
 
 /**
+ * Holds back the game's planting animation while the plugin plants the bomb: the game
+ * sends it when the arming starts, that is after the freezetime, and the clients would
+ * play it in the live round. The plugin's own one (g_SendingPlantTE) goes through.
+ */
+public Action OnPlantTempEnt(const char[] te_name, const int[] players, int numClients, float delay) {
+    if (g_SendingPlantTE || !g_Pending) {
+        return Plugin_Continue;
+    }
+    if (!g_LoggedAnimHeldBack) {
+        g_LoggedAnimHeldBack = true;
+        int player = TE_IsValidProp("m_iPlayer") ? TE_ReadNum("m_iPlayer") : 0;
+        AutoplantDebug("the game's planting animation of client %d is held back (the plugin's one was %s)",
+                       player, g_AnimSent ? "sent" : "not sent");
+    }
+    return Plugin_Stop;
+}
+
+/**
+ * Sends the planting animation of the carrier to everybody else, as the game does when
+ * the arming starts (the carrier does not get it from the game either). The clients play
+ * the animation of the weapon in the carrier's hands, so it must be the C4.
+ */
+static void SendPlantAnimation(int client) {
+    g_AnimSent = true;
+
+    int clients[MAXPLAYERS];
+    int count = 0;
+    for (int i = 1; i <= MaxClients; i++) {
+        if (i != client && IsClientInGame(i)) {
+            clients[count++] = i;
+        }
+    }
+
+    TE_Start(PLANT_TE);
+    if (!TE_IsValidProp("m_iPlayer") || !TE_IsValidProp("m_vecOrigin")) {
+        AutoplantDebug("the temp entity %s has no m_iPlayer or m_vecOrigin, no planting animation", PLANT_TE);
+        return;
+    }
+    float origin[3];
+    GetClientEyePosition(client, origin);
+    TE_WriteNum("m_iPlayer", client);
+    TE_WriteVector("m_vecOrigin", origin);
+
+    g_SendingPlantTE = true;
+    TE_Send(clients, count);
+    g_SendingPlantTE = false;
+
+    AutoplantDebug("planting animation of %L sent to %d clients, the plant is due in %.2f s",
+                   client, count, g_PlantTime - GetGameTime());
+}
+
+/**
+ * Before the planned plant: switches the carrier to the C4 in time and sends the
+ * planting animation PLANT_ANIM_TIME before the plant. Returns true if the user command
+ * was changed.
+ */
+static bool BeforePlant(int client, float now, int &weapon) {
+    if (client != g_Carrier || !IsPlayerAlive(client)) {
+        return false;
+    }
+    int carried = GetClientC4(client);
+    if (carried == -1) {
+        return false;
+    }
+    bool holding = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon") == carried;
+
+    // The animation is only sent when the bomb is going to be planted right there: with
+    // the C4 in the hands and inside a bomb target. If the moment is missed (the C4 came
+    // into the hands too late), it is sent as soon as possible before the plant.
+    if (g_PlantTEHooked && !g_AnimSent && holding && now >= g_PlantTime - PLANT_ANIM_TIME
+        && (!HasEntProp(client, Prop_Send, "m_bInBombZone") || GetEntProp(client, Prop_Send, "m_bInBombZone"))) {
+        SendPlantAnimation(client);
+    }
+
+    // The game only plants from a C4 that is in the hands, and pulling it out takes
+    // 0.5-0.8 s (seen on a live CS:S server: a human carrier with another weapon out
+    // got the bomb planted that much late). So a human carrier is switched to the C4
+    // a second ahead. Checked on a live CS:S server: with the C4 selected a second ahead
+    // the bomb is planted on time. Bots plant on time as it is and were left alone; with
+    // the planting animation both are switched before it starts.
+    // CSS-VERIFY: a bot is switched to the C4 during the freezetime and keeps it.
+    float lead = DRAW_LEAD_TIME;
+    if (g_PlantTEHooked) {
+        lead = PLANT_ANIM_TIME + ANIM_DRAW_LEAD;
+    } else if (IsFakeClient(client)) {
+        return false;
+    }
+    if (holding || now < g_PlantTime - lead) {
+        return false;
+    }
+    if (!g_LoggedDraw) {
+        g_LoggedDraw = true;
+        AutoplantDebug("%L holds another weapon, the C4 is pulled out %.2f s before the plant",
+                       client, g_PlantTime - now);
+    }
+    weapon = carried;
+    return true;
+}
+
+/**
  * Drives the bomb carrier's user commands until the bomb is planted: pulls out the C4,
  * holds the attack button, keeps the carrier in place and cuts the arming time short.
  * Arming starts at the planned moment and not earlier, see the top of the file.
@@ -382,26 +519,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     float now = GetGameTime();
     CarrierEffects(client, now);
     if (now < g_PlantTime) {
-        // The game only plants from a C4 that is in the hands, and pulling it out takes
-        // 0.5-0.8 s (seen on a live CS:S server: a human carrier with another weapon out
-        // got the bomb planted that much late). So a human carrier is switched to the C4
-        // a second ahead. Bots are left alone here: their plant is on time as it is.
-        // Checked on a live CS:S server: with the C4 selected a second ahead the bomb is
-        // planted on time.
-        if (client == g_Carrier && now >= g_PlantTime - DRAW_LEAD_TIME
-            && !IsFakeClient(client) && IsPlayerAlive(client)) {
-            int carried = GetClientC4(client);
-            if (carried != -1 && GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon") != carried) {
-                if (!g_LoggedDraw) {
-                    g_LoggedDraw = true;
-                    AutoplantDebug("%L holds another weapon, the C4 is pulled out %.2f s before the plant",
-                                   client, g_PlantTime - now);
-                }
-                weapon = carried;
-                return Plugin_Changed;
-            }
-        }
-        return Plugin_Continue;
+        return BeforePlant(client, now, weapon) ? Plugin_Changed : Plugin_Continue;
     }
     if (now > g_GiveUpTime) {
         AutoplantDebug("giving up: the bomb was not planted %.1f s after the planned moment", GIVE_UP_TIME);
