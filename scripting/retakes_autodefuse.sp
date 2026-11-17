@@ -143,11 +143,12 @@ public void Frame_CheckDefuse(DataPack pack) {
         return;
     }
 
-    // CSS-VERIFY: the planted bomb has m_flC4Blow (the game time of the explosion),
-    // m_flDefuseLength (the length of the running defuse, 5 s with a kit and 10 s without)
-    // and m_flDefuseCountDown (the game time at which the running defuse is complete), and
-    // the game ends the defuse on the bomb's next think once m_flDefuseCountDown is in the
-    // past. Without the first and the last of them the plugin does nothing.
+    // The planted bomb has m_flC4Blow (the game time of the explosion), m_flDefuseLength
+    // (the length of the running defuse, 5 s with a kit and 10 s without) and
+    // m_flDefuseCountDown (the game time at which the running defuse is complete), and the
+    // game ends the defuse on the bomb's next think once m_flDefuseCountDown is in the past
+    // (checked on a live CS:S server with bots). Without the first and the last of them
+    // the plugin does nothing.
     if (!HasEntProp(bomb, Prop_Send, "m_flC4Blow") || !HasEntProp(bomb, Prop_Send, "m_flDefuseCountDown")) {
         AutodefuseDebug("the planted_c4 has no m_flC4Blow or m_flDefuseCountDown, nothing can be done");
         return;

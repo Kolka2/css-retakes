@@ -172,7 +172,7 @@ The teams have to change before the game spawns the players, otherwise everybody
 - Why the next frame and not a timer. A variant "0.3 s before the restart" was made and reverted: switching the teams and respawning back to back gives a noticeable jerk before the round starts.
 - Why the weapons are not removed during the preparation. The players would stand unarmed for the whole pause. The weapons are removed and given out when the players are placed.
 - Why players are placed only in `round_start`. Placement used to be split between `player_spawn` and a fallback in `round_start`, and on a manual `mp_restartgame` the players were placed twice. Now spawn points, teleport, weapons and respawn of the dead happen once. A consequence: a player spawned mid-round by something else stays on a standard spawn.
-- If a round starts without preparation (the first round, `mp_restartgame`), the preparation runs right in `round_start`, and the plugin respawns the players itself. In that round they spawn twice in a row.
+- If a round starts without preparation (the first round, `mp_restartgame`), the preparation runs right in `round_start`: the living players are switched to their teams without dying and placed in the same handler, so nobody spawns twice. Only a player the game did not spawn (moved in from spectators at this moment) is respawned by the plugin.
 - A `round_start` without a preceding `round_end` and a `round_end` with the "Game Commencing" reason count as a game restart and reset the progress (points, the T win streak, the round counter).
 
 `CS_SwitchTeam` on a living player between rounds does not kill them, and after the restart everybody is in their new team: the whole scheme rests on this, confirmed on a server.
@@ -248,7 +248,7 @@ Grenades in the "ask every round" mode showed two engine traits: a grenade given
 
 ### retakes_autoplant
 
-The bomb is planted by the game code; the plugin only sets up the conditions: in `OnPlayerRunCmd` it selects the C4 for the carrier, holds the attack button and moves the arming deadline `m_fArmedTime` to "now". On the next tick the game plants the bomb itself, with all the usual consequences: a real `planted_c4`, the `bomb_planted` event, the sounds, what the bots know.
+The bomb is planted by the game code; the plugin only sets up the conditions: in `OnPlayerRunCmd` it selects the C4 for the carrier, zeroes their movement, moves the end of the C4 draw (`m_flNextAttack` of the player) and then the arming deadline `m_fArmedTime` to "now", and holds the attack button. On the next tick the game plants the bomb itself, with all the usual consequences: a real `planted_c4`, the `bomb_planted` event, the sounds, what the bots know.
 
 The other way, used by CS:GO plugins, is to create a `planted_c4` entity. That does not work in CS:S: the bomb gets its timer and its think function from an internal function that only the planting code calls. An entity created by name does not tick.
 

@@ -5,7 +5,7 @@ A port of [splewis/csgo-retakes](https://github.com/splewis/csgo-retakes) (v0.3.
 
 Retakes: the terrorists spawn inside a bombsite with the bomb, the counter-terrorists spawn on the rotation routes and have to retake the site and defuse. It can be played by humans, by bots, or by a mix of both.
 
-> **Status.** The port was tested on a live CS:S server during development: the core, the warmup, the spawn editor, bots, the `retakes_allocator` allocator and the autoplant. Not tested on a server: `retakes_autodefuse`, and `retakes_bothelper` on a 64-bit server (it was tested on a 32-bit Windows server). Such places are marked with `// CSS-VERIFY:` comments in the code. How the port works and how CS:S differs from CS:GO for a plugin is described in [PORTING.md](PORTING.md).
+> **Status.** The port was tested on a live CS:S server during development: the core, the warmup, the spawn editor, bots, the `retakes_allocator` allocator, the autoplant and the autodefuse. Still open: `retakes_bothelper` on a 64-bit server (it was tested on a 32-bit Windows server) and one detail of the autoplant (a human carrier holding another weapon is switched to the C4 a second ahead). Such places are marked with `// CSS-VERIFY:` comments in the code. How the port works and how CS:S differs from CS:GO for a plugin is described in [PORTING.md](PORTING.md).
 
 ## Requirements
 
@@ -17,14 +17,14 @@ The plugin refuses to load on any other game.
 
 ## Installation
 
-1. Build the plugins (`./build.sh`) or take the prebuilt `build/*.smx`.
-2. Copy to the server's `cstrike/` directory:
+1. Build the plugins with `./build.sh` (see [Building](#building)); the compiled `.smx` files end up in `build/`. The repository has no prebuilt plugins.
+2. Copy to the server's `cstrike/` directory (or unpack the archive made by `./dist.sh`, see [Building](#building): it has everything below except `warmup.smx`):
    - `build/retakes.smx` → `addons/sourcemod/plugins/`
    - `warmup.smx` → `addons/sourcemod/plugins/` (optional: without it there is no warmup; it lives in a separate repository, see [Warmup plugin](#warmup-plugin))
    - `translations/` → `addons/sourcemod/translations/`
    - `cfg/sourcemod/retakes/` → `cfg/sourcemod/retakes/`
    - `configs/retakes/` → `addons/sourcemod/configs/retakes/`
-3. A weapon allocator, one of the three (see [Addon plugins](#addon-plugins)); the main one is `build/retakes_allocator.smx` → `addons/sourcemod/plugins/`. The prebuilt `retakes-css-server.zip` already has it in `plugins/` (next to `retakes_autoplant` and `retakes_autodefuse`, which are switched off by their cvars), with the other two allocators and `retakes_sitepicker` in `plugins/disabled/`.
+3. A weapon allocator, one of the three (see [Addon plugins](#addon-plugins)); the main one is `build/retakes_allocator.smx` → `addons/sourcemod/plugins/`. The `retakes-css-server.zip` archive already has it in `plugins/` (next to `retakes_autoplant` and `retakes_autodefuse`, which are switched off by their cvars), with the other two allocators and `retakes_sitepicker` in `plugins/disabled/`.
 4. Start a map with two bombsites and create the spawns (see below). The mode does not start without spawns; the plugin says so in chat every round.
 
 `cfg/sourcemod/retakes/retakes.cfg` is generated on the first run. `cfg/sourcemod/retakes/retakes_game.cfg` is executed on every map start and sets the game up (team balancing, limits, bot behaviour); the previous values are restored when the plugin is disabled.
@@ -35,19 +35,19 @@ The same file switches the map rotation to its own list: `mapcyclefile "mapcycle
 
 Spawns are shipped for four maps: `de_dust2`, `de_cache`, `de_nuke` and `de_strike_mirage` (`configs/retakes/`). There are none for other maps: the original files were made for the CS:GO maps and do not fit the CS:S maps. Create them once with the built-in editor (map-change admin flag, `g`):
 
-| Command | What it does |
-|---|---|
-| `!edit` (`sm_edit`) | enter the editor and open its menu; in the editor everybody respawns, the round never ends, there are no bots |
-| `!endedit` (`sm_endedit`) | leave the editor and start the game; the same as "Exit edit mode" in the menu. Unsaved spawns stay in memory and are written on map change or by `!savespawns` |
-| `!show a` / `!show b` | show the spawns of a site (rings: blue — CT, red — T, green — T "bomb carrier only", yellow — T "never bomb carrier") |
-| `!new ct a`, `!new t b` … | create a spawn where you stand (the view angle is saved); the menu also lets you pick the T spawn type |
-| `!delete` | delete the nearest spawn of the shown site |
-| `!goto 10`, `!nearest` | teleport to a spawn by index (an index that does not exist is reported; the shown site switches to the spawn's one) / to the nearest spawn of the shown site |
-| `!next`, `!prev` | teleport to the next / previous spawn in index order, wrapping around; the shown site switches to the spawn's one; also in the `!edit` menu |
-| `sm_iteratespawns` | visit every spawn in turn (the shown site switches to each spawn's one) |
-| `!savespawns`, `!reloadspawns` | save (replies with the number of spawns written) / reload from the file, discarding changes |
-| `sm_deletemapspawns` | delete all spawns of the map; like any other edit it reaches the file on `!savespawns` or on a map change, until then `!reloadspawns` brings everything back |
-| `sm_retakes_validatespawns` | check the spawns and print a report |
+| Chat | Console | What it does |
+|---|---|---|
+| `!edit` | `sm_edit` | enter the editor and open its menu; in the editor everybody respawns, the round never ends, there are no bots |
+| `!endedit` | `sm_endedit` | leave the editor and start the game; the same as "Exit edit mode" in the menu. Unsaved spawns stay in memory and are written on map change or by `!savespawns` |
+| `!show a` / `!show b` | `sm_show a` / `sm_show b` | show the spawns of a site (rings: blue — CT, red — T, green — T "bomb carrier only", yellow — T "never bomb carrier") |
+| `!new ct a`, `!new t b` … | `sm_new ct a`, `sm_new t b` … | create a spawn where you stand (the view angle is saved); the menu also lets you pick the T spawn type |
+| `!delete` | `sm_delete` | delete the nearest spawn of the shown site |
+| `!goto 10`, `!nearest` | `sm_goto 10`, `sm_nearest` | teleport to a spawn by index (an index that does not exist is reported; the shown site switches to the spawn's one) / to the nearest spawn of the shown site |
+| `!next`, `!prev` | `sm_next`, `sm_prev` | teleport to the next / previous spawn in index order, wrapping around; the shown site switches to the spawn's one; also in the `!edit` menu |
+| `!iteratespawns` | `sm_iteratespawns` | visit every spawn in turn (the shown site switches to each spawn's one) |
+| `!savespawns`, `!reloadspawns` | `sm_savespawns`, `sm_reloadspawns` | save (replies with the number of spawns written) / reload from the file, discarding changes |
+| `!deletemapspawns` | `sm_deletemapspawns` | delete all spawns of the map; like any other edit it reaches the file on `!savespawns` or on a map change, until then `!reloadspawns` brings everything back |
+| `!retakes_validatespawns` | `sm_retakes_validatespawns` | check the spawns and print a report |
 
 Each site needs:
 
@@ -70,7 +70,7 @@ Leave the editor with "Exit edit mode" in the `!edit` menu; the game restarts. S
 ## How it plays
 
 - **Warmup.** A warmup of `sm_retakes_warmuptime` seconds follows the map start. It is run by the separate `warmup.smx` plugin (see [Warmup plugin](#warmup-plugin)); Retakes only starts it and stays out of the way while it runs: no teams or spawns, no waiting queue, no money or bomb handling, no weapon allocation. When the warmup ends the first retake begins. Without `warmup.smx` there is no warmup.
-- **Teams.** After the warmup the plugin manages the teams. A joining player is put in the waiting queue (spectators) and enters the game on the next round. The share of terrorists is `sm_retakes_ratio_constant`. Players earn round points (damage, kills, bomb, winning); the top scorers play the next round as T. After `sm_retakes_scramble_rounds` T wins in a row the teams are scrambled.
+- **Teams.** After the warmup the plugin manages the teams. A joining player is put in the waiting queue (spectators) and enters the game on the next round. Players cannot switch sides themselves: picking T or CT in the team menu while on a team does nothing; going to spectators is allowed and takes the player out of the queue, and picking a team from spectators puts them back in it. The share of terrorists is `sm_retakes_ratio_constant`. Players earn round points (damage, kills, bomb, winning); the top scorers play the next round as T. After `sm_retakes_scramble_rounds` T wins in a row the teams are scrambled.
 - **Round.** The plugin picks a site, moves the players to the spawns, gives weapons, armor and defuse kits and zeroes the money — there is no buying. One T standing in the bombsite has the bomb and `sm_retakes_round_time` seconds to plant it, otherwise the CTs win.
 - **Weapons.** Without an allocator: T — AK-47 and Glock, CT — M4A1 and USP, armor and helmet for everybody. `!guns` opens the allocator menu if one is installed; in that case a joining player is told about it once per connection.
 
@@ -122,7 +122,7 @@ Optional plugins, installed next to `retakes.smx`. Use only one allocator.
 - `retakes_pistolallocator` — pistol rounds: Glock and USP (with armor), P228, Five-SeveN, Desert Eagle, Dual Elites (no armor) or random.
 - `retakes_allocator` — rounds of different types: pistol, bonus, force buy, buy and "free choice" of any weapon, in a circle or in a random order; grenades chosen by the player. See [Round type allocator](#round-type-allocator-retakes_allocator).
 - `retakes_sitepicker` — admin command `sm_site a|b|any` to play a single site.
-- `retakes_autoplant` — autoplant: the bomb is planted for the bomb carrier (human or bot) where the carrier stands, and is already ticking when the round goes live. The game itself does the plant (the plugin only holds the attack button for the carrier with the C4 out and removes the three-second wait), no gamedata is needed. Cvars (config `cfg/sourcemod/retakes/retakes_autoplant.cfg`):
+- `retakes_autoplant` — autoplant: the bomb is planted for the bomb carrier (human or bot) where the carrier stands, and is already ticking when the round goes live. The game itself does the plant: when the freezetime ends, the plugin switches the carrier to the C4, keeps them in place, holds the attack button for them and cuts the C4 draw time and the three-second arming time to zero. No gamedata is needed. Cvars (config `cfg/sourcemod/retakes/retakes_autoplant.cfg`):
   - `sm_retakes_autoplant_enabled` (default `0`) — turns the autoplant on; with `0` the plugin is loaded but does nothing, the carrier plants by hand;
   - `sm_retakes_autoplant_progressbar` (default `1`) — a human carrier sees a progress bar (the one of the defuse) during the freezetime; it fills up by the moment of the plant. No bar with `mp_freezetime` below 1; above 15 it shows up 15 seconds before the end;
   - `sm_retakes_autoplant_sound` (default `1`) — in the last seconds of the freezetime the keypad clicks of a bomb being armed are played at the carrier (human or bot), all seven of them, as in a plant by hand. With a freezetime shorter than three seconds the clicks start right after the round start and may end after the bomb is planted.
@@ -133,7 +133,7 @@ Optional plugins, installed next to `retakes.smx`. Use only one allocator.
 - `retakes_autodefuse` — autodefuse: when a CT starts defusing while no terrorist is alive and the bomb has more time left than that defuse needs, the defuse is finished at once. The defuse kit counts: a defuse takes 5 seconds with a kit and 10 without, so with 7 seconds left a CT with a kit defuses in an instant, while a CT without one defuses as usual (and is late). With a terrorist alive or not enough time the plugin stays out. The game itself ends the defuse (the plugin only moves the moment it is complete to "now"), no gamedata is needed. Cvar (config `cfg/sourcemod/retakes/retakes_autodefuse.cfg`):
   - `sm_retakes_autodefuse_enabled` (default `0`) — turns the autodefuse on; with `0` the plugin is loaded but does nothing.
 
-  The check is made once, when the defuse starts: if the last terrorist dies while a CT is already defusing, that defuse runs its normal course (or the CT may let go and start again). The plugin does nothing during the warmup and in the spawn editor. With `sm_retakes_debug 1` it writes `logs/retakes_autodefuse_debug.log`. Not checked on a live server yet; the prebuilt archive has the plugin in `plugins/`, switched off by the cvar.
+  The check is made once, when the defuse starts: if the last terrorist dies while a CT is already defusing, that defuse runs its normal course (or the CT may let go and start again). The plugin does nothing during the warmup and in the spawn editor. With `sm_retakes_debug 1` it writes `logs/retakes_autodefuse_debug.log`. Checked on a live server with bots; the server archive has the plugin in `plugins/`, switched off by the cvar.
 - `retakes_bothelper` — bot helper: the CT bots go straight to the planted bomb instead of checking the bombsites one by one. See [Bot helper](#bot-helper-retakes_bothelper). **Needs a gamedata file.** Checked on a 32-bit Windows server; not checked on 64-bit servers (Windows, Linux) yet. The prebuilt archive has it in `plugins/`, switched on, with the gamedata in `addons/sourcemod/gamedata/`.
 
 ### Bot helper (retakes_bothelper)
@@ -244,8 +244,7 @@ Retakes uses it as an optional dependency:
 
 - Not everything is tested on a live server — see the status note above.
 - The core has no auto-plant: the bomb carrier (human or bot) plants the bomb, as in the original. The `retakes_autoplant` addon plants it automatically.
-- Between the end of a round and the start of the next one the players are already on their new teams: CS:S has no "before round start" event, and this is the only moment the teams can be changed before the respawn.
-- On the first round after the warmup and after `mp_restartgame` the players spawn twice in a row (the game spawns them, then the plugin respawns them on the retake spawns).
+- The teams of the next round are set right after a round ends, not right before the respawn as in CS:GO: CS:S has no event for that moment, and the end of the previous round is the last chance to switch the teams before the game respawns everybody. So during the pause after a round the players are already shown on their new sides (on the scoreboard, with the new team's models).
 - A bot added by the game in the middle of a round sits in spectators until the next round. Because of this the first round after leaving the spawn editor, or after joining an empty server, may be played 1 vs 1: the game adds bots one at a time and the teams are set when only the first one has joined.
 - CS:S only has three grenades: HE, flashbang and smoke. The letters `m`, `i`, `d` in third-party allocator loadouts are ignored; CS:GO weapon class names are not given (an error is logged).
 - The PugSetup integration was removed.
@@ -288,6 +287,8 @@ The SourcePawn compiler and the SourceMod include files are not in the repositor
 ```
 
 On Windows run it from Git Bash. Another compiler can be set with `SPCOMP=/path/to/spcomp`. No external dependencies are needed.
+
+`./dist.sh` builds the plugins and packs `build/dist/retakes-css-server.zip`, laid out to be unpacked into `cstrike/` of a server, plus a source archive. The files are taken from the last commit (`git archive HEAD`); it needs `7z` or `zip`.
 
 ## License
 
