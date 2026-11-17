@@ -33,6 +33,8 @@ void GetTeamCounts(int &tCount, int &ctCount, int ignoredClient = 0) {
  * Makes sure the client has a player class (model) that belongs to the team.
  * In CS:S a player without a valid class is not respawned on round restart, and a
  * player moved from spectators by the plugin never saw the class menu.
+ * A player without any class may have the model menu open (joined a team in the warmup
+ * and did not pick a model): the plugin has answered it, so the menu is closed.
  */
 static void EnsureClientClass(int client, int team) {
     // m_iClass: 1-4 are the T classes, 5-8 the CT classes. A player switched from
@@ -48,6 +50,23 @@ static void EnsureClientClass(int client, int team) {
             SetEntProp(client, Prop_Send, "m_iClass", GetRandomInt(CSS_FIRST_CT_CLASS, CSS_LAST_CT_CLASS));
         }
     }
+
+    if (class == 0) {
+        HideClassMenu(client);
+    }
+}
+
+/**
+ * Closes the model menu on the client, if it is open.
+ */
+static void HideClassMenu(int client) {
+    // Checked on a live CS:S server: hiding the "class_ter" / "class_ct" panel from the
+    // server closes the model menu on the client.
+    // CSS-VERIFY: hiding a panel that is not open does nothing. Both are hidden: the open
+    // menu belongs to the team the player picked, which may not be the player's team now
+    // (moved to the other side or to spectators).
+    ShowVGUIPanel(client, "class_ter", _, false);
+    ShowVGUIPanel(client, "class_ct", _, false);
 }
 
 /**
@@ -60,18 +79,15 @@ bool HasPickedClass(int client) {
 }
 
 /**
- * Answers the class menu for a player who joined a team but has not picked a model:
+ * Answers the class menu for a player who stays on the team but has not picked a model:
  * gives a random class of the team and closes the menu. Called before the plugin
  * respawns such a player itself (e.g. one who joined a team in the warmup and left the
- * menu open); otherwise the menu stays on the screen during the round.
+ * menu open); otherwise the menu stays on the screen during the round. A player moved to
+ * another team gets the same from SwitchPlayerTeam. With the class set, Command_JoinClass
+ * also blocks a stray joinclass that would kill the player.
  */
-void CloseClassMenu(int client) {
-    int team = GetClientTeam(client);
-    EnsureClientClass(client, team);
-    // Checked on a live CS:S server: hiding the "class_ter" / "class_ct" panel from the
-    // server closes the model menu on the client. With the class set, Command_JoinClass
-    // would also block a stray joinclass that would kill the player.
-    ShowVGUIPanel(client, (team == CS_TEAM_T) ? "class_ter" : "class_ct", _, false);
+void GiveMissingClass(int client) {
+    EnsureClientClass(client, GetClientTeam(client));
 }
 
 /**
@@ -87,7 +103,13 @@ void SwitchPlayerTeam(int client, int team) {
         EnsureClientClass(client, team);
         CS_UpdateClientModel(client);
     } else {
+        // A player who joined a team but has not picked a model has the model menu open:
+        // it is of no use in spectators.
+        bool menuOpen = IsOnTeam(client) && !HasPickedClass(client);
         ChangeClientTeam(client, team);
+        if (menuOpen) {
+            HideClassMenu(client);
+        }
     }
     g_PluginTeamSwitch[client] = false;
 }
@@ -190,7 +212,8 @@ public Action Command_JoinClass(int client, const char[] command, int argc) {
         return Plugin_Continue;
     }
 
-    // A player without a model (should not happen) must still be able to pick one.
+    // A player on a team without a model must still be able to pick one (the plugin
+    // normally gives one itself, see EnsureClientClass and GiveMissingClass).
     if (IsOnTeam(client) && HasPickedClass(client)) {
         return Plugin_Handled;
     }

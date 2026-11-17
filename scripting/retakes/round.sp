@@ -150,7 +150,7 @@ static void PlacePlayers() {
         if (!IsPlayerAlive(i)) {
             if (!HasPickedClass(i)) {
                 DebugLog("round_start: %L has not picked a model, giving a random one and closing the model menu", i);
-                CloseClassMenu(i);
+                GiveMissingClass(i);
             }
             DebugLog("round_start: %L was not spawned by the game, respawning", i);
             CS_RespawnPlayer(i);
