@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Rebuilds the plugins and the archives in build/dist/:
 #   retakes-css-server.zip - what gets unpacked into the cstrike/ folder of a server;
-#   retakes-css-source.zip - the sources (git archive HEAD);
-#   css-port.patch, patches/ - the differences from the base commit of splewis.
+#   retakes-css-source.zip - the sources (git archive HEAD).
+# The differences from the original plugin are not packed: the repository keeps the full
+# history of splewis, so GitHub compares the base commit 9aae157 with master.
 # The files are taken from the HEAD commit (except the .smx from build/), so run it after
 # a commit: uncommitted changes do not get into the archives.
 # Needs 7z or zip.
 set -eu
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 DIST="$ROOT/build/dist"
-BASE=9aae157
 cd "$ROOT"
 
 if [ -n "$(git status --porcelain)" ]; then
@@ -48,6 +48,7 @@ cp "$STAGE/README.ru.md" "$S/README_retakes.ru.md"
 cp "$STAGE/LICENSE" "$S/LICENSE_retakes"
 
 mkdir -p "$DIST"
+# css-port.patch and patches/ were made by older versions of this script: removed too.
 rm -rf "$DIST/retakes-css-server.zip" "$DIST/retakes-css-source.zip" \
        "$DIST/css-port.patch" "$DIST/patches"
 
@@ -63,8 +64,6 @@ rm -rf "$DIST/retakes-css-server.zip" "$DIST/retakes-css-source.zip" \
 mv "$S/server.zip" "$DIST/retakes-css-server.zip"
 
 git archive --format=zip -o "$DIST/retakes-css-source.zip" HEAD
-git diff --binary "$BASE" HEAD -- . ':!tools' > "$DIST/css-port.patch"
-git format-patch -q -o "$DIST/patches" "$BASE..HEAD" -- . ':!tools'
 
 echo "== build/dist ($(git rev-parse --short HEAD))"
 ls -l "$DIST"
