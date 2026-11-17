@@ -98,7 +98,7 @@ Both games run on Source, but CS:S is a whole engine generation older, and almos
 | Player fully connected | `player_connect_full` | none |
 | Freezetime | `round_freeze_end` | `round_freeze_end`; arrives every round, also with `mp_freezetime 0`; the fractional part of `mp_freezetime` is dropped |
 
-The CS:S sequence: `round_end` → pause → the game respawns everybody and gives out the C4 → `round_start` → freezetime → `round_freeze_end`. The original built the teams in `round_prestart`, that is after the pause and right before the respawn. CS:S has no such moment, and that defined the round scheme of the port (section 3).
+The CS:S sequence: `round_end` → pause → the game respawns everybody and gives out the C4 → `round_start` → freezetime → `round_freeze_end`. A round that ends during the freezetime (e.g. everybody of one side is killed) breaks it: `round_end` comes first, and `round_freeze_end` of that round arrives right after it, already in the pause (seen on a live server). A handler of `round_freeze_end` must not act on a round that has ended: `retakes_allocator` ignores it after `round_end`, `retakes_autoplant` does not start a plant. The original built the teams in `round_prestart`, that is after the pause and right before the respawn. CS:S has no such moment, and that defined the round scheme of the port (section 3).
 
 There is also "Game Commencing": when the first player joins an empty server (or a team stops being empty), the game ends the round itself with reason 15 and restarts the game with a score reset. `mp_restartgame` does the same. The plugin detects a restart by a `round_start` that had no `round_end` before it.
 
