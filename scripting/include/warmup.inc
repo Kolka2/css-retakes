@@ -3,6 +3,9 @@
 #endif
 #define _warmup_included
 
+#define WARMUP_LIBRARY     "warmup"
+#define WARMUP_API_VERSION 1
+
 /**
  * Why a warmup ended, see Warmup_OnEnd.
  */
@@ -65,8 +68,15 @@ native bool Warmup_Start(int seconds = -1);
  */
 native bool Warmup_End(bool restartGame = true);
 
+/**
+ * Returns the API version of the loaded plugin (compare with WARMUP_API_VERSION).
+ * Plugins built against the first published include (without this native) only know
+ * the natives and forwards above; all of them are part of version 1.
+ */
+native int Warmup_GetApiVersion();
+
 public SharedPlugin __pl_warmup = {
-    name = "warmup",
+    name = WARMUP_LIBRARY,
     file = "warmup.smx",
 #if defined REQUIRE_PLUGIN
     required = 1,
@@ -80,5 +90,6 @@ public void __pl_warmup_SetNTVOptional() {
     MarkNativeAsOptional("Warmup_IsActive");
     MarkNativeAsOptional("Warmup_Start");
     MarkNativeAsOptional("Warmup_End");
+    MarkNativeAsOptional("Warmup_GetApiVersion");
 }
 #endif

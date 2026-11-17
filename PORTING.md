@@ -183,7 +183,7 @@ The teams have to change before the game spawns the players, otherwise everybody
 
 ### Warmup and the spawn editor
 
-The warmup lives in a separate plugin, `warmup`, with its own API, and it knows nothing about Retakes. Retakes uses it as an optional library: it starts the warmup on map start, stays out of everything while it runs, and starts the first retake when it ends. Without `warmup.smx` there is simply no warmup. `Retakes_InWarmup()` now returns the state of that plugin, not of the game.
+The warmup lives in a separate plugin, `warmup`, with its own API, and it knows nothing about Retakes. It was written for this port and later moved to the [css-plugins](https://github.com/Kolka2/css-plugins) repository, so other modes can use it; this repository keeps only a copy of its include file. Retakes uses it as an optional library: it starts the warmup on map start, stays out of everything while it runs, and starts the first retake when it ends. Without `warmup.smx` there is simply no warmup. `Retakes_InWarmup()` now returns the state of that plugin, not of the game.
 
 The spawn editor also needs a round without an end, and it has its own ([retakes/editor_freeplay.sp](scripting/retakes/editor_freeplay.sp)): the editor must work without the warmup plugin too. The duplication is deliberate. While the editor is open, Retakes keeps the warmup from ending through `Warmup_OnEnding`.
 

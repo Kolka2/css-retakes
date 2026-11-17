@@ -20,7 +20,7 @@ The plugin refuses to load on any other game.
 1. Build the plugins (`./build.sh`) or take the prebuilt `build/*.smx`.
 2. Copy to the server's `cstrike/` directory:
    - `build/retakes.smx` → `addons/sourcemod/plugins/`
-   - `build/warmup.smx` → `addons/sourcemod/plugins/` (optional: without it there is no warmup, see [Warmup plugin](#warmup-plugin))
+   - `warmup.smx` → `addons/sourcemod/plugins/` (optional: without it there is no warmup; it lives in a separate repository, see [Warmup plugin](#warmup-plugin))
    - `translations/` → `addons/sourcemod/translations/`
    - `cfg/sourcemod/retakes/` → `cfg/sourcemod/retakes/`
    - `configs/retakes/` → `addons/sourcemod/configs/retakes/`
@@ -228,44 +228,17 @@ Spawns are stored separately, in `addons/sourcemod/configs/retakes/<map>.cfg` �
 
 ## Warmup plugin
 
-`warmup.smx` is a separate, general-purpose warmup plugin for CS:S. It is not tied to Retakes: any game mode can use it through `scripting/include/warmup.inc`, and it also works on its own (`sm_warmup_autostart 1`). Retakes uses it as an optional dependency: without `warmup.smx` there is simply no warmup and the map starts with a retake round.
+The warmup is run by `warmup.smx`, a separate general-purpose plugin for CS:S (CS:S has no warmup of its own). It is not tied to Retakes and lives in the [css-plugins](https://github.com/Kolka2/css-plugins) repository: sources, cvars, commands and API are described in its [README](https://github.com/Kolka2/css-plugins/blob/master/docs/warmup/README.md). Build it there and install `warmup.smx` and its translations (`warmup.phrases.txt`, English and `ru/`).
 
-During a warmup:
+Retakes uses it as an optional dependency:
 
-- the round never ends, the dead respawn after `sm_warmup_respawn_time` seconds;
-- everybody has $16000 on spawn and again after every purchase, and buying stays open the whole time (the plugin raises `mp_buytime` for the duration);
-- there is no bomb: the C4 is removed from players, from the ground and when planted;
-- players pick and change teams freely, including T <-> CT;
-- the warmup ends by time and/or when enough humans have joined, then the game restarts.
+- on map start Retakes starts a warmup of `sm_retakes_warmuptime` seconds; leave `sm_warmup_autostart 0`;
+- while the warmup runs, Retakes stays out of everything: no teams, spawns, queue, money, bomb or weapon allocation;
+- when the warmup ends, the first retake starts;
+- while the spawn editor is open the warmup does not end;
+- without `warmup.smx` there is no warmup and the map starts with a retake round.
 
-Every game cvar the plugin changes for the warmup is remembered when the warmup starts and restored when it ends, on a map change and when the plugin is unloaded.
-
-The cvars are stored in `cfg/sourcemod/warmup.cfg` (generated on the first run):
-
-| Cvar | Default | Description |
-|---|---|---|
-| `sm_warmup_enabled` | `1` | whether warmups can be started at all; `0` also ends a running one |
-| `sm_warmup_autostart` | `0` | `1` — start a warmup on every map start. Leave at `0` when a game mode starts it (Retakes does, using `sm_retakes_warmuptime`) |
-| `sm_warmup_time` | `25` | default length in seconds; `0` — no time limit. Used by the autostart and by `sm_warmup` without an argument |
-| `sm_warmup_min_players` | `1` | humans needed on the server. With a time limit the countdown only runs while at least this many are present (and starts over if there are fewer). Without a time limit the warmup ends as soon as this many are present. `0` — do not wait for players |
-| `sm_warmup_respawn_time` | `1.5` | seconds between a death and the respawn |
-| `sm_warmup_infinite_money` | `1` | `1` — $16000 on spawn and after every purchase; `0` — leave the money alone |
-| `sm_warmup_buy_anywhere` | `0` | `1` — players can buy anywhere on the map, not only in the buy zones. Not verified on a live server |
-| `sm_warmup_restart_delay` | `1` | seconds until the game restarts after the warmup (`mp_restartgame`); `0` — do not restart |
-| `sm_warmup_debug` | `0` | `1` — write what the warmup does (start and end, blocked round ends, round restarts inside the warmup, emptied teams, removed and refused bombs) to `addons/sourcemod/logs/warmup_debug.log` |
-
-How the time and the player count combine:
-
-| `sm_warmup_time` | `sm_warmup_min_players` | When the warmup ends |
-|---|---|---|
-| > 0 | > 0 | after the given time, which only runs while enough humans are present |
-| > 0 | 0 | after the given time, which runs while at least one human is on the server |
-| 0 | > 0 | as soon as enough humans are present |
-| 0 | 0 | only by `sm_warmup_end` or when the game mode ends it |
-
-Admin commands (map-change flag): `sm_warmup [seconds]` — start or restart the warmup (`0` — no time limit, no argument — `sm_warmup_time`); `sm_warmup_end` — end it.
-
-For game mode developers — `scripting/include/warmup.inc`: natives `Warmup_IsActive()`, `Warmup_Start(seconds)`, `Warmup_End(restartGame)` and forwards `Warmup_OnStart`, `Warmup_OnEnding` (return `Plugin_Handled` to extend the warmup; asked again every second), `Warmup_OnEnd(reason)`.
+`scripting/include/warmup.inc` in this repository is a copy of the plugin's API, needed to build Retakes.
 
 ## Known limitations
 

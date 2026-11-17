@@ -31,7 +31,8 @@ mkdir -p "$SM/plugins/disabled" "$SM/scripting/include" "$SM/configs" "$S/cfg"
 # cvars (sm_retakes_autoplant_enabled 0, sm_retakes_autodefuse_enabled 0).
 # retakes_bothelper is in plugins/ and switched on (sm_retakes_bothelper_enabled 1); it
 # was tested on a 32-bit Windows server and needs its file from gamedata/.
-cp build/retakes.smx build/warmup.smx build/retakes_allocator.smx \
+# The warmup plugin (warmup.smx) lives in the css-plugins repository and is not packed here.
+cp build/retakes.smx build/retakes_allocator.smx \
    build/retakes_autoplant.smx build/retakes_autodefuse.smx \
    build/retakes_bothelper.smx "$SM/plugins/"
 cp build/retakes_standardallocator.smx build/retakes_pistolallocator.smx \
@@ -40,8 +41,7 @@ cp -r "$STAGE/gamedata" "$SM/gamedata"
 cp -r "$STAGE/translations" "$SM/translations"
 cp -r "$STAGE/configs/retakes" "$SM/configs/retakes"
 cp -r "$STAGE/cfg/sourcemod" "$S/cfg/sourcemod"
-cp "$STAGE/scripting/include/retakes.inc" "$STAGE/scripting/include/warmup.inc" \
-   "$SM/scripting/include/"
+cp "$STAGE/scripting/include/retakes.inc" "$SM/scripting/include/"
 cp "$STAGE/README.md" "$S/README_retakes.md"
 cp "$STAGE/README.ru.md" "$S/README_retakes.ru.md"
 cp "$STAGE/LICENSE" "$S/LICENSE_retakes"
