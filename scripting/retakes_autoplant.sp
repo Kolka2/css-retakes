@@ -46,7 +46,7 @@
  * single player game (seen by the owner in SourceTV and local demos).
  */
 
-#define AUTOPLANT_VERSION "1.2.1"
+#define AUTOPLANT_VERSION "1.2.2"
 
 #define START_DELAY 0.2     // seconds after round_start to stay away; Retakes hands the C4 out 0.1 s after it
 #define GIVE_UP_TIME 5.0    // seconds after the planned plant before the carrier is left alone
@@ -98,7 +98,7 @@ bool g_LoggedDraw;
 /** Planting animation **/
 bool g_PlantTEHooked;       // the planting temp entity is hooked, the plugin sends the animation itself
 bool g_SendingPlantTE;      // the temp entity being sent is the plugin's own
-bool g_AnimPlanned;         // the planting animation of this round fits into the freezetime
+bool g_AnimPlanned;         // the planting animation of this round fits into the freezetime and is not given up
 bool g_AnimSent;            // the planting animation of this round is sent
 bool g_LoggedAnimHeldBack;
 bool g_LoggedSwitchRefused;
@@ -471,8 +471,6 @@ public Action OnPlantTempEnt(const char[] te_name, const int[] players, int numC
  * the animation of the weapon in the carrier's hands, so it must be the C4.
  */
 static void SendPlantAnimation(int client) {
-    g_AnimSent = true;
-
     int clients[MAXPLAYERS];
     int count = 0;
     for (int i = 1; i <= MaxClients; i++) {
@@ -484,6 +482,7 @@ static void SendPlantAnimation(int client) {
     TE_Start(PLANT_TE);
     if (!TE_IsValidProp("m_iPlayer") || !TE_IsValidProp("m_vecOrigin")) {
         AutoplantDebug("the temp entity %s has no m_iPlayer or m_vecOrigin, no planting animation", PLANT_TE);
+        g_AnimPlanned = false;
         return;
     }
     float origin[3];
@@ -497,6 +496,7 @@ static void SendPlantAnimation(int client) {
     g_SendingPlantTE = true;
     TE_Send(clients, count);
     g_SendingPlantTE = false;
+    g_AnimSent = true;
 
     AutoplantDebug("planting animation of %L sent to %d clients, the plant is due in %.2f s",
                    client, count, g_PlantTime - GetGameTime());
@@ -569,7 +569,8 @@ static bool BeforePlant(int client, float now, int &weapon) {
         if (now <= g_PlantTime - PLANT_ANIM_TIME + ANIM_MAX_LATE) {
             SendPlantAnimation(client);
         } else {
-            g_AnimSent = true;
+            // No animation this round: the carrier is no longer held for it either.
+            g_AnimPlanned = false;
             AutoplantDebug("%L got the C4 too late for the planting animation (the plant is due in %.2f s), no animation",
                            client, g_PlantTime - now);
         }
