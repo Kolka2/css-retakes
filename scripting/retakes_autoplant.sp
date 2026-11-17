@@ -1,5 +1,6 @@
 #include <sourcemod>
 #include <sdktools>
+#include <sdkhooks>
 #include <cstrike>
 #include "include/retakes.inc"
 
@@ -40,7 +41,7 @@
  * before the plant, there is no animation at all.
  */
 
-#define AUTOPLANT_VERSION "1.1.0"
+#define AUTOPLANT_VERSION "1.1.1"
 
 #define START_DELAY 0.2     // seconds after round_start to stay away; Retakes hands the C4 out 0.1 s after it
 #define GIVE_UP_TIME 5.0    // seconds after the planned plant before the carrier is left alone
@@ -50,8 +51,9 @@
 #define DRAW_LEAD_TIME 1.0  // seconds before the plant at which a human carrier is switched to the C4
 #define CLICK_SOUND "c4.click"
 
-// CSS-VERIFY: the name of the planting temp entity (sm_print_telist) and the length of
-// the planting animation of the player model.
+// The temp entity is in sm_print_telist of a live CS:S server (CTEPlantBomb).
+// CSS-VERIFY: the plugin's temp entity plays the planting animation on the carrier, and
+// the animation takes PLANT_ANIM_TIME.
 #define PLANT_TE "Bomb Plant"   // temp entity the game sends when the arming starts (TE_PlantBomb)
 #define PLANT_ANIM_TIME 3.0     // seconds before the plant at which the planting animation is sent
 #define ANIM_DRAW_LEAD 0.5      // seconds before the animation at which the carrier is switched to the C4
@@ -133,6 +135,16 @@ public void OnPluginStart() {
         g_PlantTEHooked = false;
         LogError("The temp entity \"%s\" was not found: the planting animation plays after the plant", PLANT_TE);
     }
+
+    for (int i = 1; i <= MaxClients; i++) {
+        if (IsClientInGame(i)) {
+            OnClientPutInServer(i);
+        }
+    }
+}
+
+public void OnClientPutInServer(int client) {
+    SDKHook(client, SDKHook_WeaponSwitch, Hook_WeaponSwitch);
 }
 
 public void HookPlantTempEnt() {
@@ -416,9 +428,15 @@ public Action OnPlantTempEnt(const char[] te_name, const int[] players, int numC
     }
     if (!g_LoggedAnimHeldBack) {
         g_LoggedAnimHeldBack = true;
-        int player = TE_IsValidProp("m_iPlayer") ? TE_ReadNum("m_iPlayer") : 0;
-        AutoplantDebug("the game's planting animation of client %d is held back (the plugin's one was %s)",
-                       player, g_AnimSent ? "sent" : "not sent");
+        int player = TE_IsValidProp("m_iPlayer") ? TE_ReadNum("m_iPlayer") + 1 : 0;
+        if (player >= 1 && player <= MaxClients && IsClientInGame(player)) {
+            AutoplantDebug("the game's planting animation of %L is held back (%s, the plugin's one was %s)",
+                           player, player == g_Carrier ? "the carrier" : "NOT the carrier",
+                           g_AnimSent ? "sent" : "not sent");
+        } else {
+            AutoplantDebug("the game's planting animation of client %d is held back (the plugin's one was %s)",
+                           player, g_AnimSent ? "sent" : "not sent");
+        }
     }
     return Plugin_Stop;
 }
@@ -446,7 +464,10 @@ static void SendPlantAnimation(int client) {
     }
     float origin[3];
     GetClientEyePosition(client, origin);
-    TE_WriteNum("m_iPlayer", client);
+    // The game writes the client index minus one, as in "Shotgun Shot": its own planting
+    // temp entity of the carrier with client index 1 had m_iPlayer 0 (seen on a live CS:S
+    // server).
+    TE_WriteNum("m_iPlayer", client - 1);
     TE_WriteVector("m_vecOrigin", origin);
 
     g_SendingPlantTE = true;
@@ -455,6 +476,40 @@ static void SendPlantAnimation(int client) {
 
     AutoplantDebug("planting animation of %L sent to %d clients, the plant is due in %.2f s",
                    client, count, g_PlantTime - GetGameTime());
+}
+
+/**
+ * Returns if the carrier is to be held with the C4 in the hands now, before the plant:
+ * a second ahead for a human, and PLANT_ANIM_TIME + ANIM_DRAW_LEAD ahead for anybody
+ * when the plugin sends the planting animation.
+ */
+static bool IsDrawTime(int client, float now) {
+    float lead = DRAW_LEAD_TIME;
+    if (g_PlantTEHooked) {
+        lead = PLANT_ANIM_TIME + ANIM_DRAW_LEAD;
+    } else if (IsFakeClient(client)) {
+        return false;
+    }
+    return now >= g_PlantTime - lead && now < g_PlantTime;
+}
+
+/**
+ * A bot switched to the C4 by the user command puts it away again at once (its own
+ * weapon choice), and the two kept taking turns until the end of the freezetime (seen on
+ * a live CS:S server). So while a bot carrier is to hold the C4, no other weapon may be
+ * taken into its hands. Humans are not held this way: their client would predict the
+ * switch and show weapons jumping.
+ * CSS-VERIFY: the bot carrier keeps the C4 in the hands and does not flicker.
+ */
+public Action Hook_WeaponSwitch(int client, int weapon) {
+    if (!g_Pending || client != g_Carrier || !IsFakeClient(client) || !IsDrawTime(client, GetGameTime())) {
+        return Plugin_Continue;
+    }
+    int c4 = GetClientC4(client);
+    if (c4 == -1 || weapon == c4) {
+        return Plugin_Continue;
+    }
+    return Plugin_Handled;
 }
 
 /**
@@ -486,14 +541,7 @@ static bool BeforePlant(int client, float now, int &weapon) {
     // a second ahead. Checked on a live CS:S server: with the C4 selected a second ahead
     // the bomb is planted on time. Bots plant on time as it is and were left alone; with
     // the planting animation both are switched before it starts.
-    // CSS-VERIFY: a bot is switched to the C4 during the freezetime and keeps it.
-    float lead = DRAW_LEAD_TIME;
-    if (g_PlantTEHooked) {
-        lead = PLANT_ANIM_TIME + ANIM_DRAW_LEAD;
-    } else if (IsFakeClient(client)) {
-        return false;
-    }
-    if (holding || now < g_PlantTime - lead) {
+    if (holding || !IsDrawTime(client, now)) {
         return false;
     }
     if (!g_LoggedDraw) {
