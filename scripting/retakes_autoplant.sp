@@ -46,7 +46,7 @@
  * single player game (seen by the owner in SourceTV and local demos).
  */
 
-#define AUTOPLANT_VERSION "1.2.2"
+#define AUTOPLANT_VERSION "1.2.3"
 
 #define START_DELAY 0.2     // seconds after round_start to stay away; Retakes hands the C4 out 0.1 s after it
 #define GIVE_UP_TIME 5.0    // seconds after the planned plant before the carrier is left alone
@@ -62,7 +62,9 @@
 #define PLANT_TE "Bomb Plant"   // temp entity the game sends when the arming starts (TE_PlantBomb)
 #define PLANT_ANIM_TIME 2.8     // seconds before the plant at which the planting animation is sent
 #define ANIM_DRAW_LEAD 0.5      // seconds before the animation at which the carrier is switched to the C4
-#define ANIM_MIN_FREEZETIME 3.0 // no planting animation with a shorter freezetime
+#define ANIM_MIN_FREEZETIME 4.0 // no planting animation with a shorter freezetime: with 3 s the
+                                // carrier is only found 2.8 s before the plant, and the C4 is
+                                // pulled out on the same tick the animation is sent
 #define ANIM_MAX_LATE 0.2       // seconds the animation may start late; later it would run into the round
 
 // When the game plays the keypad clicks, in seconds from the start of the arming: frames
