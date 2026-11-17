@@ -41,7 +41,7 @@
  * before the plant, there is no animation at all.
  */
 
-#define AUTOPLANT_VERSION "1.1.2"
+#define AUTOPLANT_VERSION "1.1.3"
 
 #define START_DELAY 0.2     // seconds after round_start to stay away; Retakes hands the C4 out 0.1 s after it
 #define GIVE_UP_TIME 5.0    // seconds after the planned plant before the carrier is left alone
@@ -51,12 +51,11 @@
 #define DRAW_LEAD_TIME 1.0  // seconds before the plant at which a human carrier is switched to the C4
 #define CLICK_SOUND "c4.click"
 
-// The temp entity is in sm_print_telist of a live CS:S server (CTEPlantBomb).
-// CSS-VERIFY: the plugin's temp entity plays the planting animation on the carrier, and
-// the animation takes PLANT_ANIM_TIME.
+// The temp entity is in sm_print_telist of a live CS:S server (CTEPlantBomb). Checked on
+// a live CS:S server: the plugin's one plays the planting animation on the carrier, and
+// sent 2.8 s ahead it ends as the round starts (3.0 s ahead it ended a little early).
 #define PLANT_TE "Bomb Plant"   // temp entity the game sends when the arming starts (TE_PlantBomb)
-#define PLANT_ANIM_TIME 2.8     // seconds before the plant at which the planting animation is sent;
-                                // started 3.0 s ahead, it ended a little before the round start
+#define PLANT_ANIM_TIME 2.8     // seconds before the plant at which the planting animation is sent
 #define ANIM_DRAW_LEAD 0.5      // seconds before the animation at which the carrier is switched to the C4
 
 // When the game plays the keypad clicks, in seconds from the start of the arming: frames
@@ -93,6 +92,10 @@ bool g_PlantTEHooked;       // the planting temp entity is hooked, the plugin se
 bool g_SendingPlantTE;      // the temp entity being sent is the plugin's own
 bool g_AnimSent;            // the planting animation of this round is sent
 bool g_LoggedAnimHeldBack;
+bool g_LoggedSwitchRefused;
+int g_LoggedAnimEvents;     // debug lines about the carrier's other animation temp entities this round
+
+#define MAX_LOGGED_ANIM_EVENTS 10
 
 public Plugin myinfo = {
     name = "CS:S Retakes: autoplant",
@@ -136,6 +139,11 @@ public void OnPluginStart() {
         g_PlantTEHooked = false;
         LogError("The temp entity \"%s\" was not found: the planting animation plays after the plant", PLANT_TE);
     }
+
+    // Debug only: what else the clients are told to animate on the carrier while the
+    // plugin plants (both names are in sm_print_telist of a live CS:S server).
+    AddTempEntHook("PlayerAnimEvent", OnDebugTempEnt);
+    AddTempEntHook("Shotgun Shot", OnDebugTempEnt);
 
     for (int i = 1; i <= MaxClients; i++) {
         if (IsClientInGame(i)) {
@@ -234,6 +242,8 @@ static void StartAttempt(float plantTime) {
     g_LoggedDraw = false;
     g_AnimSent = false;
     g_LoggedAnimHeldBack = false;
+    g_LoggedSwitchRefused = false;
+    g_LoggedAnimEvents = 0;
 }
 
 /**
@@ -510,7 +520,59 @@ public Action Hook_WeaponSwitch(int client, int weapon) {
     if (c4 == -1 || weapon == c4) {
         return Plugin_Continue;
     }
+    if (!g_LoggedSwitchRefused) {
+        g_LoggedSwitchRefused = true;
+        char classname[32];
+        if (!IsValidEntity(weapon) || !GetEntityClassname(weapon, classname, sizeof(classname))) {
+            strcopy(classname, sizeof(classname), "?");
+        }
+        AutoplantDebug("%L tried to take %s instead of the C4 %.2f s before the plant, refused",
+                       client, classname, g_PlantTime - GetGameTime());
+    }
     return Plugin_Handled;
+}
+
+/**
+ * Debug only: logs the animation events (PlayerAnimEvent) and the shots (Shotgun Shot)
+ * of the carrier while the plugin plants, to find out what the clients play on it.
+ * Changes nothing.
+ */
+public Action OnDebugTempEnt(const char[] te_name, const int[] players, int numClients, float delay) {
+    if (!g_Pending || g_Carrier == 0 || g_LoggedAnimEvents >= MAX_LOGGED_ANIM_EVENTS) {
+        return Plugin_Continue;
+    }
+
+    int player = 0;
+    int value = -1;
+    if (StrEqual(te_name, "Shotgun Shot")) {
+        if (TE_IsValidProp("m_iPlayer")) {
+            player = TE_ReadNum("m_iPlayer") + 1;
+        }
+        if (TE_IsValidProp("m_iWeaponID")) {
+            value = TE_ReadNum("m_iWeaponID");
+        }
+    } else {
+        if (TE_IsValidProp("m_hPlayer")) {
+            // A handle: the entity index is in the low bits.
+            player = TE_ReadNum("m_hPlayer") & 0x7FF;
+        }
+        if (TE_IsValidProp("m_iEvent")) {
+            value = TE_ReadNum("m_iEvent");
+        }
+    }
+    if (player != g_Carrier) {
+        return Plugin_Continue;
+    }
+
+    g_LoggedAnimEvents++;
+    char classname[32] = "none";
+    int active = GetEntPropEnt(g_Carrier, Prop_Send, "m_hActiveWeapon");
+    if (active > MaxClients && IsValidEntity(active)) {
+        GetEntityClassname(active, classname, sizeof(classname));
+    }
+    AutoplantDebug("%s of the carrier %L (event/weapon id %d), %s in the hands, %.2f s before the plant",
+                   te_name, g_Carrier, value, classname, g_PlantTime - GetGameTime());
+    return Plugin_Continue;
 }
 
 /**
