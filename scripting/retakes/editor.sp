@@ -23,6 +23,10 @@ void PrecacheEditorSprites() {
  */
 void ExitEditMode() {
     Retakes_MessageToAll("Exiting edit mode.");
+    if (g_DirtySpawns) {
+        // Nothing is written on map change, see OnMapEnd.
+        Retakes_MessageToAll("{DARK_RED}The spawn changes are not saved:{NORMAL} use !savespawns, otherwise they are lost on map change.");
+    }
     g_EditMode = false;
     if (Retakes_InWarmup()) {
         Warmup_End(false);
@@ -194,8 +198,8 @@ void ReloadSpawns() {
 
 void DeleteMapSpawns() {
     g_NumSpawns = 0;
-    // An unsaved change like any other: without this (as in the original plugin) the
-    // map change did not write the file, and the deleted spawns came back.
+    // An unsaved change like any other (the original plugin did not mark it): the exit
+    // from the editor and sm_retakes_validatespawns report it.
     g_DirtySpawns = true;
     Retakes_MessageToAll("All spawns for this map have been deleted");
 }

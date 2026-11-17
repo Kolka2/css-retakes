@@ -317,12 +317,10 @@ public void OnMapStart() {
 }
 
 public void OnMapEnd() {
-    if (!g_Enabled) {
-        return;
-    }
-
+    // The spawns reach the file only through an explicit save (!savespawns or the editor
+    // menu); the original plugin wrote unsaved edits here. They are dropped with the map.
     if (g_DirtySpawns) {
-        WriteSpawns();
+        LogMessage("Unsaved spawn changes were discarded on map change (sm_savespawns saves them)");
     }
 }
 

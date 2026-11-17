@@ -8,7 +8,7 @@ Spawns are shipped for four maps: `de_dust2`, `de_cache`, `de_nuke` and `de_stri
 2. `!show a` / `!show b` picks the bombsite being edited; the rings show the existing spawns.
 3. Stand on the spot, look where the player should look and type `!new ct a`, `!new t a`, `!new ct b`, `!new t b`, or use the `!edit` menu → "Add a spawn" (it also picks the T spawn type: normal, bomb-carrier only, never bomb-carrier).
 4. Each site needs T spawns inside the bomb target area (the bomb carrier only spawns there), a few more T spawns around it and CT spawns on the rotation routes. The map needs at least `sm_retakes_maxplayers` spawns in total; in practice 5+ per team for each site.
-5. `!savespawns` saves them, then `sm_retakes_validatespawns` checks them. Leave the editor with "Exit edit mode" in the `!edit` menu.
+5. `!savespawns` saves them (nothing else writes the file: unsaved edits are lost on map change), then `sm_retakes_validatespawns` checks them. Leave the editor with "Exit edit mode" in the `!edit` menu.
 
 About the T spawn types: the bomb carrier is picked at random among all T spawns inside the bomb target area, both "bomb-carrier only" (green) and **normal** (red) ones. The "bomb-carrier only" type merely closes the spot for the other terrorists. To make the bomb carrier spawn on dedicated spots only, mark the other T spawns inside the bomb target area as "never bomb-carrier" (yellow). The full table is in the project `README.md`.
 
@@ -20,7 +20,7 @@ About the T spawn types: the bomb carrier is picked at random among all T spawns
 2. `!show a` / `!show b` — какой бомбплейс редактируется; кольца показывают уже созданные спавны.
 3. Встаньте в нужную точку, повернитесь, куда должен смотреть игрок, и напишите `!new ct a`, `!new t a`, `!new ct b`, `!new t b` — или пользуйтесь меню `!edit` → «Add a spawn» (там же выбирается тип T-спавна: обычный, только для бомбера, никогда для бомбера).
 4. На каждый сайт нужно: T-спавны внутри бомбплейса (бомбер появляется только на спавне внутри зоны закладки), ещё несколько T-спавнов рядом и CT-спавны на путях подхода. Всего спавнов на карте — не меньше `sm_retakes_maxplayers`, а на практике по 5+ на команду на каждый сайт.
-5. `!savespawns` — сохранить, затем `sm_retakes_validatespawns` — проверить. Выход из редактора — пункт «Exit edit mode» в меню `!edit`.
+5. `!savespawns` — сохранить (больше ничто файл не пишет: несохранённые правки при смене карты пропадают), затем `sm_retakes_validatespawns` — проверить. Выход из редактора — пункт «Exit edit mode» в меню `!edit`.
 
 Важно про типы T-спавнов: бомбер выбирается случайно среди всех T-спавнов внутри зоны закладки — и «только бомбер» (зелёных), и **обычных** (красных). Тип «только бомбер» лишь закрывает точку для остальных T. Чтобы бомбер появлялся только на выделенных точках, остальные T-спавны внутри зоны закладки нужно пометить «никогда бомбер» (жёлтые). Подробная таблица — в `README.ru.md` проекта.
 

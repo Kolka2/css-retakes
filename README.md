@@ -38,7 +38,7 @@ Spawns are shipped for four maps: `de_dust2`, `de_cache`, `de_nuke` and `de_stri
 | Chat | Console | What it does |
 |---|---|---|
 | `!edit` | `sm_edit` | enter the editor and open its menu; in the editor everybody respawns, the round never ends, there are no bots |
-| `!endedit` | `sm_endedit` | leave the editor and start the game; the same as "Exit edit mode" in the menu. Unsaved spawns stay in memory and are written on map change or by `!savespawns` |
+| `!endedit` | `sm_endedit` | leave the editor and start the game; the same as "Exit edit mode" in the menu. Unsaved spawns stay in memory until the map changes; only `!savespawns` writes them to the file, and leaving the editor reminds about them |
 | `!show a` / `!show b` | `sm_show a` / `sm_show b` | show the spawns of a site (rings: blue — CT, red — T, green — T "bomb carrier only", yellow — T "never bomb carrier") |
 | `!new ct a`, `!new t b` … | `sm_new ct a`, `sm_new t b` … | create a spawn where you stand (the view angle is saved); the menu also lets you pick the T spawn type |
 | `!delete` | `sm_delete` | delete the nearest spawn of the shown site |
@@ -46,7 +46,7 @@ Spawns are shipped for four maps: `de_dust2`, `de_cache`, `de_nuke` and `de_stri
 | `!next`, `!prev` | `sm_next`, `sm_prev` | teleport to the next / previous spawn in index order, wrapping around; the shown site switches to the spawn's one; also in the `!edit` menu |
 | `!iteratespawns` | `sm_iteratespawns` | visit every spawn in turn (the shown site switches to each spawn's one) |
 | `!savespawns`, `!reloadspawns` | `sm_savespawns`, `sm_reloadspawns` | save (replies with the number of spawns written) / reload from the file, discarding changes |
-| `!deletemapspawns` | `sm_deletemapspawns` | delete all spawns of the map; like any other edit it reaches the file on `!savespawns` or on a map change, until then `!reloadspawns` brings everything back |
+| `!deletemapspawns` | `sm_deletemapspawns` | delete all spawns of the map; like any other edit it reaches the file only on `!savespawns`, until then `!reloadspawns` or a map change brings everything back |
 | `!retakes_validatespawns` | `sm_retakes_validatespawns` | check the spawns and print a report |
 
 Each site needs:
@@ -65,7 +65,7 @@ T spawn types (same as in the original plugin):
 
 "Bomb-carrier only" does not tie the bomb carrier to that spot, it only closes the spot for everybody else. The bomb carrier is picked at random among all green **and red** spawns inside the bomb target area. To make the bomb carrier spawn on dedicated spots only, mark the other T spawns inside the bomb target area as "Never bomb-carrier". The type of an existing spawn cannot be edited: delete it (`!delete`) and create it again through `!edit` → "Add a spawn".
 
-Leave the editor with "Exit edit mode" in the `!edit` menu; the game restarts. Spawns are stored in `addons/sourcemod/configs/retakes/<map>.cfg`; unsaved changes are written on map change.
+Leave the editor with "Exit edit mode" in the `!edit` menu; the game restarts. Spawns are stored in `addons/sourcemod/configs/retakes/<map>.cfg`; the file changes only on an explicit save (`!savespawns` or "Save map spawns" in the menu), unsaved changes are lost on map change.
 
 ## How it plays
 
