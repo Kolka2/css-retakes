@@ -386,8 +386,8 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
         // 0.5-0.8 s (seen on a live CS:S server: a human carrier with another weapon out
         // got the bomb planted that much late). So a human carrier is switched to the C4
         // a second ahead. Bots are left alone here: their plant is on time as it is.
-        // CSS-VERIFY: with the C4 selected a second ahead the plant is on time, and the
-        // early switch does not disturb the carrier during the freezetime.
+        // Checked on a live CS:S server: with the C4 selected a second ahead the bomb is
+        // planted on time.
         if (client == g_Carrier && now >= g_PlantTime - DRAW_LEAD_TIME
             && !IsFakeClient(client) && IsPlayerAlive(client)) {
             int carried = GetClientC4(client);
