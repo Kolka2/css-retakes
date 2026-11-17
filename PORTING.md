@@ -1,279 +1,279 @@
-# Retakes для CS:S: как устроен порт
+# Retakes for CS:S: how the port works
 
-Этот документ для того, кто будет читать или менять код. В нём три вещи:
+This document is for whoever reads or changes the code. [Русская версия](PORTING.ru.md). It covers three things:
 
-1. как SourceMod-плагин вообще разговаривает с игрой (на примерах из этого репозитория);
-2. чем CS:S отличается от CS:GO там, где это задело Retakes;
-3. какие решения приняты в порте и почему.
+1. how a SourceMod plugin talks to the game at all (with examples from this repository);
+2. how CS:S differs from CS:GO where it affected Retakes;
+3. which decisions the port made and why.
 
-Чего здесь нет: установки и кваров (они в [README.md](README.md)), описания API для аддонов (оно в [scripting/include/retakes.inc](scripting/include/retakes.inc) и [warmup.inc](scripting/include/warmup.inc)) и пересказа комментариев из кода. Там, где механизм уже объяснён в комментарии, стоит ссылка на файл.
+What is not here: installation and cvars (they are in [README.md](README.md)), the addon API (it is in [scripting/include/retakes.inc](scripting/include/retakes.inc) and [warmup.inc](scripting/include/warmup.inc)) and retelling of the code comments. Where a mechanism is already explained in a comment, there is a link to the file.
 
-База порта: `splewis/csgo-retakes`, коммит `9aae157` (v0.3.4, май 2023). Цель: CS:S после обновления февраля 2025, SourceMod 1.12 и Metamod:Source 1.12. Слова «подтверждено на сервере» ниже означают, что поведение проверено владельцем на живом сервере CS:S, а не выведено из документации.
+The base of the port is `splewis/csgo-retakes`, commit `9aae157` (v0.3.4, May 2023). The target is CS:S after the February 2025 update, SourceMod 1.12 and Metamod:Source 1.12. "Confirmed on a server" below means the behaviour was checked on a live CS:S server, not derived from documentation.
 
-## 1. Как плагин SourceMod разговаривает с игрой
+## 1. How a SourceMod plugin talks to the game
 
-### Плагин как программа
+### A plugin as a program
 
-Исходник `.sp` компилируется `spcomp` в `.smx`, сервер загружает `.smx` из `addons/sourcemod/plugins/`. Один плагин собирается из одного `.sp`; всё, что подключено через `#include`, вставляется в него текстом. Поэтому файлы в `scripting/retakes/` не модули: у них общая глобальная область имён с `retakes.sp`, а порядок подключения имеет значение. Спрятать переменную или функцию внутри файла можно словом `static`.
+The `spcomp` compiler turns a `.sp` source into a `.smx`, and the server loads `.smx` files from `addons/sourcemod/plugins/`. One plugin is built from one `.sp`; everything pulled in with `#include` is pasted into it as text. So the files in `scripting/retakes/` are not modules: they share one global namespace with `retakes.sp`, and the order of the includes matters. A variable or function can be hidden inside a file with `static`.
 
-Плагин однопоточный и ничего не делает сам: сервер зовёт его функции в ответ на то, что произошло. Основные точки входа, в порядке вызова:
+A plugin is single-threaded and does nothing on its own: the server calls its functions in response to what happened. The main entry points, in call order:
 
-| Функция | Когда | Что в ней делают |
+| Function | When | What goes there |
 |---|---|---|
-| `AskPluginLoad2` | до загрузки | объявляют нативы и имя библиотеки; здесь можно отказаться от загрузки (порт так проверяет `GetEngineVersion() == Engine_CSS`) |
-| `OnPluginStart` | один раз при загрузке | квары, команды, подписки на события |
-| `OnAllPluginsLoaded` | когда загружены все плагины | проверяют необязательные зависимости |
-| `OnMapStart` | на каждой карте | прекеш, сброс состояния карты |
-| `OnConfigsExecuted` | после `server.cfg` и своих `.cfg` | читают значения кваров: раньше этого момента они ещё значения по умолчанию |
-| `OnClientPutInServer`, `OnClientDisconnect` | вход и выход игрока | хуки на игрока, сброс его данных |
-| `OnMapEnd`, `OnPluginEnd` | конец карты, выгрузка | сохранение, возврат изменённых кваров |
+| `AskPluginLoad2` | before loading | natives and the library name are declared; the plugin may refuse to load here (the port checks `GetEngineVersion() == Engine_CSS`) |
+| `OnPluginStart` | once on load | cvars, commands, event subscriptions |
+| `OnAllPluginsLoaded` | when all plugins are loaded | optional dependencies are checked |
+| `OnMapStart` | on every map | precaching, resetting the map state |
+| `OnConfigsExecuted` | after `server.cfg` and the plugin `.cfg` files | cvar values are read: before this point they still hold the defaults |
+| `OnClientPutInServer`, `OnClientDisconnect` | a player joins and leaves | hooks on the player, resetting their data |
+| `OnMapEnd`, `OnPluginEnd` | end of map, unload | saving, restoring changed cvars |
 
-Плагин можно загрузить посреди карты (`sm plugins load`), и тогда `OnMapStart` и `OnClientPutInServer` для уже зашедших игроков не придут сами. Если плагину это важно, он обходит клиентов в `OnPluginStart`.
+A plugin can be loaded in the middle of a map (`sm plugins load`), and then `OnMapStart` and `OnClientPutInServer` for players already on the server do not arrive by themselves. If that matters, the plugin walks over the clients in `OnPluginStart`.
 
-### «Сейчас» и «позже»
+### "Now" and "later"
 
-Сервер считает мир шагами (тик, он же кадр). Обработчик выполняется внутри того шага, где что-то произошло, и игра в этот момент часто находится на полпути: событие уже разослано, а связанные с ним данные ещё не записаны. Отсюда главный приём всей работы с движком: сделать действие не сейчас, а чуть позже.
+The server simulates the world in steps (ticks, also called frames). A handler runs inside the step where something happened, and the game is often halfway through at that moment: the event is already sent, while the related data is not written yet. Hence the main technique of all engine work: do things not now, but a little later.
 
-- `RequestFrame(функция, данные)` вызывает функцию на следующем кадре. Это «как только игра закончит то, что делает».
-- `CreateTimer(секунды, функция, данные)` вызывает её через время. Таймер неточен на величину кадра, и на него нельзя опираться, когда два события разделяют доли секунды.
+- `RequestFrame(function, data)` calls the function on the next frame. It means "as soon as the game finishes what it is doing".
+- `CreateTimer(seconds, function, data)` calls it after a delay. A timer is off by up to a frame, and it cannot be relied on when two events are fractions of a second apart.
 
-За время задержки игрок мог выйти, а на его место (тот же номер клиента) зайти другой. Поэтому через задержку передают не номер клиента, а `GetClientUserId(client)` или `GetClientSerial(client)` и превращают обратно в обработчике; если игрок ушёл, получится 0. То же с сущностями: `EntIndexToEntRef` и `EntRefToEntIndex`. Для «это всё ещё тот же раунд?» в ядре есть счётчик `g_RoundSerial`: отложенный вызов запоминает его значение и сверяет.
+During the delay the player may leave, and someone else may take their place (the same client index). So a delayed call gets `GetClientUserId(client)` or `GetClientSerial(client)` instead of the index and converts it back in the handler; if the player is gone, the result is 0. The same for entities: `EntIndexToEntRef` and `EntRefToEntIndex`. For "is this still the same round?" the core has the `g_RoundSerial` counter: a delayed call remembers its value and compares.
 
-### Клиенты и сущности
+### Clients and entities
 
-Всё в мире (игрок, оружие, бомба, зона закладки) является сущностью с номером. Номера с 1 по `MaxClients` заняты игроками, поэтому номер клиента одновременно номер его сущности. Сущность ищут по имени класса (`FindEntityByClassname(…, "func_bomb_target")`), создают по нему же (`GivePlayerItem(client, "weapon_ak47")`). Имена классов оружия в CS:S и CS:GO разные, и это половина косметической части порта.
+Everything in the world (a player, a weapon, the bomb, a bomb target zone) is an entity with an index. Indexes 1 to `MaxClients` belong to players, so a client index is also the index of its entity. Entities are found by class name (`FindEntityByClassname(…, "func_bomb_target")`) and created by it (`GivePlayerItem(client, "weapon_ak47")`). Weapon class names differ between CS:S and CS:GO, and that is half of the cosmetic part of the port.
 
-Бот для плагина такой же клиент; отличает его `IsFakeClient`. Оригинал считал участником только человека. В порте есть две проверки: `IsPlayer` (человек; чат, меню, cookie) и `IsParticipant` (человек или бот; очередь, команды, очки, бомбер).
+A bot is a client like any other to a plugin; `IsFakeClient` tells it apart. The original treated only humans as participants. The port has two checks: `IsPlayer` (a human; chat, menus, cookies) and `IsParticipant` (a human or a bot; the queue, teams, points, the bomb carrier).
 
-### Пять способов узнать что-то у игры и повлиять на неё
+### Five ways to learn something from the game and to influence it
 
-От самого безопасного к самому хрупкому.
+From the safest to the most fragile.
 
-**1. События** (`HookEvent`). Игра сообщает: «раунд начался», «игрок умер», «бомба заложена». У события есть имя и поля (`event.GetInt("userid")`). Это уведомление о случившемся: отменить через него почти ничего нельзя. Подписка в режиме `EventHookMode_Pre` даёт только одно право: изменить событие или не разослать его клиентам. Список событий у каждой игры свой (файлы `resource/modevents.res` игры и `gameevents.res`, `serverevents.res` движка). `HookEvent` на имя, которого в игре нет, бросает ошибку, и плагин не загружается; `HookEventEx` в этом случае возвращает `false`.
+**1. Events** (`HookEvent`). The game reports: "the round started", "a player died", "the bomb was planted". An event has a name and fields (`event.GetInt("userid")`). It is a notice of what has happened: almost nothing can be undone through it. Subscribing in `EventHookMode_Pre` gives only one right: to change the event or not to send it to the clients. Every game has its own list of events (the game's `resource/modevents.res` and the engine's `gameevents.res`, `serverevents.res`). `HookEvent` on a name the game does not have throws an error, and the plugin does not load; `HookEventEx` returns `false` in that case.
 
-**2. Свойства сущностей** (`GetEntProp`, `SetEntProp` и их варианты для float, вектора, строки, сущности). Это прямое чтение и запись полей объекта игры по имени. Таблиц две:
+**2. Entity properties** (`GetEntProp`, `SetEntProp` and their float, vector, string and entity variants). This is direct reading and writing of fields of a game object by name. There are two tables:
 
-- `Prop_Send` (сетевые свойства, netprops): то, что сервер рассылает клиентам. Запись в такое поле меняет и состояние на сервере, и то, что видит игрок. Так выставляется время раунда (`m_iRoundTime`), деньги (`m_iAccount`), броня (`m_ArmorValue`), шкала прогресса на экране.
-- `Prop_Data` (datamap): серверные поля, которые клиентам не уходят.
+- `Prop_Send` (network properties, netprops): what the server sends to the clients. Writing such a field changes both the state on the server and what the player sees. That is how the round time (`m_iRoundTime`), money (`m_iAccount`), armor (`m_ArmorValue`) and the progress bar on the screen are set.
+- `Prop_Data` (datamap): server fields that are not sent to the clients.
 
-У правил игры отдельные функции: `GameRules_GetProp` и `GameRules_SetProp`. Если свойства с таким именем нет, вызов бросает ошибку, и обработчик обрывается на этом месте. Наличие проверяется через `HasEntProp` или `FindSendPropInfo`. Списки свойств своего сервера выгружаются командами `sm_dump_netprops файл` и `sm_dump_datamaps файл`.
+The game rules have their own functions: `GameRules_GetProp` and `GameRules_SetProp`. If there is no property with the given name, the call throws an error, and the handler stops right there. Existence is checked with `HasEntProp` or `FindSendPropInfo`. The property lists of your own server are dumped with `sm_dump_netprops file` and `sm_dump_datamaps file`.
 
-Важно понимать, что запись в поле не вызывает код игры. Она меняет число, а игра прочитает его, когда дойдёт до него сама. Хорошо работают поля, которые игра перечитывает каждый кадр (сроки вида «в такой-то момент игрового времени», флаги). Плохо работают поля, которые игра считает только результатом своих действий.
+It is important to understand that writing a field does not call game code. It changes a number, and the game reads it when it gets to it. Fields the game rereads every frame work well (deadlines of the "at this game time" kind, flags). Fields the game only computes as the result of its own actions work poorly.
 
-**3. Квары и команды.** Квары игры читаются и пишутся через `FindConVar`; свои создаются `CreateConVar`. `AutoExecConfig` создаёт для своих кваров файл в `cfg/sourcemod/` и исполняет его на каждой карте, но в уже существующий файл новые квары не дописывает. Изменение квара отслеживается через `AddChangeHook`.
+**3. Cvars and commands.** Game cvars are read and written through `FindConVar`; your own are created with `CreateConVar`. `AutoExecConfig` creates a file in `cfg/sourcemod/` for your cvars and executes it on every map, but it does not add new cvars to an existing file. Changes of a cvar are tracked with `AddChangeHook`.
 
-Команды бывают двух видов, и их легко перепутать. Серверные команды клиент отправляет на сервер (`jointeam`, `joinclass`, `buy`, `say`): плагин может их перехватить (`AddCommandListener`) и отклонить, вернув `Plugin_Handled`, а также выполнить от имени игрока (`FakeClientCommand`). Клиентские команды исполняет сам клиент (`use weapon_c4`, `slot5`): сервер о них не знает, и `FakeClientCommand` с ними ничего не делает.
+Commands come in two kinds, and they are easy to confuse. Server commands are sent by the client to the server (`jointeam`, `joinclass`, `buy`, `say`): a plugin can intercept them (`AddCommandListener`) and refuse them by returning `Plugin_Handled`, and it can run them on behalf of a player (`FakeClientCommand`). Client commands are executed by the client itself (`use weapon_c4`, `slot5`): the server does not know about them, and `FakeClientCommand` does nothing with them.
 
-**4. Хуки.** Хук ставит функцию плагина внутрь работы игры и часто даёт право вето.
+**4. Hooks.** A hook puts a plugin function inside the work of the game and often gives a veto.
 
-- `OnPlayerRunCmd` вызывается на каждую команду движения каждого игрока. В ней можно подменить кнопки, направление и поле `weapon` (на какое оружие переключиться). Это единственный серверный способ «нажать кнопку» за игрока.
-- SDKHooks (`SDKHook(сущность, тип, функция)`) цепляются за виртуальные функции сущности: `SDKHook_WeaponCanUse` (можно ли подобрать оружие), `SDKHook_WeaponSwitch` (можно ли сменить оружие), `SDKHook_PostThinkPost` (после обдумывания игрока, каждый кадр), `SDKHook_SpawnPost` (сущность появилась). Хук ставится на конкретную сущность, поэтому на игроков его вешают в `OnClientPutInServer`.
-- Форварды расширения `cstrike`: `CS_OnTerminateRound` (игра хочет закончить раунд; можно отменить) и `CS_OnBuyCommand` (игрок покупает; можно отменить).
-- Пользовательские сообщения (`HookUserMessage`): пакеты, которыми сервер рисует клиенту текст, меню, подсказки (`HintText`, `TextMsg`, `SayText2`, `ShowMenu`). Их можно не пропустить к клиенту или отправить самим.
+- `OnPlayerRunCmd` is called for every movement command of every player. It can replace the buttons, the view angles and the `weapon` field (which weapon to switch to). It is the only server-side way to "press a button" for a player.
+- SDKHooks (`SDKHook(entity, type, function)`) attach to virtual functions of an entity: `SDKHook_WeaponCanUse` (may the weapon be picked up), `SDKHook_WeaponSwitch` (may the weapon be switched), `SDKHook_PostThinkPost` (after the player thinks, every frame), `SDKHook_SpawnPost` (the entity has appeared). A hook is set on a particular entity, so player hooks go into `OnClientPutInServer`.
+- Forwards of the `cstrike` extension: `CS_OnTerminateRound` (the game wants to end the round; can be cancelled) and `CS_OnBuyCommand` (a player buys; can be cancelled).
+- User messages (`HookUserMessage`): packets the server uses to draw text, menus and hints for the client (`HintText`, `TextMsg`, `SayText2`, `ShowMenu`). They can be kept from the client or sent by the plugin.
 
-**5. Память игры** (gamedata, `SDKCall`, смещения). Когда нужного нет ни в событиях, ни в свойствах, остаётся работать с внутренностями `server.dll` / `server.so`: вызывать внутренние функции или читать поля по смещению от начала объекта. Адреса и смещения хранятся в файле gamedata отдельно для каждой платформы и перестают быть верными после обновления игры. Ошибка здесь означает запись в чужую память и падение сервера. Подробнее в разделе 6.
+**5. Game memory** (gamedata, `SDKCall`, offsets). When what you need is neither in events nor in properties, what is left is to work with the internals of `server.dll` / `server.so`: call internal functions or read fields at an offset from the start of an object. Addresses and offsets are stored in a gamedata file for each platform separately and stop being valid after a game update. A mistake here means writing into foreign memory and a server crash. More in section 4, about `retakes_bothelper`.
 
-Расширение `cstrike` (нативы `CS_TerminateRound`, `CS_SwitchTeam`, `CS_RespawnPlayer`, `CS_UpdateClientModel`) устроено именно так, но его gamedata ведёт команда SourceMod и обновляет вместе с ним. Для плагина это обычные функции.
+The `cstrike` extension (natives `CS_TerminateRound`, `CS_SwitchTeam`, `CS_RespawnPlayer`, `CS_UpdateClientModel`) works exactly this way, but its gamedata is maintained by the SourceMod team and updated together with SourceMod. To a plugin they are ordinary functions.
 
-### Плагины между собой
+### Plugins and each other
 
-- **Нативы.** Плагин объявляет функцию (`CreateNative` в `AskPluginLoad2`), другие зовут её как обычную. Описание лежит в `.inc`-файле, который подключают оба.
-- **Форварды.** Обратное направление: плагин объявляет событие (`CreateGlobalForward`), и любой другой плагин, в котором есть `public`-функция с таким именем, получает вызов. Форвард может собирать ответы: так `Warmup_OnEnding` позволяет наложить вето на конец разминки, а `Retakes_OnSitePicked` поменять сайт.
-- **Библиотеки и необязательные зависимости.** Плагин называет себя (`RegPluginLibrary("retakes")`). Потребитель, которому зависимость не обязательна, собирается без `REQUIRE_PLUGIN`, помечает нативы `MarkNativeAsOptional` и перед вызовом проверяет `LibraryExists` (или следит за `OnLibraryAdded` / `OnLibraryRemoved`). Вызов натива отсутствующего плагина бросает ошибку. Образец: [retakes/warmup_link.sp](scripting/retakes/warmup_link.sp).
-- **Cookie** (расширение `clientprefs`): строка, привязанная к Steam ID и имени cookie, хранится в базе сервера. Значение доступно не сразу после входа, а после `OnClientCookiesCached`. У ботов cookie нет.
-- **Переводы.** Фразы лежат в `translations/*.phrases.txt` (английский в корне, остальные языки в подпапках), подставляются по языку клиента через `%t` / `%T`. Отсутствующая фраза бросает ошибку при каждом показе.
+- **Natives.** A plugin declares a function (`CreateNative` in `AskPluginLoad2`), and others call it like an ordinary one. Its description lives in an `.inc` file that both include.
+- **Forwards.** The other direction: a plugin declares an event (`CreateGlobalForward`), and every other plugin with a `public` function of that name gets called. A forward can collect answers: `Warmup_OnEnding` lets a plugin veto the end of the warmup, and `Retakes_OnSitePicked` lets it change the site.
+- **Libraries and optional dependencies.** A plugin names itself (`RegPluginLibrary("retakes")`). A consumer for which the dependency is optional is built without `REQUIRE_PLUGIN`, marks the natives with `MarkNativeAsOptional` and checks `LibraryExists` before the call (or follows `OnLibraryAdded` / `OnLibraryRemoved`). Calling a native of a missing plugin throws an error. Example: [retakes/warmup_link.sp](scripting/retakes/warmup_link.sp).
+- **Cookies** (the `clientprefs` extension): a string tied to a Steam ID and a cookie name, stored in the server database. The value is not available right after joining, only after `OnClientCookiesCached`. Bots have no cookies.
+- **Translations.** Phrases live in `translations/*.phrases.txt` (English at the root, other languages in subfolders) and are picked by the client language through `%t` / `%T`. A missing phrase throws an error every time it is shown.
 
-## 2. Чем CS:S отличается от CS:GO
+## 2. How CS:S differs from CS:GO
 
-Обе игры на Source, но CS:S старше на поколение движка, и почти всё, что в CS:GO вынесено в настройки и события, в CS:S зашито в код.
+Both games run on Source, but CS:S is a whole engine generation older, and almost everything CS:GO exposes as settings and events is hard-coded in CS:S.
 
-### Ход раунда
+### The round flow
 
 | | CS:GO | CS:S |
 |---|---|---|
-| Перед респауном | событие `round_prestart` | события нет |
-| После респауна | `round_poststart`, затем `round_start` | только `round_start`: к его приходу игра уже заспаунила всех |
-| Пауза после `round_end` | `mp_round_restart_delay` | около 5 с, не настраивается |
-| Смена сторон, перерыв | `announce_phase_end`, `mp_halftime` | нет |
-| Игрок полностью зашёл | `player_connect_full` | нет |
-| Фризтайм | `round_freeze_end` | `round_freeze_end`; приходит каждый раунд и при `mp_freezetime 0`; дробная часть `mp_freezetime` отбрасывается |
+| Before the respawn | the `round_prestart` event | no event |
+| After the respawn | `round_poststart`, then `round_start` | only `round_start`: by the time it arrives the game has spawned everybody |
+| Pause after `round_end` | `mp_round_restart_delay` | about 5 s, not configurable |
+| Side switch, halftime | `announce_phase_end`, `mp_halftime` | none |
+| Player fully connected | `player_connect_full` | none |
+| Freezetime | `round_freeze_end` | `round_freeze_end`; arrives every round, also with `mp_freezetime 0`; the fractional part of `mp_freezetime` is dropped |
 
-Последовательность CS:S: `round_end` → пауза → игра респаунит всех и выдаёт C4 → `round_start` → фризтайм → `round_freeze_end`. Оригинал собирал команды в `round_prestart`, то есть после паузы и прямо перед респауном. В CS:S такого момента нет, и это определило схему раунда порта (раздел 3).
+The CS:S sequence: `round_end` → pause → the game respawns everybody and gives out the C4 → `round_start` → freezetime → `round_freeze_end`. The original built the teams in `round_prestart`, that is after the pause and right before the respawn. CS:S has no such moment, and that defined the round scheme of the port (section 3).
 
-Есть ещё «Game Commencing»: когда на пустой сервер заходит первый игрок (или команда перестаёт быть пустой), игра сама заканчивает раунд с причиной 15 и перезапускает игру со сбросом счёта. То же делает `mp_restartgame`. Плагин узнаёт о рестарте по `round_start`, перед которым не было `round_end`.
+There is also "Game Commencing": when the first player joins an empty server (or a team stops being empty), the game ends the round itself with reason 15 and restarts the game with a score reset. `mp_restartgame` does the same. The plugin detects a restart by a `round_start` that had no `round_end` before it.
 
-### Разминка
+### Warmup
 
-В CS:GO разминка встроена: квары `mp_warmup_*`, `mp_do_warmup_period`, свойство `m_bWarmupPeriod`. В CS:S её нет совсем. Всё, что называется разминкой в порте, сделано плагином: раунд, который не заканчивается (`CS_OnTerminateRound` возвращает `Plugin_Handled`, а `m_iRoundTime` продлевается), респаун после смерти (`CS_RespawnPlayer`), деньги, удаление бомбы.
+In CS:GO the warmup is built in: the `mp_warmup_*` cvars, `mp_do_warmup_period`, the `m_bWarmupPeriod` property. CS:S has none of that. Everything the port calls a warmup is done by a plugin: a round that does not end (`CS_OnTerminateRound` returns `Plugin_Handled`, and `m_iRoundTime` is extended), respawn after death (`CS_RespawnPlayer`), money, bomb removal.
 
-### Оружие и снаряжение
-
-| | CS:GO | CS:S |
-|---|---|---|
-| Нож | `weapon_knife`, у T `weapon_knife_t` | один `weapon_knife` |
-| Стартовые пистолеты | `hkp2000` / `usp_silencer`, `glock` | `usp`, `glock` |
-| Прочие пистолеты | `p250`, `tec9`, `cz75a`, … | `p228`, `elite`, `fiveseven`, `deagle` |
-| Винтовки | `m4a1`, `m4a1_silencer`, `sg556`, `galilar`, … | `m4a1` (глушитель на ПКМ), `sg552`, `galil`, `famas`, `aug` |
-| Снайперские | `ssg08`, `awp`, … | `scout`, `awp`, `sg550`, `g3sg1` |
-| Гранаты | осколочная, световая, дым, молотов, зажигательная, ложная | осколочная, световая, дым |
-
-`GivePlayerItem` с именем класса, которого в игре нет, ничего не выдаёт. Поэтому буквы гранат `m`, `i`, `d` в раскладках сторонних аллокаторов пропускаются, а cookie с именами оружия CS:GO читаются как «по умолчанию».
-
-Гранаты в CS:S устроены как оружие с патронами: предмет в руках один, а количество хранится в запасе патронов игрока (массив `m_iAmmo`, индекс берётся из `m_iPrimaryAmmoType` оружия). Отсюда два следствия, оба найдены на сервере: удаление предмета-гранаты не убирает запас, и следующая выданная граната того же типа даёт две; «добор патронов всему оружию» добавляет гранаты. Поэтому `RemoveAllWeapons` обнуляет запас каждого удаляемого типа, а патроны добираются только основному оружию и пистолету.
-
-### Бомба
-
-В CS:GO есть `mp_give_player_c4`. В CS:S выдачу нельзя отключить: при рестарте раунда игра сама даёт C4 случайному террористу и отдельно шлёт ему подсказку «у вас бомба». Ещё она выдаёт C4 ботам, когда те заходят на сервер. Порт не может помешать выдаче и исправляет её последствия (раздел 3).
-
-Команды `use` и `slot5` клиентские, поэтому достать C4 в руки игроку можно только через поле `weapon` в `OnPlayerRunCmd`.
-
-### Деньги и закупка
-
-В CS:GO экономика отключается кварами (`mp_startmoney 0`, `mp_*cashawards`, `mp_buytime 0`). В CS:S наград-кваров нет, а минимум `mp_buytime` равен 0.25 минуты. Деньги лежат в `m_iAccount`; награда за убийство начисляется уже после события `player_death`. Запретить покупку можно только через `CS_OnBuyCommand`.
-
-### Команды и модели
-
-В CS:S после выбора команды игрок выбирает модель (`joinclass`), и пока модель не выбрана (`m_iClass` равен 0), он не спаунится. Плагин, который сам переводит игрока из наблюдателей в команду, должен сам выставить класс, иначе игрок получит меню модели. Повторный `joinclass` у живого игрока его убивает.
-
-`CS_SwitchTeam` меняет команду без смерти и без смены модели (её обновляет `CS_UpdateClientModel` или следующий респаун). `ChangeClientTeam` убивает игрока; порт использует его для перевода в наблюдатели.
-
-Событие `player_team` в CS:S имеет поле `silent`, но клиент его не учитывает и всё равно пишет в чат «игрок зашёл за команду».
-
-### Чат, HUD, меню
+### Weapons and equipment
 
 | | CS:GO | CS:S |
 |---|---|---|
-| Цвета чата | фиксированная палитра, коды `\x01`–`\x10` | `\x01` обычный, `\x03` цвет команды, `\x04` зелёный, `\x05` оливковый, `\x07RRGGBB` любой цвет |
-| Hint-сообщение | поддерживает HTML | простой текст; каждое сообщение сопровождается звуком `UI/hint.wav` |
-| Меню | через радио-меню, клавиши 1–9 | так же (`ShowMenu`), 0 закрывает |
+| Knife | `weapon_knife`, `weapon_knife_t` for T | a single `weapon_knife` |
+| Starting pistols | `hkp2000` / `usp_silencer`, `glock` | `usp`, `glock` |
+| Other pistols | `p250`, `tec9`, `cz75a`, … | `p228`, `elite`, `fiveseven`, `deagle` |
+| Rifles | `m4a1`, `m4a1_silencer`, `sg556`, `galilar`, … | `m4a1` (silencer on right click), `sg552`, `galil`, `famas`, `aug` |
+| Snipers | `ssg08`, `awp`, … | `scout`, `awp`, `sg550`, `g3sg1` |
+| Grenades | HE, flashbang, smoke, molotov, incendiary, decoy | HE, flashbang, smoke |
 
-Теги цветов в переводах (`{GREEN}`, `{LIGHT_RED}`, …) остались прежними, изменилась только таблица кодов в [retakes/generic.sp](scripting/retakes/generic.sp). Код `\x07RRGGBB` занимает 7 байт, а не 1: это важно при расчёте длины строки.
+`GivePlayerItem` with a class name the game does not have gives nothing. That is why the grenade letters `m`, `i`, `d` in third-party allocator loadouts are skipped, and cookies with CS:GO weapon names are read as "default".
 
-Меню SourceMod живёт на сервере. `Menu.Cancel()` закрывает его только там; на экране оно висит, пока не истечёт время показа или клиент не получит другое меню. Меню, отправленное в момент рестарта игры, до экрана не доходит.
+Grenades in CS:S are weapons with ammo: there is one item in the hands, and the count is stored in the player's ammo reserve (the `m_iAmmo` array, indexed by the weapon's `m_iPrimaryAmmoType`). Two consequences, both found on a server: removing the grenade item does not clear the reserve, so the next grenade of the same type gives two; and "refill ammo for every weapon" adds grenades. That is why `RemoveAllWeapons` zeroes the reserve of every removed type, and ammo is refilled only for the primary and the pistol.
 
-### Боты
+### The bomb
 
-Боты CS:S знают сценарий закладки бомбы: ставят и разминируют сами (подтверждено на сервере). Но их число задаёт игра по `bot_quota`, добавляет она их по одному за кадр-другой, а не всех сразу, и плагин не может «добавить бота в эту команду сейчас». Управление сводится к квару квоты и к кику лишних.
+CS:GO has `mp_give_player_c4`. In CS:S the hand-out cannot be switched off: on a round restart the game gives the C4 to a random terrorist and separately sends them the "you have the bomb" hint. It also gives the C4 to bots as they join the server. The port cannot prevent the hand-out and fixes its consequences (section 3).
 
-CT-бот после закладки не знает, на каком сайте бомба. Точное место он узнаёт только из писка бомбы, если стоит ближе 1500 юнитов, либо по радио от такого бота. Остальные обходят сайты по очереди. В режиме, где у CT 40 секунд, это заметно; отсюда аддон `retakes_bothelper`.
+The `use` and `slot5` commands are client commands, so the only way to put the C4 in a player's hands is the `weapon` field in `OnPlayerRunCmd`.
 
-### Сервер
+### Money and buying
 
-Сервер CS:S после обновления 2025 года бывает 32- и 64-битным. Для плагинов без gamedata разницы нет. Для работы с памятью она принципиальная: меняются размеры указателей и все смещения.
+In CS:GO the economy is switched off with cvars (`mp_startmoney 0`, `mp_*cashawards`, `mp_buytime 0`). CS:S has no award cvars, and the minimum of `mp_buytime` is 0.25 minutes. Money lives in `m_iAccount`; the kill award is paid after the `player_death` event. The only way to forbid buying is `CS_OnBuyCommand`.
 
-## 3. Как порт решает эти различия
+### Teams and models
 
-### Раунд без `round_prestart`
+In CS:S a player picks a model (`joinclass`) after picking a team, and until the model is picked (`m_iClass` is 0) they do not spawn. A plugin that moves a player from spectators to a team itself must set the class itself, otherwise the player gets the model menu. A second `joinclass` kills a living player.
 
-Шаги раунда и флаги описаны в комментарии над `g_PreparePending` в [retakes.sp](scripting/retakes.sp), код лежит в [retakes/round.sp](scripting/retakes/round.sp). Здесь только то, почему схема такая.
+`CS_SwitchTeam` changes the team without death and without a model change (the model is updated by `CS_UpdateClientModel` or the next respawn). `ChangeClientTeam` kills the player; the port uses it to move players to spectators.
 
-Команды должны смениться до того, как игра заспаунит игроков, иначе все появятся на прежних сторонах. Единственное событие перед респауном в CS:S — `round_end` предыдущего раунда. Поэтому составы следующего раунда собираются на следующем кадре после `round_end`, и всю паузу между раундами игроки стоят уже в новых командах. Это видимое отличие от оригинала, и оно неустранимо.
+The `player_team` event in CS:S has a `silent` field, but the client ignores it and still prints "player joined team" in chat.
 
-- Почему следующий кадр, а не таймер. Вариант «за 0.3 с до рестарта» был сделан и откачен: смена команд и респаун подряд дают заметный рывок перед началом раунда.
-- Почему оружие не снимается при подготовке. Игроки стояли бы всю паузу безоружными. Оружие снимается и выдаётся при расстановке.
-- Почему расстановка только в `round_start`. Раньше её делил между собой `player_spawn` и запасной путь в `round_start`, и при ручном `mp_restartgame` игроков расставляло дважды. Теперь точки, телепорт, оружие и респаун мёртвых выполняются один раз. Следствие: игрок, заспауненный посреди раунда чем-то посторонним, останется на стандартном спавне.
-- Если раунд начался без подготовки (первый раунд, `mp_restartgame`), подготовка выполняется прямо в `round_start`, а игроков плагин респаунит сам. В этом раунде они появляются дважды подряд.
-- `round_start` без предшествующего `round_end` и `round_end` с причиной «Game Commencing» считаются рестартом игры и сбрасывают прогресс (очки, серию побед T, счётчик раундов).
+### Chat, HUD, menus
 
-`CS_SwitchTeam` живого игрока между раундами его не убивает, и после рестарта все оказываются в новых командах: на этом держится вся схема, подтверждено на сервере.
+| | CS:GO | CS:S |
+|---|---|---|
+| Chat colors | a fixed palette, codes `\x01`–`\x10` | `\x01` normal, `\x03` team color, `\x04` green, `\x05` olive, `\x07RRGGBB` any color |
+| Hint message | supports HTML | plain text; every message comes with the `UI/hint.wav` sound |
+| Menus | radio menu, keys 1–9 | the same (`ShowMenu`), 0 closes |
 
-### Время раунда
+The color tags in the translations (`{GREEN}`, `{LIGHT_RED}`, …) stayed the same; only the code table in [retakes/generic.sp](scripting/retakes/generic.sp) changed. The `\x07RRGGBB` code takes 7 bytes, not 1: this matters when computing string length.
 
-`mp_roundtime` в CS:S задаётся в минутах и не опускается до нужных значений, поэтому плагин пишет секунды прямо в `m_iRoundTime` правил игры в `round_start`. Изменение посреди раунда двигает и таймер на экране, и момент конца раунда (подтверждено). Тем же способом разминка и редактор делают раунд бесконечным: продлевают `m_iRoundTime` и отменяют конец раунда в `CS_OnTerminateRound`.
+A SourceMod menu lives on the server. `Menu.Cancel()` closes it there only; on the screen it stays until its display time runs out or the client gets another menu. A menu sent at the moment of a game restart does not reach the screen.
 
-### Разминка и редактор спавнов
+### Bots
 
-Разминка вынесена в отдельный плагин `warmup` с собственным API и не знает о Retakes. Retakes пользуется им как необязательной библиотекой: запускает разминку на старте карты, пока она идёт, ни во что не вмешивается, по её концу начинает первый ретейк. Без `warmup.smx` разминки просто нет. `Retakes_InWarmup()` теперь возвращает состояние этого плагина, а не игры.
+CS:S bots know the bomb scenario: they plant and defuse on their own (confirmed on a server). But their number is set by the game through `bot_quota`, the game adds them one by one over a frame or two rather than all at once, and a plugin cannot "add a bot to this team now". Control comes down to the quota cvar and kicking the extra ones.
 
-Редактору спавнов тоже нужен раунд без конца, и он у него свой ([retakes/editor_freeplay.sp](scripting/retakes/editor_freeplay.sp)): редактор должен работать и без плагина разминки. Дублирование осознанное. Пока редактор открыт, Retakes через `Warmup_OnEnding` не даёт разминке закончиться.
+After the plant a CT bot does not know which site the bomb is on. It learns the exact spot only from the bomb beep, if it stands closer than 1500 units, or over the radio from such a bot. The others walk the sites one after another. With 40 seconds for the CTs this is noticeable; hence the `retakes_bothelper` addon.
 
-Квары игры, которые разминка меняет на время (`mp_buytime`), она запоминает и возвращает при конце разминки, смене карты и выгрузке. Тот же приём у ядра: `retakes_game.cfg` исполняется через `ExecuteAndSaveCvars`, и при выключении плагина прежние значения возвращаются ([include/restorecvars.inc](scripting/include/restorecvars.inc)).
+### The server
 
-### Бомба
+After the 2025 update a CS:S server can be 32-bit or 64-bit. For plugins without gamedata it makes no difference. For memory work it is essential: pointer sizes and all offsets change.
 
-Плагин выбирает бомбера сам, а игра при рестарте даёт C4 случайному T. Исправление состоит из четырёх частей, и каждая закрывает свой симптом (все проверены на сервере по отдельности):
+## 3. How the port deals with these differences
 
-1. `FixBomb()` через 0.1 с после `round_start` забирает C4 у всех, кроме бомбера, и выдаёт ему, если её нет.
-2. `SDKHook_WeaponCanUse` до этого момента не даёт взять C4 никому, кроме бомбера. Без него случайный T видит надпись «вы подобрали бомбу».
-3. Фильтр сообщений `HintText` / `TextMsg` не пропускает подсказку «у вас бомба» тому, у кого бомбы нет. Игра шлёт её независимо от подбора, запрет из пункта 2 её не останавливает.
-4. Бомберу-человеку C4 выбирается в руки через поле `weapon` в `OnPlayerRunCmd`.
+### A round without `round_prestart`
 
-Пункты 2 и 3 выглядят как дублирование и один раз уже были ошибочно удалены. Нужны оба.
+The round steps and flags are described in the comment above `g_PreparePending` in [retakes.sp](scripting/retakes.sp); the code is in [retakes/round.sp](scripting/retakes/round.sp). Here is only why the scheme is what it is.
 
-### Деньги
+The teams have to change before the game spawns the players, otherwise everybody appears on their old sides. The only event before the respawn in CS:S is the `round_end` of the previous round. So the teams of the next round are built on the frame after `round_end`, and the players spend the whole pause between rounds already in their new teams. This is a visible difference from the original, and it cannot be removed.
 
-Покупка в живом раунде отклоняется в `CS_OnBuyCommand`; деньги обнуляются при выдаче оружия в начале раунда. Награда за убийство до конца раунда остаётся на HUD: потратить её нельзя, а обнулять её каждую секунду или на кадре после убийства было сочтено лишним. В разминке покупать можно.
+- Why the next frame and not a timer. A variant "0.3 s before the restart" was made and reverted: switching the teams and respawning back to back gives a noticeable jerk before the round starts.
+- Why the weapons are not removed during the preparation. The players would stand unarmed for the whole pause. The weapons are removed and given out when the players are placed.
+- Why players are placed only in `round_start`. Placement used to be split between `player_spawn` and a fallback in `round_start`, and on a manual `mp_restartgame` the players were placed twice. Now spawn points, teleport, weapons and respawn of the dead happen once. A consequence: a player spawned mid-round by something else stays on a standard spawn.
+- If a round starts without preparation (the first round, `mp_restartgame`), the preparation runs right in `round_start`, and the plugin respawns the players itself. In that round they spawn twice in a row.
+- A `round_start` without a preceding `round_end` and a `round_end` with the "Game Commencing" reason count as a game restart and reset the progress (points, the T win streak, the round counter).
 
-### Боты
+`CS_SwitchTeam` on a living player between rounds does not kill them, and after the restart everybody is in their new team: the whole scheme rests on this, confirmed on a server.
 
-- Бот — полноценный участник (`IsParticipant`): стоит в очереди рангов, получает очки, может быть бомбером (`sm_retakes_bots_carry_bomb`).
-- Штрафа к очкам ботов нет, хотя он был в плане. Ранг определяет не только место в игре, но и сторону: со штрафом человек всегда играл бы за T. Приоритет людей обеспечен иначе: порядком заполнения очереди и тем, что квота ботов уменьшается, когда человек ждёт.
-- Число ботов плагин задаёт через `bot_quota`, а лишних кикает сам при подготовке раунда: если отдать это игре, бот исчезнет из уже собранной команды.
-- `bot_join_after_player 0`. Правило «нет людей — нет ботов» плагин держит сам; со значением `1` боты не зашли бы, пока единственный человек ждёт в наблюдателях.
-- Игра добавляет ботов по одному, и первый вызывает «Game Commencing». Поэтому после входа на пустой сервер и после выхода из редактора первый раунд может пройти 1 на 1, остальные боты ждут в наблюдателях. Три обходных пути были написаны и удалены ради простоты: это один раунд и только боты.
+### Round time
 
-### Чат и события
+`mp_roundtime` in CS:S is in minutes and does not go down to the values the mode needs, so the plugin writes seconds directly into `m_iRoundTime` of the game rules in `round_start`. Changing it mid-round moves both the timer on the screen and the moment the round ends (confirmed). The warmup and the editor make the round endless the same way: they extend `m_iRoundTime` and cancel the round end in `CS_OnTerminateRound`.
 
-Сообщения «игрок зашёл за команду» при каждой смене сторон убраны тем, что событие `player_team` не рассылается клиентам (`event.BroadcastDisabled = true` в режиме `Pre`). Серверные слушатели его получают, таблица счёта остаётся верной (подтверждено).
+### Warmup and the spawn editor
 
-### Что сознательно оставлено как в оригинале
+The warmup lives in a separate plugin, `warmup`, with its own API, and it knows nothing about Retakes. Retakes uses it as an optional library: it starts the warmup on map start, stays out of everything while it runs, and starts the first retake when it ends. Without `warmup.smx` there is simply no warmup. `Retakes_InWarmup()` now returns the state of that plugin, not of the game.
 
-Общий принцип порта: поведение оригинала не меняется без явной причины. В частности:
+The spawn editor also needs a round without an end, and it has its own ([retakes/editor_freeplay.sp](scripting/retakes/editor_freeplay.sp)): the editor must work without the warmup plugin too. The duplication is deliberate. While the editor is open, Retakes keeps the warmup from ending through `Warmup_OnEnding`.
 
-- обычный T-спавн внутри зоны закладки годится бомберу наравне со спавном «только бомбер». Правка «сначала выделенные спавны» была сделана и откачена;
-- в `retakes_standardallocator` нет выбора пистолета; `sm_deletemapspawns` работает и вне редактора; урон в паузе между раундами не отключается;
-- бомбер выбирается случайно среди T, перемешивание команд случайное (оба проверены по логам: работают как задумано);
-- имена кваров, команд, нативов, форвардов и путей (`cfg/sourcemod/retakes`, `configs/retakes`) прежние.
+Game cvars the warmup changes temporarily (`mp_buytime`) are remembered and restored at the end of the warmup, on map change and on unload. The core uses the same technique: `retakes_game.cfg` is executed through `ExecuteAndSaveCvars`, and the previous values come back when the plugin is disabled ([include/restorecvars.inc](scripting/include/restorecvars.inc)).
 
-### Что изменено по сравнению с оригиналом
+### The bomb
 
-- Сообщение «не успели поставить бомбу» и форвард `Retakes_OnFailToPlant` срабатывают с первого раунда (в оригинале с третьего).
-- Сайт выбирается только из тех, где хватает спавнов на текущий состав.
-- Редактор: команды `!next` / `!prev`; `!show` и `!goto` сообщают о неверном аргументе; `!savespawns` пишет настоящее число точек; удаление всех точек считается несохранённым изменением; `!goto` переключает показанный сайт, открытые меню перерисовываются.
-- Новые команды и квары: `sm_retakes_validatespawns`, `sm_retakes_warmup`, `sm_retakes_debug`, `sm_retakes_bots*`.
-- Подсказка про `!guns` при входе, если загружен аллокатор.
-- В живой игре нельзя выбрать свою же команду и сменить модель (в CS:S это убивало игрока).
-- Списки игроков в форвардах и очередь рангов содержат ботов.
-- Удалены зависимость от smlib, интеграция с PugSetup и спавны карт CS:GO (координаты не подходят даже одноимённым картам).
+The plugin picks the bomb carrier itself, while the game gives the C4 to a random T on restart. The fix has four parts, and each one closes its own symptom (all of them checked on a server separately):
 
-## 4. Аддоны: как они сделаны
+1. `FixBomb()` 0.1 s after `round_start` takes the C4 from everybody except the carrier and gives it to the carrier if they do not have it.
+2. Until then `SDKHook_WeaponCanUse` lets nobody but the carrier take the C4. Without it a random T sees the "you picked up the bomb" message.
+3. A filter on the `HintText` / `TextMsg` messages keeps the "you have the bomb" hint from players without the bomb. The game sends it regardless of the pickup, and the ban from part 2 does not stop it.
+4. A human carrier gets the C4 in their hands through the `weapon` field in `OnPlayerRunCmd`.
 
-Все аддоны пользуются только API из `retakes.inc`; ядро под них не менялось.
+Parts 2 and 3 look like duplicates and were once removed by mistake. Both are needed.
+
+### Money
+
+Buying in a live round is refused in `CS_OnBuyCommand`; the money is zeroed when the weapons are given out at the start of the round. The kill award stays on the HUD until the end of the round: it cannot be spent, and zeroing it every second or on the frame after a kill was judged unnecessary. Buying is allowed during the warmup.
+
+### Bots
+
+- A bot is a full participant (`IsParticipant`): it stands in the ranking queue, gets points and can carry the bomb (`sm_retakes_bots_carry_bomb`).
+- There is no penalty to bot points, although the plan had one. The rank decides not only who plays but also the side: with a penalty a human would always play T. Human priority comes from elsewhere: the order in which the queue is filled, and the bot quota going down while a human waits.
+- The plugin sets the number of bots through `bot_quota`, and kicks the extra ones itself during the preparation: left to the game, a bot would vanish from an already built team.
+- `bot_join_after_player 0`. The plugin keeps the "no humans, no bots" rule itself; with `1` the bots would not join while the only human waits in spectators.
+- The game adds bots one at a time, and the first one triggers "Game Commencing". So after joining an empty server and after leaving the editor the first round may be 1 vs 1, with the other bots waiting in spectators. Three workarounds were written and removed for simplicity: it is one round and only bots.
+
+### Chat and events
+
+The "player joined team" messages on every side switch are gone because the `player_team` event is not broadcast to the clients (`event.BroadcastDisabled = true` in `Pre` mode). Server listeners still get it, and the scoreboard stays correct (confirmed).
+
+### Kept as in the original on purpose
+
+The general principle of the port: the behaviour of the original does not change without a clear reason. In particular:
+
+- a normal T spawn inside the bomb target area suits the bomb carrier just like a "bomb-carrier only" spawn. A change "dedicated spawns first" was made and reverted;
+- `retakes_standardallocator` has no pistol choice; `sm_deletemapspawns` works outside the editor too; damage is not disabled in the pause between rounds;
+- the bomb carrier is picked at random among the Ts, and the team scramble is random (both checked against logs: they work as intended);
+- the names of cvars, commands, natives, forwards and paths (`cfg/sourcemod/retakes`, `configs/retakes`) are the same.
+
+### Changed compared to the original
+
+- The "failed to plant" message and the `Retakes_OnFailToPlant` forward fire from the first round (from the third in the original).
+- The site is picked only among those that have enough spawns for the current teams.
+- Editor: the `!next` / `!prev` commands; `!show` and `!goto` report a wrong argument; `!savespawns` prints the real number of spawns; deleting all spawns counts as an unsaved change; `!goto` switches the shown site, open menus are redrawn.
+- New commands and cvars: `sm_retakes_validatespawns`, `sm_retakes_warmup`, `sm_retakes_debug`, `sm_retakes_bots*`.
+- A hint about `!guns` on join, if an allocator is loaded.
+- In a live game a player cannot pick their own team again or change the model (in CS:S that killed the player).
+- The player lists in the forwards and the ranking queue contain bots.
+- Removed: the smlib dependency, the PugSetup integration and the CS:GO map spawns (the coordinates do not fit even maps with the same name).
+
+## 4. Addons: how they are made
+
+All addons use only the API from `retakes.inc`; the core was not changed for them.
 
 ### retakes_allocator
 
-У каждого раунда есть тип (строка таблицы в [retakes_allocator/rounds.sp](scripting/retakes_allocator/rounds.sp)), у типа — бюджет. Раскладка получается «закупкой» на этот бюджет по таблице цен, а не перечислением готовых наборов; поэтому новый тип раунда добавляется одной строкой. Номер раунда берётся из `Retakes_GetRetakeRoundsPlayed()`, своего счётчика нет. Цены в таблице нужны только для бюджета и местами отличаются от игровых ради баланса сторон.
+Every round has a type (a row of the table in [retakes_allocator/rounds.sp](scripting/retakes_allocator/rounds.sp)), and a type has a budget. A loadout is the result of "buying" within that budget from a price table rather than a list of ready sets; that is why a new round type is one row. The round number comes from `Retakes_GetRetakeRoundsPlayed()`, there is no counter of its own. The prices in the table are only used for the budget and in places differ from the game for the sake of side balance.
 
-Гранаты в режиме «спрашивать каждый раунд» показали две особенности движка: граната, выданная игроку с C4 в руках, переключает его на гранату и срывает закладку (смена оружия на время выдачи отклоняется через `SDKHook_WeaponSwitch`); и меню нельзя закрыть на клиенте отменой на сервере (клиенту отправляется `ShowMenu` без клавиш на 1 с).
+Grenades in the "ask every round" mode showed two engine traits: a grenade given to a player holding the C4 switches them to the grenade and breaks the plant (the weapon switch is refused through `SDKHook_WeaponSwitch` while the grenade is given); and a menu cannot be closed on the client by cancelling it on the server (the client gets a `ShowMenu` without keys for 1 s).
 
 ### retakes_autoplant
 
-Бомбу закладывает код игры, плагин только создаёт условия: в `OnPlayerRunCmd` выбирает бомберу C4, зажимает атаку и переносит срок взвода `m_fArmedTime` на «сейчас». На следующем тике игра закладывает бомбу сама, со всеми своими последствиями: настоящая `planted_c4`, событие `bomb_planted`, звуки, знание ботов.
+The bomb is planted by the game code; the plugin only sets up the conditions: in `OnPlayerRunCmd` it selects the C4 for the carrier, holds the attack button and moves the arming deadline `m_fArmedTime` to "now". On the next tick the game plants the bomb itself, with all the usual consequences: a real `planted_c4`, the `bomb_planted` event, the sounds, what the bots know.
 
-Другой путь, принятый в плагинах для CS:GO, — создать сущность `planted_c4`. В CS:S так не выйдет: таймер и обдумывание бомбе назначает внутренняя функция, которую вызывает только код закладки. Сущность, созданная по имени, не тикает.
+The other way, used by CS:GO plugins, is to create a `planted_c4` entity. That does not work in CS:S: the bomb gets its timer and its think function from an internal function that only the planting code calls. An entity created by name does not tick.
 
-Попытки показать анимацию закладки не удались, и это поучительный случай. Оружие от первого лица клиент рисует сам, предсказывая результат по своим кнопкам. Атака, зажатая сервером, для него не существует: бомба ложится, а руки не двигаются. С сервера это не исправить. Вместо анимации бомберу показывается шкала прогресса (`m_iProgressBarDuration`, `m_flProgressBarStartTime`) и играются штатные щелчки набора кода.
+The attempts to show the planting animation failed, and it is an instructive case. The client draws the first-person weapon itself, predicting the result from its own buttons. An attack held by the server does not exist for it: the bomb goes down, but the hands do not move. This cannot be fixed from the server. Instead of the animation the carrier gets a progress bar (`m_iProgressBarDuration`, `m_flProgressBarStartTime`) and the stock code-entry clicks.
 
 ### retakes_autodefuse
 
-Разминирование в игре — это срок: `m_flDefuseCountDown` у `planted_c4` хранит момент, когда оно закончится. Плагин на кадре после `bomb_begindefuse` (в момент события игра ещё не записала параметры) проверяет условия и записывает в это поле текущее время. Завершает разминирование сама игра: событие, звук, конец раунда штатные.
+A defuse in the game is a deadline: `m_flDefuseCountDown` of the `planted_c4` holds the moment it finishes. On the frame after `bomb_begindefuse` (at the moment of the event the game has not written the defuse parameters yet) the plugin checks the conditions and writes the current time into that field. The game finishes the defuse itself: the event, the sound and the end of the round are the stock ones.
 
 ### retakes_bothelper
 
-Единственный плагин с gamedata. Знания бота о бомбе лежат в его внутреннем объекте, которого нет ни в событиях, ни в свойствах. Игра заполняет его функцией, которая записывает четыре поля; плагин записывает те же четыре поля сам, по смещениям из [gamedata/retakes_bothelper.games.txt](gamedata/retakes_bothelper.games.txt).
+The only plugin with gamedata. What a bot knows about the bomb lives in its internal object, which is neither in events nor in properties. The game fills it with a function that writes four fields; the plugin writes the same four fields itself, at the offsets from [gamedata/retakes_bothelper.games.txt](gamedata/retakes_bothelper.games.txt).
 
-Почему не вызов функции через `SDKCall`: в SourceMod 1.12 на 64-битном сервере адреса представлены 32-битными «псевдоадресами», и передать настоящий указатель на объект внутри бота в вызов нельзя. Запись через `SetEntData` идёт от настоящего указателя сущности и от этого не зависит.
+Why not a function call through `SDKCall`: in SourceMod 1.12 on a 64-bit server addresses are 32-bit "pseudo-addresses", and a real pointer to an object inside the bot cannot be passed to a call. Writing with `SetEntData` goes from the real entity pointer and does not depend on that.
 
-Перед каждой записью плагин проверяет, что по смещению лежит то, что ожидается (указатель на владельца, значения флагов в допустимых границах). При первом несовпадении он пишет одну ошибку в лог и перестаёт что-либо писать до перезагрузки. Так переживается обновление игры, сдвинувшее смещения: плагин замолчит, а сервер не упадёт. Что делать после обновления, написано в README.
+Before every write the plugin checks that the offset holds what it expects (a pointer to the owner, flag values within their limits). On the first mismatch it logs one error and stops writing anything until reloaded. That is how a game update that moved the offsets is survived: the plugin goes quiet and the server does not crash. What to do after an update is described in the README.
 
-## 5. Как проверять предположения о движке
+## 5. How to check assumptions about the engine
 
-Половина ошибок порта происходила от уверенности в том, как «должна» вести себя игра. Что действительно помогает:
+Half of the bugs of the port came from being sure how the game "should" behave. What actually helps:
 
-- `sm_dump_netprops файл`, `sm_dump_datamaps файл` — какие свойства есть на этом сервере и у каких классов. `cvarlist` — какие квары есть.
-- `HasEntProp` перед первым обращением к свойству, в существовании которого нет уверенности. Когда свойство подтверждено дампом, проверку убирают.
-- Отладочные логи плагинов: `sm_retakes_debug 1` (ядро и аддоны, файлы `logs/retakes*_debug.log`), `sm_warmup_debug 1`. В них записаны решения плагина по раундам: составы, бомбер, квота ботов, отказы. Почти все причины багов найдены по ним, а не по описанию «на глаз».
-- `logs/errors_*.log` SourceMod: любая ошибка натива попадает туда с именем функции и строкой.
-- Исходники движка в открытом доступе неофициальные и старше нынешнего сервера. Они годятся как подсказка, где искать, но не как доказательство: каждое взятое оттуда свойство или поведение проверялось на сервере.
+- `sm_dump_netprops file`, `sm_dump_datamaps file`: which properties exist on this server and on which classes. `cvarlist`: which cvars exist.
+- `HasEntProp` before the first access to a property whose existence is uncertain. Once a dump confirms the property, the check is removed.
+- The debug logs of the plugins: `sm_retakes_debug 1` (the core and the addons, files `logs/retakes*_debug.log`), `sm_warmup_debug 1`. They record the plugin's decisions per round: teams, the bomb carrier, the bot quota, refusals. Almost all bug causes were found through them, not through descriptions "by eye".
+- SourceMod's `logs/errors_*.log`: every native error gets there with the function name and the line.
+- The engine sources available online are unofficial and older than the current server. They are good as a hint where to look, but not as proof: every property or behaviour taken from them was checked on a server.
 
-Практическое правило, которое сложилось за порт: сначала посмотреть, что игра делает сама, и встроиться в это (подвинуть срок, отменить действие, подменить ввод). Заменять работу игры своей (создавать сущности, рассылать события вручную) приходится дороже и ломается чаще.
+A practical rule that took shape during the port: first look at what the game does itself and fit into it (move a deadline, cancel an action, replace the input). Replacing the game's work with your own (creating entities, sending events by hand) costs more and breaks more often.

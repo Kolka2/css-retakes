@@ -5,7 +5,7 @@ A port of [splewis/csgo-retakes](https://github.com/splewis/csgo-retakes) (v0.3.
 
 Retakes: the terrorists spawn inside a bombsite with the bomb, the counter-terrorists spawn on the rotation routes and have to retake the site and defuse. It can be played by humans, by bots, or by a mix of both.
 
-> **Status.** The port was tested on a live CS:S server during development: the core, the warmup, the spawn editor, bots, the `retakes_allocator` allocator and the autoplant. Not tested on a server: `retakes_autodefuse`, and `retakes_bothelper` on a 64-bit server (it was tested on a 32-bit Windows server). Such places are marked with `// CSS-VERIFY:` comments in the code. How the port works and how CS:S differs from CS:GO for a plugin is described in [PORTING.md](PORTING.md) (in Russian).
+> **Status.** The port was tested on a live CS:S server during development: the core, the warmup, the spawn editor, bots, the `retakes_allocator` allocator and the autoplant. Not tested on a server: `retakes_autodefuse`, and `retakes_bothelper` on a 64-bit server (it was tested on a 32-bit Windows server). Such places are marked with `// CSS-VERIFY:` comments in the code. How the port works and how CS:S differs from CS:GO for a plugin is described in [PORTING.md](PORTING.md).
 
 ## Requirements
 
@@ -279,7 +279,7 @@ For game mode developers — `scripting/include/warmup.inc`: natives `Warmup_IsA
 
 ## For plugin developers
 
-How a plugin talks to the game, how CS:S differs from CS:GO and why the port is built the way it is: see [PORTING.md](PORTING.md) (in Russian).
+How a plugin talks to the game, how CS:S differs from CS:GO and why the port is built the way it is: see [PORTING.md](PORTING.md).
 
 The addon API is described in [scripting/include/retakes.inc](scripting/include/retakes.inc) and matches the original (native, forward and cvar names are unchanged). Differences:
 
