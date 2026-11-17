@@ -247,7 +247,7 @@ Retakes uses it as an optional dependency:
 - The teams of the next round are set right after a round ends, not right before the respawn as in CS:GO: CS:S has no event for that moment, and the end of the previous round is the last chance to switch the teams before the game respawns everybody. So during the pause after a round the players are already shown on their new sides (on the scoreboard, with the new team's models).
 - A bot added by the game in the middle of a round sits in spectators until the next round. Because of this the first round after leaving the spawn editor, or after joining an empty server, may be played 1 vs 1: the game adds bots one at a time and the teams are set when only the first one has joined.
 - CS:S only has three grenades: HE, flashbang and smoke. The letters `m`, `i`, `d` in third-party allocator loadouts are ignored; CS:GO weapon class names are not given (an error is logged).
-- The PugSetup integration was removed.
+- The CS:GO cvars of the original `retakes_game.cfg` (`mp_halftime`, `mp_match_can_clinch`, cash awards and so on) do not exist in CS:S; the halftime side swap and the PugSetup integration were removed.
 
 ## For plugin developers
 
