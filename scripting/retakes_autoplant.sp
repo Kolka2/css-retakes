@@ -11,9 +11,9 @@
  * Retakes autoplant for Counter-Strike: Source.
  *
  * Plants the bomb for the bomb carrier at the end of the freezetime, right where the
- * carrier stands. During the freezetime a human carrier sees a progress bar that fills
- * up by the moment of the plant, and in its last seconds the keypad clicks of a bomb
- * being armed are played at the carrier.
+ * carrier stands. In the last three seconds of the freezetime (the time a plant by hand
+ * takes) a human carrier sees a progress bar that fills up by the moment of the plant,
+ * and the keypad clicks of a bomb being armed are played at the carrier.
  *
  * The bomb is planted by the game's own code, not by the plugin: a planted_c4 entity
  * created by name would be dead in CS:S (its timer and think function are only set by
@@ -46,13 +46,13 @@
  * single player game (seen by the owner in SourceTV and local demos).
  */
 
-#define AUTOPLANT_VERSION "1.2.3"
+#define AUTOPLANT_VERSION "1.3.0"
 
 #define START_DELAY 0.2     // seconds after round_start to stay away; Retakes hands the C4 out 0.1 s after it
 #define GIVE_UP_TIME 5.0    // seconds after the planned plant before the carrier is left alone
 #define MIN_BAR_TIME 0.5    // a progress bar shorter than this is not worth showing
-#define MAX_BAR_TIME 15     // m_iProgressBarDuration is 4 bits wide
-#define ARM_TIME 3.0        // seconds the game takes to arm the C4 (WEAPON_C4_ARM_TIME)
+#define ARM_TIME 3.0        // seconds the game takes to arm the C4 (WEAPON_C4_ARM_TIME); also the
+                            // length of the progress bar and of the keypad clicks' layout
 #define DRAW_LEAD_TIME 1.0  // seconds before the plant at which a human carrier is switched to the C4
 #define CLICK_SOUND "c4.click"
 
@@ -124,7 +124,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 public void OnPluginStart() {
     g_hEnabled = CreateConVar("sm_retakes_autoplant_enabled", "0","Whether the bomb is planted for the bomb carrier at the end of the freezetime", _, true, 0.0, true, 1.0);
 
-    g_hProgressBar = CreateConVar("sm_retakes_autoplant_progressbar", "1", "Whether a human bomb carrier sees a progress bar during the freezetime that fills up by the moment the bomb is planted", _, true, 0.0, true, 1.0);
+    g_hProgressBar = CreateConVar("sm_retakes_autoplant_progressbar", "1", "Whether a human bomb carrier sees a progress bar in the last three seconds of the freezetime that fills up by the moment the bomb is planted", _, true, 0.0, true, 1.0);
 
     g_hSound = CreateConVar("sm_retakes_autoplant_sound", "1", "Whether the keypad clicks of a bomb being armed are played at the bomb carrier in the last seconds of the freezetime", _, true, 0.0, true, 1.0);
 
@@ -416,11 +416,13 @@ static void CarrierEffects(int client, float now) {
         return;
     }
 
-    // The bar is full at the planned moment of the plant. It counts whole seconds, so
-    // its start is moved back to make the end fall on that moment.
+    // The bar covers the last ARM_TIME of the freezetime, the time a plant by hand takes,
+    // and is full at the planned moment of the plant; with a shorter freezetime it is
+    // shorter. It counts whole seconds, so its start is moved back to make the end fall
+    // on that moment.
     float left = g_PlantTime - now;
     if (g_BarClient == 0 && g_hProgressBar.BoolValue && !IsFakeClient(client)
-        && left >= MIN_BAR_TIME && RoundToCeil(left) <= MAX_BAR_TIME) {
+        && left >= MIN_BAR_TIME && left <= ARM_TIME) {
         int seconds = RoundToCeil(left);
         g_BarClient = client;
         g_BarSeconds = seconds;
