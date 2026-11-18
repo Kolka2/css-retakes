@@ -216,6 +216,7 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
 public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast) {
     g_RoundSerial++;
     g_bombPlanted = false;
+    g_RoundEndedByLeave = false;
 
     if (!g_Enabled) {
         return Plugin_Continue;
@@ -386,7 +387,8 @@ static void TerroristsWon() {
 static void CounterTerroristsWon() {
     // The original plugin stayed silent here during the first two rounds
     // (g_RoundCount >= 3); the threshold was dropped by the owner's decision.
-    if (!g_bombPlanted && IsValidClient(g_BombOwner)) {
+    // A round ended because the terrorists left is not the carrier's failure.
+    if (!g_bombPlanted && !g_RoundEndedByLeave && IsValidClient(g_BombOwner)) {
         Retakes_MessageToAll("%t", "FailedToPlant", g_BombOwner);
         Call_StartForward(g_OnFailToPlant);
         Call_PushCell(g_BombOwner);
@@ -416,9 +418,21 @@ void CheckRoundDone(int ignoredClient = 0) {
 
     int tCount = 0, ctCount = 0;
     GetTeamCounts(tCount, ctCount, ignoredClient);
-    if (tCount == 0 || ctCount == 0) {
-        CS_TerminateRound(0.1, CSRoundEnd_TerroristWin);
+    if (tCount > 0 && ctCount > 0) {
+        return;
     }
+
+    // The team that is still there wins; with nobody left it is a draw (no points). The
+    // original always gave the round to T, also when the terrorists were the ones who left.
+    CSRoundEndReason reason = CSRoundEnd_Draw;
+    if (tCount > 0) {
+        reason = CSRoundEnd_TerroristWin;
+    } else if (ctCount > 0) {
+        reason = CSRoundEnd_CTWin;
+    }
+    DebugLog("round: a team is empty (%d T, %d CT), ending the round", tCount, ctCount);
+    g_RoundEndedByLeave = true;
+    CS_TerminateRound(0.1, reason);
 }
 
 /**
@@ -445,4 +459,5 @@ void ResetRetakesProgress() {
     g_BombHandedOut = false;
     g_SelectBombClient = -1;
     g_bombPlanted = false;
+    g_RoundEndedByLeave = false;
 }

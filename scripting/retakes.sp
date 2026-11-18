@@ -104,6 +104,7 @@ bool g_PlayerKit[MAXPLAYERS+1];
 
 /** Per-round information about the player setup **/
 bool g_bombPlanted;
+bool g_RoundEndedByLeave; // CheckRoundDone ended the round because a team was left empty
 int g_BombOwner = -1;
 int g_NumCT;
 int g_NumT;
