@@ -63,8 +63,8 @@ static void EnsureClientClass(int client, int team, bool wasOnTeam) {
  */
 static void HideClassMenu(int client) {
     // Checked on a live CS:S server: hiding the "class_ter" / "class_ct" panel from the
-    // server closes the model menu on the client.
-    // CSS-VERIFY: hiding a panel that is not open does nothing. Both are hidden: the open
+    // server closes the model menu on the client, and hiding a panel that is not open
+    // does nothing (no flicker, the mouse stays with the game). Both are hidden: the open
     // menu belongs to the team the player picked, which may not be the player's team now
     // (moved to the other side or to spectators).
     ShowVGUIPanel(client, "class_ter", _, false);
