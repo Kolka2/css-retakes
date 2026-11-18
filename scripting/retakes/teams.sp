@@ -33,10 +33,12 @@ void GetTeamCounts(int &tCount, int &ctCount, int ignoredClient = 0) {
  * Makes sure the client has a player class (model) that belongs to the team.
  * In CS:S a player without a valid class is not respawned on round restart, and a
  * player moved from spectators by the plugin never saw the class menu.
- * A player without any class may have the model menu open (joined a team in the warmup
- * and did not pick a model): the plugin has answered it, so the menu is closed.
+ * A player without any class who was already on a team (wasOnTeam) has the model menu
+ * open (joined a team in the warmup and did not pick a model): the plugin has answered
+ * it, so the menu is closed. A player coming from spectators never had it open and gets
+ * no panel messages.
  */
-static void EnsureClientClass(int client, int team) {
+static void EnsureClientClass(int client, int team, bool wasOnTeam) {
     // m_iClass: 1-4 are the T classes, 5-8 the CT classes. A player switched from
     // spectators by CS_SwitchTeam with the class set spawns at the round restart without
     // the model menu (seen on a live server).
@@ -51,7 +53,7 @@ static void EnsureClientClass(int client, int team) {
         }
     }
 
-    if (class == 0) {
+    if (class == 0 && wasOnTeam) {
         HideClassMenu(client);
     }
 }
@@ -87,7 +89,7 @@ bool HasPickedClass(int client) {
  * also blocks a stray joinclass that would kill the player.
  */
 void GiveMissingClass(int client) {
-    EnsureClientClass(client, GetClientTeam(client));
+    EnsureClientClass(client, GetClientTeam(client), true);
 }
 
 /**
@@ -99,8 +101,9 @@ void SwitchPlayerTeam(int client, int team) {
 
     g_PluginTeamSwitch[client] = true;
     if (team > CS_TEAM_SPECTATOR) {
+        bool wasOnTeam = IsOnTeam(client);
         CS_SwitchTeam(client, team);
-        EnsureClientClass(client, team);
+        EnsureClientClass(client, team, wasOnTeam);
         CS_UpdateClientModel(client);
     } else {
         // A player who joined a team but has not picked a model has the model menu open:
