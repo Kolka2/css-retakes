@@ -404,4 +404,8 @@ void ResetClientVariables(int client) {
     g_LastDeathTime[client] = 0.0;
     g_GunsHintShown[client] = false;
     g_EditorCursor[client] = -1;
+    // What the "Add a spawn" menu starts with. The original left the team at 0: the menu
+    // showed "T", but the spawn got team 0 and was not used until the spawns were reloaded.
+    g_EditingSpawnTeams[client] = CS_TEAM_T;
+    g_EditingSpawnTypes[client] = SpawnType_Normal;
 }
