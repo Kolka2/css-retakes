@@ -23,12 +23,17 @@ public Action Event_BombPlant(Event event, const char[] name, bool dontBroadcast
 /**
  * Picks the bomb carrier among the terrorists of the round.
  * With sm_retakes_bots_carry_bomb 0 a human is picked whenever there is one on the team.
+ * aliveOnly (a replacement during the round) skips the dead and those no longer on T;
+ * at the round preparation everybody is dead, so it is not used there.
  */
-int PickBombOwner() {
+int PickBombOwner(bool aliveOnly = false) {
     ArrayList humans = new ArrayList();
     ArrayList everybody = new ArrayList();
     for (int i = 1; i <= MaxClients; i++) {
         if (IsParticipant(i) && g_Team[i] == CS_TEAM_T) {
+            if (aliveOnly && (!IsPlayerAlive(i) || GetClientTeam(i) != CS_TEAM_T)) {
+                continue;
+            }
             everybody.Push(i);
             if (!IsFakeClient(i)) {
                 humans.Push(i);
@@ -152,10 +157,9 @@ void FixBomb() {
     // The carrier may have left between the round preparation and its start: take
     // another living terrorist.
     if (!IsValidClient(g_BombOwner) || !IsPlayerAlive(g_BombOwner) || GetClientTeam(g_BombOwner) != CS_TEAM_T) {
-        g_BombOwner = PickBombOwner();
-        if (g_BombOwner != -1 && (!IsPlayerAlive(g_BombOwner) || GetClientTeam(g_BombOwner) != CS_TEAM_T)) {
-            g_BombOwner = -1;
-        }
+        // Only living terrorists: picking among all of them could land on a dead one and
+        // leave the round without a bomb while living terrorists were there.
+        g_BombOwner = PickBombOwner(true);
         DebugLog("bomb: the bomb carrier is gone, new carrier: %d", g_BombOwner);
     }
 
