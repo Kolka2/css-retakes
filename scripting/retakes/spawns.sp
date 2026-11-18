@@ -250,10 +250,12 @@ bool CanRegularPlayerSpawn(int spawn) {
 
 /**
  * Returns if a bombsite has enough spawns to play a round with the given team sizes:
- * numT terrorist spawns (at least one of them usable by the bomb carrier) and numCT CT spawns.
+ * numT terrorist spawns, at least one of them usable by the bomb carrier and at least
+ * numT - 1 usable by the other terrorists ("bomb-carrier only" spawns are not), and numCT
+ * CT spawns. The same rules as in sm_retakes_validatespawns.
  */
 bool SiteHasSpawns(Bombsite site, int numT, int numCT) {
-    int tCount = 0, ctCount = 0, bombCount = 0;
+    int tCount = 0, ctCount = 0, bombCount = 0, regularCount = 0;
     for (int i = 0; i < g_NumSpawns; i++) {
         if (g_SpawnDeleted[i] || g_SpawnSites[i] != site) {
             continue;
@@ -265,9 +267,12 @@ bool SiteHasSpawns(Bombsite site, int numT, int numCT) {
             if (CanBombCarrierSpawn(i)) {
                 bombCount++;
             }
+            if (CanRegularPlayerSpawn(i)) {
+                regularCount++;
+            }
         }
     }
-    return tCount >= numT && ctCount >= numCT && bombCount >= 1;
+    return tCount >= numT && regularCount >= numT - 1 && ctCount >= numCT && bombCount >= 1;
 }
 
 /**

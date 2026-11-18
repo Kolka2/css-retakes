@@ -230,7 +230,7 @@ The general principle of the port: the behaviour of the original does not change
 ### Changed compared to the original
 
 - The "failed to plant" message and the `Retakes_OnFailToPlant` forward fire from the first round (from the third in the original).
-- The site is picked only among those that have enough spawns for the current teams.
+- The site is picked only among those that have enough spawns for the current teams (by the same rules as `sm_retakes_validatespawns`: "bomb-carrier only" spawns do not count for the other terrorists).
 - Editor: the `!next` / `!prev` commands; `!show` and `!goto` report a wrong argument; `!savespawns` prints the real number of spawns; deleting all spawns counts as an unsaved change; `!goto` switches the shown site, open menus are redrawn; the spawn file is written only on an explicit save (`!savespawns`, the menu item), not on map change as in the original: unsaved edits are dropped with the map or on plugin unload, leaving the editor reminds about them, the server log notes the drop.
 - New commands and cvars: `sm_retakes_validatespawns`, `sm_retakes_warmup`, `sm_retakes_debug`, `sm_retakes_bots*`.
 - A hint about `!guns` on join, if an allocator is loaded.
