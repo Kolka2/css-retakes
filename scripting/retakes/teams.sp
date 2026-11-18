@@ -234,7 +234,9 @@ static void EnqueueJoiningPlayer(int client) {
     GetTeamCounts(tCount, ctCount);
     int onTeams = tCount + ctCount;
 
-    ChangeClientTeam(client, CS_TEAM_SPECTATOR);
+    // Through SwitchPlayerTeam, like a voluntary move to spectators: a player on a team
+    // without a model (right after the warmup) gets the model menu closed.
+    SwitchPlayerTeam(client, CS_TEAM_SPECTATOR);
     Queue_Enqueue(g_hWaitingQueue, client);
 
     if (onTeams < 2) {
