@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Радар спаунов Retakes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+<style>
+/* Spawn radar of css-retakes. Source of the site: the build copies this file as is
+   (radar/build-site.mjs), so it stays a single file without dependencies.
+   VOICE: a mapper's working tool, calm and precise
+   IDEA: a tactical tablet with a radar, like the overview in a demo
+   PICTURE: the radar with markers fills the whole right part
+   COLOUR and TYPE: CS side colours (T orange, CT blue, bomb red); Rajdhani for headings
+   LAYOUT: panel on the left, map on the right; on a narrow screen the map on top, panel below */
+:root{color-scheme:light dark;
+--bg:light-dark(#e7e5df,#121417);--panel:light-dark(#fbfaf7,#1b1e22);--ink:light-dark(#1b1d20,#e8e6e1);
+--mute:light-dark(#62656b,#9a9ea6);--line:light-dark(#d6d3cb,#2c3036);--field:light-dark(#fff,#24282d);
+--t:#ee8f22;--ct:#3e8fe6;--bomb:#e0393e;--bar:#d94ff0;--stage:#23262b;--ok:light-dark(#2f7d32,#73c476)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow-x:clip}
+h1{font:700 26px/1.05 Rajdhani,system-ui,sans-serif;margin:0;letter-spacing:.01em}
+h2{font:700 17px/1.1 Rajdhani,system-ui,sans-serif;margin:0 0 8px}
+.app{display:grid;grid-template-columns:340px minmax(0,1fr);height:100vh}
+aside{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:16px 16px 28px}
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px}
+#lang{min-height:34px;padding:4px 10px;font-size:13px;font-weight:600;flex:none}
+.chip{font-size:13px;color:var(--mute)}
+section{padding:14px 0;border-top:1px solid var(--line)}
+section:first-of-type{border-top:0}
+.drop{display:block;width:100%;border:1.5px dashed var(--line);border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:var(--field);color:var(--ink);font:inherit}
+.drop:hover,.drop:focus-visible{border-color:var(--ct);outline:none}
+.drop b{display:block}.drop span{font-size:13px;color:var(--mute)}
+.status{margin:10px 0 0;padding:0;list-style:none;font-size:13px}
+.status li{display:grid;grid-template-columns:78px minmax(0,1fr);gap:6px;padding:2px 0}
+.status li span:first-child{color:var(--mute)}
+.ok{color:var(--ok)}.warn{color:var(--bomb)}
+.note{font-size:13px;color:var(--mute);margin:8px 0 0}
+.note.warn{color:var(--bomb)}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+label.f{display:grid;gap:3px;font-size:13px;color:var(--mute)}
+input[type=number],input[type=text],select,textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px;padding:7px 8px;width:100%;min-height:40px}
+textarea{min-height:110px;font:13px/1.4 ui-monospace,Consolas,monospace}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--ct);outline-offset:1px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:var(--field);min-width:52px}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--panel)}
+button{font:inherit;font-size:14px;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-height:40px;cursor:pointer}
+button:hover{border-color:var(--mute)}
+button:disabled{opacity:.45;cursor:default}
+button.on{background:var(--t);border-color:var(--t);color:#16181b;font-weight:600}
+.checks{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin-top:10px}
+.checks label{display:flex;gap:8px;align-items:center;min-height:32px;font-size:14px;cursor:pointer}
+.checks input{width:18px;height:18px;accent-color:var(--ct)}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;flex:none}
+.counts{display:grid;grid-template-columns:auto repeat(2,minmax(0,1fr));gap:2px 10px;font-size:13px;margin-bottom:8px}
+.counts b{font-weight:600}.counts .n{text-align:right;font-variant-numeric:tabular-nums}
+.list{max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+td,th{padding:5px 7px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{position:sticky;top:0;background:var(--panel);font-weight:600;color:var(--mute)}
+tr.pt{cursor:pointer}tr.pt:hover{background:color-mix(in srgb,var(--ct) 10%,transparent)}
+tr.sel{background:color-mix(in srgb,var(--ct) 20%,transparent)!important}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;align-items:center;gap:8px;list-style:none}
+details summary::-webkit-details-marker{display:none}
+.chev{display:inline-block;flex:none;width:12px;color:var(--mute);transition:transform .15s}
+details[open]>summary .chev{transform:rotate(90deg)}
+details.sec>summary h2{margin:0}
+details.sec[open]>summary{margin-bottom:8px}
+details.paste{margin-top:10px}
+.sh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.sh h2{margin:0}
+.ib{min-height:32px;padding:4px 10px;font-size:13px;display:inline-flex;gap:6px;align-items:center;color:var(--mute);flex:none}
+.ib:hover{color:var(--ink)}
+.ib svg{width:15px;height:15px;flex:none}
+.ib.wait{border-color:var(--ct);color:var(--ct)}
+details.paste>summary{border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--field);font-weight:500;font-size:14px;min-height:40px}
+details.paste>summary:hover{border-color:var(--mute)}
+details.paste[open]>summary{margin-bottom:8px}
+[data-i18n-title]{cursor:help}
+.hint{text-decoration:underline dotted;text-underline-offset:3px;text-decoration-color:var(--mute)}
+kbd{font:12px ui-monospace,Consolas,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--field)}
+.keys{font-size:13px;color:var(--mute);margin:10px 0 0;padding-left:18px}
+.keys li{margin:2px 0}
+main{position:relative;background:var(--stage);overflow:hidden;touch-action:none}
+main canvas{position:absolute;inset:0;width:100%;height:100%;cursor:grab}
+main canvas.drag{cursor:grabbing}
+main canvas.edit{cursor:crosshair}
+main canvas.over{cursor:move}
+main canvas.handle{cursor:alias}
+.tools{position:absolute;top:12px;right:12px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 24px)}
+.tools button{background:rgba(20,22,25,.82);color:#f1efe9;border-color:rgba(255,255,255,.14);backdrop-filter:blur(4px)}
+.tools button.on{background:var(--t);color:#16181b;border-color:var(--t)}
+.ebar{position:absolute;top:12px;left:12px;max-width:min(430px,calc(100% - 330px));background:rgba(238,143,34,.94);color:#16181b;font-size:12.5px;line-height:1.35;padding:7px 10px;border-radius:8px;pointer-events:none}
+.ebar[hidden]{display:none}
+.coords{position:absolute;right:12px;bottom:10px;font:12px ui-monospace,Consolas,monospace;color:#d9d6cf;background:rgba(20,22,25,.7);padding:4px 8px;border-radius:6px;pointer-events:none}
+.card{position:absolute;left:12px;bottom:12px;max-width:min(440px,calc(100% - 24px));max-height:calc(100% - 70px);overflow-y:auto;background:rgba(20,22,25,.94);color:#f1efe9;border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:12px 14px;font-size:13px}
+.card[hidden]{display:none}
+.card h3{margin:0 0 4px;font:700 17px/1.1 Rajdhani,system-ui,sans-serif}
+.card code{display:block;margin:8px 0;padding:6px 8px;background:rgba(255,255,255,.07);border-radius:6px;font-size:12px;overflow-wrap:anywhere}
+.card .row button{background:rgba(255,255,255,.08);color:#f1efe9;border-color:rgba(255,255,255,.18);min-height:36px;padding:6px 10px}
+.card .row button.danger{border-color:rgba(224,57,62,.7);color:#ff9c9f}
+.form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px 8px;margin-top:8px}
+.form label{display:grid;gap:2px;font-size:12px;color:#bdb9b0}
+.form .w2{grid-column:span 2}.form .w4{grid-column:1/-1}
+.card input,.card select{background:rgba(255,255,255,.08);color:#f1efe9;border:1px solid rgba(255,255,255,.2);border-radius:6px;font-size:14px;min-height:34px;padding:4px 6px;width:100%}
+.card select option{color:#111}
+.tip{position:absolute;pointer-events:none;background:rgba(20,22,25,.92);color:#f1efe9;font-size:12px;padding:5px 8px;border-radius:6px;white-space:nowrap;transform:translate(12px,12px)}
+.tip[hidden]{display:none}
+.empty{position:absolute;inset:0;display:grid;place-items:center;color:#c9c6be;text-align:center;padding:24px;pointer-events:none}
+.empty[hidden]{display:none}
+.dropping main::after{content:attr(data-drop);position:absolute;inset:10px;border:2px dashed #f1efe9;border-radius:14px;display:grid;place-items:center;color:#f1efe9;font:700 24px Rajdhani,sans-serif;background:rgba(0,0,0,.35)}
+@media(max-width:900px){.app{grid-template-columns:1fr;grid-template-rows:auto 62vh auto;height:auto}
+ aside{display:contents}.head{order:-2;padding:14px 16px 4px;background:var(--panel)}
+ main{order:-1;height:62vh}.side{padding:0 16px 28px;background:var(--panel)}
+ .ebar{top:auto;bottom:46px;max-width:calc(100% - 24px)} main.has-card .ebar{display:none}}
+@media(max-width:600px){.card{left:8px;right:8px;bottom:8px;max-width:none;max-height:46%;padding:9px 10px}.card h3{font-size:15px}
+ .form{gap:4px 6px;margin-top:4px}.form label{font-size:11px}.card input,.card select{min-height:32px;padding:2px 5px;font-size:16px}
+ main.has-card .coords{display:none} .card code{margin:6px 0;font-size:11px}.card .row{margin-top:6px;gap:6px}.card .row button{min-height:32px;padding:4px 8px;font-size:13px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+<aside>
+  <div class="head">
+    <div class="top"><h1 data-i18n="title">Радар спаунов Retakes</h1><button type="button" id="lang" aria-label="Language">EN</button></div>
+    <div class="chip" id="mapchip"></div>
+  </div>
+  <div class="side">
+  <section>
+    <div class="sh"><h2 data-i18n="files">Файлы</h2><button type="button" class="ib" id="clip-sp" data-i18n-title="clip_sp_tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h4"/></svg><span data-i18n="clip">Вставить</span></button></div>
+    <button class="drop" id="pick" type="button"><b data-i18n="open">Открыть файлы…</b><span data-i18n="open_hint">или перетащите на карту</span></button>
+    <input type="file" id="file" multiple hidden>
+    <ul class="status">
+      <li><span data-i18n="st_radar">Радар</span><span id="st-radar">—</span></li>
+      <li><span data-i18n="st_ov">Привязка</span><span id="st-ov">—</span></li>
+      <li><span data-i18n="st_sp">Спауны</span><span id="st-sp">—</span></li>
+    </ul>
+    <p class="note" id="msg" hidden></p>
+    <p class="note" data-i18n="local">Всё работает локально.</p>
+  </section>
+
+  <section>
+    <div class="sh"><h2 data-i18n="binding">Привязка радара</h2><button type="button" class="ib" id="clip-ov" data-i18n-title="clip_ov_tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h4"/></svg><span data-i18n="clip">Вставить</span></button></div>
+    <label class="f"><span data-i18n="preset">Пресет</span>
+      <select id="preset"></select></label>
+    <div class="grid3" style="margin-top:8px">
+      <label class="f">pos_x<input type="number" id="pos_x" step="any"></label>
+      <label class="f">pos_y<input type="number" id="pos_y" step="any"></label>
+      <label class="f">scale<input type="number" id="scale" step="any" min="0.01"></label>
+    </div>
+    <label class="f" style="margin-top:8px"><span data-i18n="rot">Поворот картинки</span>
+      <select id="rot"><option value="0" data-i18n="rot0">нет</option><option value="90" data-i18n="rot90">90° по часовой</option><option value="180">180°</option><option value="270" data-i18n="rot270">90° против часовой</option></select></label>
+    <p class="note" id="rotnote" hidden></p>
+  </section>
+
+  <section>
+    <h2 data-i18n="show">Показать</h2>
+    <div class="seg" role="group" data-i18n-aria="site">
+      <button type="button" data-site="all" aria-pressed="true" data-i18n="both">Оба</button><button type="button" data-site="A" aria-pressed="false">A</button><button type="button" data-site="B" aria-pressed="false">B</button>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="c-t" checked><span class="dot" style="background:var(--t)"></span>T</label>
+      <label><input type="checkbox" id="c-ct" checked><span class="dot" style="background:var(--ct)"></span>CT</label>
+      <label><input type="checkbox" id="c-plant" checked><span class="dot" style="background:var(--bomb);border-radius:2px;transform:rotate(45deg) scale(.85)"></span><span data-i18n="l_plant">Точки плента</span></label>
+      <label><input type="checkbox" id="c-bar" checked><span class="dot" style="background:var(--bar);border-radius:2px;height:4px"></span><span data-i18n="l_bar">Барьеры</span></label>
+      <label><input type="checkbox" id="c-dir" checked><span data-i18n="l_dir">Взгляд</span></label>
+      <label><input type="checkbox" id="c-other" checked><span data-i18n="l_other">Без команды</span></label>
+    </div>
+    <label class="f" style="margin-top:8px"><span data-i18n="labels">Подписи</span><select id="labels"><option value="id" data-i18n="lab_id">номер</option><option value="note" data-i18n="lab_note">комментарий из файла</option><option value="none" data-i18n="lab_none">нет</option></select></label>
+    <div class="grid2" style="margin-top:8px">
+      <label class="f"><span data-i18n="zmin">Z от</span><input type="number" id="zmin" step="any" placeholder="−∞"></label>
+      <label class="f"><span data-i18n="zmax">Z до</span><input type="number" id="zmax" step="any" placeholder="+∞"></label>
+    </div>
+    <label class="f" style="margin-top:8px"><span data-i18n="msize">Размер меток</span>
+      <input type="range" id="msize" min="0.6" max="2" step="0.1" value="1"></label>
+    <p class="note" data-i18n-html="type_legend"></p>
+  </section>
+
+  <section>
+    <h2 data-i18n="points">Точки</h2>
+    <div class="counts" id="counts"></div>
+    <div class="list"><table><thead><tr><th data-i18n="th_site">Сайт</th><th data-i18n="th_who">Кто</th><th>№</th><th data-i18n="th_note">Комментарий</th></tr></thead><tbody id="tbody"></tbody></table></div>
+  </section>
+
+  <section>
+    <details class="sec" id="ed-sec">
+    <summary><span class="chev" aria-hidden="true">▸</span><h2 data-i18n="edit">Редактирование</h2></summary>
+    <div class="row" style="margin-top:0">
+      <button type="button" id="ed-toggle" data-i18n="ed_on">Включить редактирование</button>
+    </div>
+    <p class="note" data-i18n="ed_new">Новая точка:</p>
+    <div class="row" style="margin-top:4px">
+      <div class="seg" role="group" data-i18n-aria="team"><button type="button" data-nt="T" aria-pressed="false">T</button><button type="button" data-nt="CT" aria-pressed="true">CT</button></div>
+      <div class="seg" role="group" data-i18n-aria="site"><button type="button" data-ns="A" aria-pressed="true">A</button><button type="button" data-ns="B" aria-pressed="false">B</button></div>
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      <label class="f"><span data-i18n="ed_type">Тип (для T)</span><select id="nt-type"><option value="0" data-i18n="ty0">0 — обычный</option><option value="1" data-i18n="ty1">1 — только с бомбой</option><option value="2" data-i18n="ty2">2 — никогда с бомбой</option></select></label>
+      <label class="f"><span data-i18n="ed_z">Высота Z</span><select id="nt-zmode"><option value="near" data-i18n="ed_znear">как у ближайшей</option><option value="fixed" data-i18n="ed_zfixed">своё значение</option></select></label>
+    </div>
+    <label class="f" style="margin-top:8px" id="nt-zbox" hidden><span data-i18n="ed_zval">Z новой точки</span><input type="number" id="nt-z" step="any" value="0"></label>
+    <div class="row">
+      <button type="button" id="ed-undo" data-i18n="undo" disabled>Отменить</button>
+      <button type="button" id="ed-redo" data-i18n="redo" disabled>Повторить</button>
+      <button type="button" id="ed-clear" data-i18n="clear">Удалить все</button>
+    </div>
+    <div class="row" id="draft-row" hidden><button type="button" id="ed-draft"></button></div>
+    <p class="note" id="ed-state"></p>
+    <ul class="keys" data-i18n-html="keys"></ul>
+    </details>
+  </section>
+
+  <section>
+    <details class="sec" id="exp-sec">
+    <summary><span class="chev" aria-hidden="true">▸</span><h2 data-i18n="exp">Выгрузка в CS:S .cfg</h2></summary>
+    <p class="note" style="margin-top:0" data-i18n-html="exp_hint"></p>
+    <div class="row" style="margin-top:8px">
+      <button type="button" id="tg-load" data-i18n="tg_load">Загрузить overview цели</button>
+      <button type="button" id="tg-same" data-i18n="tg_same">Как текущая</button>
+      <input type="file" id="tg-file" hidden>
+    </div>
+    <div class="grid3" style="margin-top:8px">
+      <label class="f">pos_x<input type="number" id="tg_pos_x" step="any"></label>
+      <label class="f">pos_y<input type="number" id="tg_pos_y" step="any"></label>
+      <label class="f">scale<input type="number" id="tg_scale" step="any" min="0.01"></label>
+    </div>
+    <label class="f" style="margin-top:8px"><span data-i18n="tg_rot">Поворот картинки в цели</span>
+      <select id="tg_rot"><option value="0" data-i18n="rot0">нет</option><option value="90" data-i18n="rot90">90° по часовой</option><option value="180">180°</option><option value="270" data-i18n="rot270">90° против часовой</option></select></label>
+    <div class="grid2" style="margin-top:8px">
+      <label class="f" data-i18n-title="tip_dz"><span data-i18n="tg_dz" class="hint">Сдвиг Z</span><input type="number" id="tg_dz" step="any" value="0"></label>
+      <label class="f" data-i18n-title="tip_type"><span data-i18n="tg_type" class="hint">Тип T по умолчанию</span><select id="tg_type"><option value="0" data-i18n="ty0">0 — обычный</option><option value="2" data-i18n="ty2">2 — никогда с бомбой</option></select></label>
+    </div>
+    <div class="checks" style="grid-template-columns:1fr">
+      <label data-i18n-title="tip_scalez"><input type="checkbox" id="tg_scalez"><span data-i18n="tg_scalez" class="hint">Масштабировать Z вместе с картой</span></label>
+      <label data-i18n-title="tip_vis"><input type="checkbox" id="tg_vis"><span data-i18n="tg_vis" class="hint">Только видимые сейчас точки</span></label>
+      <label data-i18n-title="tip_cm"><input type="checkbox" id="tg_cm"><span data-i18n="tg_cm" class="hint">Комментарии из исходного файла (//)</span></label>
+    </div>
+    <p class="note" id="tg-sum"></p>
+    <div class="row">
+      <button type="button" id="tg-dl" data-i18n="tg_dl">Скачать .cfg</button>
+      <button type="button" id="tg-copy" data-i18n="tg_copy">Копировать текст</button>
+    </div>
+    <details style="margin-top:8px"><summary><span class="chev" aria-hidden="true">▸</span><span data-i18n="preview">Предпросмотр</span></summary><textarea id="tg-out" readonly spellcheck="false"></textarea></details>
+    </details>
+  </section>
+
+
+  </div>
+</aside>
+
+<main id="stage">
+  <canvas id="cv"></canvas>
+  <div class="empty" id="empty" hidden data-i18n="empty">Перетащите сюда радар, overview и файл спаунов</div>
+  <div class="ebar" id="ebar" hidden data-i18n="ebar"></div>
+  <div class="tools">
+    <button type="button" id="zin" data-i18n-aria="zin">+</button>
+    <button type="button" id="zout" data-i18n-aria="zout">−</button>
+    <button type="button" id="fit" data-i18n="fit">Вписать</button>
+    <button type="button" id="ed-tool" data-i18n="ed_tool">Править</button>
+    <button type="button" id="png" data-i18n="png">Сохранить PNG</button>
+  </div>
+  <div class="tip" id="tip" hidden></div>
+  <div class="card" id="card" hidden></div>
+  <div class="coords" id="coords">x —  y —</div>
+</main>
+</div>
+
+<script>
+/* ===== core: KeyValues, spawn formats, overview, VTF/DDS ===== */
+const Core = (() => {
+
+/* --- KeyValues tokenizer/parser (Valve / SourceMod), keeps same-line comments --- */
+function parseKV(text) {
+  const toks = [];
+  let i = 0, line = 1;
+  const n = text.length;
+  while (i < n) {
+    const c = text[i];
+    if (c === '\n') { line++; i++; continue; }
+    if (c === ' ' || c === '\t' || c === '\r' || c === '﻿') { i++; continue; }
+    if (c === '/' && text[i + 1] === '/') {
+      let j = text.indexOf('\n', i); if (j < 0) j = n;
+      toks.push({ t: 'c', v: text.slice(i + 2, j).trim(), line }); i = j; continue;
+    }
+    if (c === '/' && text[i + 1] === '*') {
+      let j = text.indexOf('*/', i + 2); if (j < 0) j = n;
+      for (let k = i; k < j; k++) if (text[k] === '\n') line++;
+      i = j + 2; continue;
+    }
+    if (c === '{' || c === '}') { toks.push({ t: c, line }); i++; continue; }
+    if (c === '"') {
+      let s = '', j = i + 1;
+      while (j < n && text[j] !== '"') {
+        if (text[j] === '\\' && j + 1 < n) {
+          const e = text[j + 1];
+          s += e === 'n' ? '\n' : e === 't' ? '\t' : e; j += 2; continue;
+        }
+        if (text[j] === '\n') line++;
+        s += text[j++];
+      }
+      toks.push({ t: 's', v: s, line }); i = j + 1; continue;
+    }
+    let j = i;
+    while (j < n && !/[\s{}"]/.test(text[j])) j++;
+    const w = text.slice(i, j);
+    if (w[0] !== '[') toks.push({ t: 's', v: w, line }); /* skip [$WIN32] conditionals */
+    i = j;
+  }
+  let p = 0;
+  function block(depth) {
+    const out = [];
+    while (p < toks.length) {
+      const tk = toks[p];
+      if (tk.t === '}') { p++; if (depth > 0) return out; continue; }
+      if (tk.t === 'c' || tk.t === '{') { p++; continue; }
+      const key = tk.v; p++;
+      while (p < toks.length && toks[p].t === 'c') p++;
+      const nx = toks[p];
+      if (!nx) { out.push({ k: key, v: '' }); break; }
+      if (nx.t === '{') { p++; out.push({ k: key, kids: block(depth + 1) }); continue; }
+      if (nx.t === 's') {
+        p++;
+        const node = { k: key, v: nx.v };
+        const after = toks[p];
+        if (after && after.t === 'c' && after.line === nx.line) { node.c = after.v; p++; }
+        out.push(node); continue;
+      }
+      out.push({ k: key, v: '' });
+    }
+    return out;
+  }
+  return block(0);
+}
+const find = (arr, key) => (arr || []).find(e => e.k.toLowerCase() === key.toLowerCase());
+const val = (arr, ...keys) => { for (const k of keys) { const e = find(arr, k); if (e && e.v !== undefined) return e.v; } return undefined; };
+const nums = s => String(s || '').trim().split(/\s+/).map(Number).filter(x => !Number.isNaN(x));
+
+function siteOf(s) {
+  const v = String(s ?? '').trim().toUpperCase();
+  if (v === 'A' || v === '0') return 'A';
+  if (v === 'B' || v === '1') return 'B';
+  return v || '?';
+}
+function teamOf(s) {
+  const v = String(s ?? '').trim().toUpperCase();
+  if (v === 'T' || v === '2' || v === 'TERRORIST') return 'T';
+  if (v === 'CT' || v === '3' || v === 'COUNTER-TERRORIST') return 'CT';
+  return '?';
+}
+
+/* --- spawn files ---
+   point: {kind:'spawn'|'plant'|'barrier', id, team, site, x,y,z, pitch, yaw, type, weight, note, x2,y2,z2} */
+function parseSpawns(text) {
+  const root = parseKV(text);
+  const retake = find(root, 'Retake');
+  const scope = retake ? retake.kids : root;
+  const spawns = find(scope, 'Spawns');
+  const pts = [];
+
+  const isValve = spawns && spawns.kids && spawns.kids.some(e => /^(t|ct)$/i.test(e.k) && e.kids);
+  if (isValve) {
+    for (const teamNode of spawns.kids) {
+      if (!teamNode.kids) continue;
+      const team = teamOf(teamNode.k);
+      for (const siteNode of teamNode.kids) {
+        if (!siteNode.kids) continue;
+        const site = siteOf(siteNode.k);
+        for (const e of siteNode.kids) {
+          if (e.v === undefined) continue;
+          const a = nums(e.v); if (a.length < 3) continue;
+          pts.push({ kind: 'spawn', id: e.k, team, site, x: a[0], y: a[1], z: a[2], pitch: a[3] || 0, yaw: a[4] || 0, note: e.c || '' });
+        }
+      }
+    }
+    const plants = find(scope, 'BombPlants');
+    for (const siteNode of (plants && plants.kids) || []) {
+      if (!siteNode.kids) continue;
+      const site = siteOf(siteNode.k);
+      for (const e of siteNode.kids) {
+        const a = nums(e.v); if (a.length < 4) continue;
+        pts.push({ kind: 'plant', id: e.k, team: 'T', site, weight: a[0], x: a[1], y: a[2], z: a[3], pitch: a[4] || 0, yaw: a[5] || 0, note: e.c || '' });
+      }
+    }
+    const bars = find(scope, 'Barriers');
+    for (const siteNode of (bars && bars.kids) || []) {
+      if (!siteNode.kids) continue;
+      const site = siteOf(siteNode.k);
+      for (const e of siteNode.kids) {
+        const a = nums(e.v); if (a.length < 6) continue;
+        pts.push({ kind: 'barrier', id: e.k, team: '', site, x: a[0], y: a[1], z: a[2], x2: a[3], y2: a[4], z2: a[5], note: e.c || '' });
+      }
+    }
+    return { format: 'Valve _retake.txt (CS:GO / CS2)', points: pts };
+  }
+
+  if (spawns && spawns.kids && spawns.kids.some(e => e.kids && find(e.kids, 'origin'))) {
+    for (const e of spawns.kids) {
+      if (!e.kids) continue;
+      const o = nums(val(e.kids, 'origin', 'pos', 'position'));
+      if (o.length < 3) continue;
+      const an = nums(val(e.kids, 'angle', 'angles', 'ang'));
+      const ty = val(e.kids, 'type');
+      pts.push({
+        kind: 'spawn', id: e.k,
+        team: teamOf(val(e.kids, 'team')),
+        site: siteOf(val(e.kids, 'bombsite', 'site')),
+        x: o[0], y: o[1], z: o[2], pitch: an[0] || 0, yaw: an[1] || 0,
+        type: ty === undefined ? undefined : Number(ty),
+        note: find(e.kids, 'origin').c || ''
+      });
+    }
+    return { format: 'Retakes cfg (CS:S / SourceMod)', points: pts };
+  }
+
+  /* fallback: any line with 3+ numbers */
+  let k = 0;
+  for (const ln of text.split('\n')) {
+    const body = ln.replace(/\/\/.*$/, '');
+    const m = body.match(/-?\d+(?:\.\d+)?(?:e-?\d+)?/gi);
+    if (!m || m.length < 3) continue;
+    const a = m.map(Number);
+    const cm = ln.match(/\/\/(.*)$/);
+    pts.push({ kind: 'spawn', id: String(k++), team: '?', site: '?', x: a[0], y: a[1], z: a[2], pitch: 0, yaw: a.length >= 5 ? a[4] : NaN, note: cm ? cm[1].trim() : '' });
+  }
+  return { format: pts.length ? 'Список координат' : 'Не распознано', points: pts };
+}
+
+/* --- overview (resource/overviews/<map>.txt, CS2 radar_info) --- */
+function parseOverview(text) {
+  const root = parseKV(text);
+  let scope = root, name = '';
+  if (root.length && root[0].kids && !find(root, 'pos_x')) { scope = root[0].kids; name = root[0].k; }
+  const px = val(scope, 'pos_x'), py = val(scope, 'pos_y'), sc = val(scope, 'scale');
+  if (px === undefined || py === undefined || sc === undefined) return null;
+  return {
+    name, pos_x: Number(px), pos_y: Number(py), scale: Number(sc),
+    rotate: Number(val(scope, 'rotate') || 0), zoom: Number(val(scope, 'zoom') || 0),
+    material: val(scope, 'material') || ''
+  };
+}
+const looksLikeOverview = t => /"?pos_x"?\s/i.test(t) && /"?scale"?\s/i.test(t);
+
+/* --- block-compressed and raw texture decoding --- */
+function rgb565(c) {
+  return [((c >> 11) & 31) * 255 / 31 | 0, ((c >> 5) & 63) * 255 / 63 | 0, (c & 31) * 255 / 31 | 0];
+}
+function decodeBC(src, off, w, h, kind) {
+  const out = new Uint8ClampedArray(w * h * 4);
+  const bw = Math.max(1, Math.ceil(w / 4)), bh = Math.max(1, Math.ceil(h / 4));
+  const bsz = kind === 1 ? 8 : 16;
+  const cols = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
+  const al = new Uint8Array(16), av = new Uint8Array(8);
+  for (let by = 0; by < bh; by++) for (let bx = 0; bx < bw; bx++) {
+    let p = off + (by * bw + bx) * bsz;
+    if (kind === 3) {
+      for (let i = 0; i < 8; i++) { const b = src[p + i]; al[i * 2] = (b & 15) * 17; al[i * 2 + 1] = (b >> 4) * 17; }
+      p += 8;
+    } else if (kind === 5) {
+      const a0 = src[p], a1 = src[p + 1];
+      av[0] = a0; av[1] = a1;
+      if (a0 > a1) for (let i = 1; i < 7; i++) av[i + 1] = ((7 - i) * a0 + i * a1) / 7 | 0;
+      else { for (let i = 1; i < 5; i++) av[i + 1] = ((5 - i) * a0 + i * a1) / 5 | 0; av[6] = 0; av[7] = 255; }
+      let bits = 0, nb = 0, q = p + 2;
+      for (let i = 0; i < 16; i++) {
+        if (nb < 3) { bits |= src[q++] << nb; nb += 8; }
+        al[i] = av[bits & 7]; bits >>= 3; nb -= 3;
+      }
+      p += 8;
+    }
+    const c0 = src[p] | src[p + 1] << 8, c1 = src[p + 2] | src[p + 3] << 8;
+    const a = rgb565(c0), b = rgb565(c1);
+    cols[0] = [a[0], a[1], a[2], 255]; cols[1] = [b[0], b[1], b[2], 255];
+    if (c0 > c1 || kind !== 1) {
+      cols[2] = [(2 * a[0] + b[0]) / 3 | 0, (2 * a[1] + b[1]) / 3 | 0, (2 * a[2] + b[2]) / 3 | 0, 255];
+      cols[3] = [(a[0] + 2 * b[0]) / 3 | 0, (a[1] + 2 * b[1]) / 3 | 0, (a[2] + 2 * b[2]) / 3 | 0, 255];
+    } else {
+      cols[2] = [(a[0] + b[0]) / 2 | 0, (a[1] + b[1]) / 2 | 0, (a[2] + b[2]) / 2 | 0, 255];
+      cols[3] = [0, 0, 0, 0];
+    }
+    const idx = src[p + 4] | src[p + 5] << 8 | src[p + 6] << 16 | (src[p + 7] << 24 >>> 0);
+    for (let i = 0; i < 16; i++) {
+      const x = bx * 4 + (i & 3), y = by * 4 + (i >> 2);
+      if (x >= w || y >= h) continue;
+      const c = cols[(idx >>> (i * 2)) & 3], o = (y * w + x) * 4;
+      out[o] = c[0]; out[o + 1] = c[1]; out[o + 2] = c[2];
+      out[o + 3] = kind === 1 ? c[3] : al[i];
+    }
+  }
+  return out;
+}
+/* order: index of R,G,B,A inside a pixel; A=-1 → opaque */
+function decodeRaw(src, off, w, h, bpp, order) {
+  const out = new Uint8ClampedArray(w * h * 4);
+  for (let i = 0, p = off; i < w * h; i++, p += bpp) {
+    const o = i * 4;
+    out[o] = src[p + order[0]]; out[o + 1] = src[p + order[1]]; out[o + 2] = src[p + order[2]];
+    out[o + 3] = order[3] < 0 ? 255 : src[p + order[3]];
+  }
+  return out;
+}
+
+const VTF = {
+  0: ['raw', 4, [0, 1, 2, 3]], 1: ['raw', 4, [3, 2, 1, 0]], 2: ['raw', 3, [0, 1, 2, -1]],
+  3: ['raw', 3, [2, 1, 0, -1]], 11: ['raw', 4, [1, 2, 3, 0]], 12: ['raw', 4, [2, 1, 0, 3]],
+  16: ['raw', 4, [2, 1, 0, -1]], 13: ['bc', 1], 20: ['bc', 1], 14: ['bc', 3], 15: ['bc', 5],
+  5: ['raw', 1, [0, 0, 0, -1]], 6: ['raw', 2, [0, 0, 0, 1]]
+};
+function vtfSize(fmt, w, h) {
+  const f = VTF[fmt]; if (!f) return -1;
+  if (f[0] === 'bc') return Math.max(1, Math.ceil(w / 4)) * Math.max(1, Math.ceil(h / 4)) * (f[1] === 1 ? 8 : 16);
+  return w * h * f[1];
+}
+function decodeVTF(buf) {
+  const u8 = new Uint8Array(buf), dv = new DataView(buf);
+  if (String.fromCharCode(u8[0], u8[1], u8[2]) !== 'VTF') throw new Error('Это не VTF');
+  const vMin = dv.getUint32(8, true), hdr = dv.getUint32(12, true);
+  const w = dv.getUint16(16, true), h = dv.getUint16(18, true);
+  const flags = dv.getUint32(20, true), frames = Math.max(1, dv.getUint16(24, true));
+  const fmt = dv.getInt32(52, true), mips = u8[56], lfmt = dv.getInt32(57, true);
+  const lw = u8[61], lh = u8[62];
+  const depth = vMin >= 2 ? Math.max(1, dv.getUint16(63, true)) : 1;
+  const faces = flags & 0x4000 ? 6 : 1;
+  if (!VTF[fmt]) throw new Error('Формат VTF #' + fmt + ' не поддерживается');
+  let off = -1;
+  if (vMin >= 3) {
+    const nr = dv.getUint32(68, true);
+    for (let i = 0; i < nr; i++) {
+      const b = 80 + i * 8;
+      if (u8[b] === 0x30 && u8[b + 1] === 0 && u8[b + 2] === 0) off = dv.getUint32(b + 4, true);
+    }
+  }
+  if (off < 0) off = hdr + (lfmt >= 0 && VTF[lfmt] ? vtfSize(lfmt, lw, lh) : 0);
+  for (let m = mips - 1; m >= 1; m--) off += vtfSize(fmt, Math.max(1, w >> m), Math.max(1, h >> m)) * frames * faces * depth;
+  const f = VTF[fmt];
+  const rgba = f[0] === 'bc' ? decodeBC(u8, off, w, h, f[1]) : decodeRaw(u8, off, w, h, f[1], f[2]);
+  return { w, h, rgba };
+}
+function decodeDDS(buf) {
+  const u8 = new Uint8Array(buf), dv = new DataView(buf);
+  if (dv.getUint32(0, true) !== 0x20534444) throw new Error('Это не DDS');
+  const h = dv.getUint32(12, true), w = dv.getUint32(16, true);
+  const pfFlags = dv.getUint32(80, true);
+  const cc = String.fromCharCode(u8[84], u8[85], u8[86], u8[87]);
+  let off = 128;
+  if (pfFlags & 4) {
+    let kind = { DXT1: 1, DXT3: 3, DXT5: 5 }[cc];
+    if (cc === 'DX10') {
+      const dx = dv.getUint32(128, true); off += 20;
+      kind = { 71: 1, 72: 1, 74: 3, 75: 3, 77: 5, 78: 5 }[dx];
+    }
+    if (!kind) throw new Error('Сжатие DDS ' + cc + ' не поддерживается');
+    return { w, h, rgba: decodeBC(u8, off, w, h, kind) };
+  }
+  const bits = dv.getUint32(88, true), bpp = bits / 8;
+  const masks = [92, 96, 100, 104].map(o => dv.getUint32(o, true));
+  const order = masks.map((m, i) => (i === 3 && (!(pfFlags & 1) || !m)) ? -1 : Math.log2(m & -m) / 8);
+  if (bpp < 3 || order.slice(0, 3).some(x => !Number.isInteger(x))) throw new Error('Формат DDS не поддерживается');
+  return { w, h, rgba: decodeRaw(u8, off, w, h, bpp, order) };
+}
+
+/* --- world <-> radar pixel; base is the 1024 overview space --- */
+function worldToImg(x, y, P, iw, ih) {
+  let u = (x - P.pos_x) / P.scale, v = (P.pos_y - y) / P.scale, a, b;
+  switch (P.rot) {
+    case 90: a = 1024 - v; b = u; break;
+    case 180: a = 1024 - u; b = 1024 - v; break;
+    case 270: a = v; b = 1024 - u; break;
+    default: a = u; b = v;
+  }
+  return [a * iw / 1024, b * ih / 1024];
+}
+function imgToWorld(px, py, P, iw, ih) {
+  const a = px * 1024 / iw, b = py * 1024 / ih;
+  let u, v;
+  switch (P.rot) {
+    case 90: u = b; v = 1024 - a; break;
+    case 180: u = 1024 - a; v = 1024 - b; break;
+    case 270: u = 1024 - b; v = a; break;
+    default: u = a; v = b;
+  }
+  return [u * P.scale + P.pos_x, P.pos_y - v * P.scale];
+}
+
+/* --- source world -> radar pixel (src binding) -> target world (dst binding) --- */
+function convertPoint(p, src, dst, opt) {
+  const o = opt || {};
+  const [ix, iy] = worldToImg(p.x, p.y, src, 1024, 1024);
+  const [x, y] = imgToWorld(ix, iy, dst, 1024, 1024);
+  let yaw = p.yaw || 0;
+  if (Number.isFinite(p.yaw)) {
+    const a = p.yaw * Math.PI / 180;
+    const [jx, jy] = worldToImg(p.x + Math.cos(a) * 100, p.y + Math.sin(a) * 100, src, 1024, 1024);
+    const [x2, y2] = imgToWorld(jx, jy, dst, 1024, 1024);
+    yaw = Math.atan2(y2 - y, x2 - x) * 180 / Math.PI;
+  }
+  const k = dst.scale / src.scale;
+  const z = (o.scaleZ ? p.z * k : p.z) + (o.dz || 0);
+  return { ...p, x, y, z, yaw, pitch: 0 };
+}
+const f6 = v => (Math.round(v * 1e6) / 1e6).toFixed(6);
+function toCSSCfg(points, opt) {
+  const o = opt || {};
+  const out = ['"Spawns"', '{'];
+  points.forEach((p, i) => {
+    const note = o.comments && p.note ? '\t// ' + p.note.replace(/[\r\n]+/g, ' ') : '';
+    out.push('\t"' + i + '"', '\t{',
+      '\t\t"origin"\t\t"' + f6(p.x) + ' ' + f6(p.y) + ' ' + f6(p.z) + '"' + note,
+      '\t\t"angle"\t\t"' + f6(p.pitch || 0) + ' ' + f6(p.yaw || 0) + ' 0.000000"',
+      '\t\t"bombsite"\t\t"' + p.site + '"',
+      '\t\t"team"\t\t"' + p.team + '"',
+      '\t\t"type"\t\t"' + (Number.isInteger(p.type) ? p.type : 0) + '"',
+      '\t}');
+  });
+  out.push('}', '');
+  return out.join('\n');
+}
+
+return { parseKV, parseSpawns, parseOverview, looksLikeOverview, decodeVTF, decodeDDS, worldToImg, imgToWorld, convertPoint, toCSSCfg };
+})();
+if (typeof module !== 'undefined') module.exports = Core;
+</script>
+<script>
+{
+const $ = id => document.getElementById(id);
+const PRESETS = [
+  { key: 'de_anubis', game: 'CS2', pos_x: -2796, pos_y: 3328, scale: 5.22 },
+  { key: 'de_dust2', game: 'CS:S', pos_x: -2400, pos_y: 3383, scale: 4.4 }
+];
+
+/* ---------- i18n ---------- */
+const I18N = {
+ru: {
+  title: 'Радар спаунов Retakes', files: 'Файлы', open: 'Открыть файлы…',
+  open_hint: 'или перетащите на карту: радар (PNG, VTF, DDS), overview .txt, файл спаунов. Текст можно вставить через Ctrl+V.',
+  clip: 'Вставить', clip_wait: 'Ctrl+V…',
+  clip_sp_tip: 'Вставить спауны из буфера обмена: содержимое _retake.txt из CS:GO/CS2, .cfg из CS:S или строки «x y z» по одной на строку, как в выводе getpos.',
+  clip_ov_tip: 'Вставить привязку из буфера обмена: содержимое resource/overviews/<карта>.txt из CS:S/CS:GO или radar_info/<карта>.txt из CS2 (нужны pos_x, pos_y, scale).',
+  clip_denied: 'Браузер не дал странице прочитать буфер обмена. Нажмите Ctrl+V — текст попадёт туда же.',
+  clip_empty: 'В буфере обмена нет текста.', clip_ok_sp: 'Вставлено из буфера: {n} спаунов.', clip_ok_ov: 'Привязка вставлена из буфера.',
+  st_radar: 'Радар', st_ov: 'Привязка', st_sp: 'Спауны',
+  binding: 'Привязка радара', preset: 'Пресет', manual: '— вручную —', rot: 'Поворот картинки',
+  rot0: 'нет', rot90: '90° по часовой', rot270: '90° против часовой',
+  show: 'Показать', site: 'Сайт', team: 'Команда', both: 'Оба', l_plant: 'Точки плента', l_bar: 'Барьеры', l_dir: 'Взгляд', l_other: 'Без команды',
+  labels: 'Подписи', lab_id: 'номер', lab_note: 'комментарий из файла', lab_none: 'нет', zmin: 'Z от', zmax: 'Z до', msize: 'Размер меток',
+  type_legend: 'CS:S, тип T: <b>●</b> обычный, <b>◉</b> только с бомбой, <b>○</b> никогда с бомбой.',
+  edit: 'Редактирование', ed_on: 'Включить редактирование', ed_off: 'Выключить редактирование', ed_tool: 'Править',
+  ed_new: 'Новая точка:', ed_type: 'Тип (для T)', ed_z: 'Высота Z', ed_znear: 'как у ближайшей', ed_zfixed: 'своё значение', ed_zval: 'Z новой точки',
+  ty0: '0 — обычный', ty1: '1 — только с бомбой', ty2: '2 — никогда с бомбой',
+  undo: 'Отменить', redo: 'Повторить', clear: 'Удалить все',
+  keys: '<li>Клик по пустому месту — новая точка</li><li>Перетаскивание точки — переместить, ручка у стрелки — повернуть (<kbd>Shift</kbd> — шаг 15°)</li><li><kbd>←↑↓→</kbd> — сдвиг на 1 (<kbd>Shift</kbd> — 16), <kbd>[</kbd> <kbd>]</kbd> — поворот на 5°</li><li><kbd>Del</kbd> — удалить, <kbd>Ctrl</kbd>+<kbd>D</kbd> — дублировать</li><li><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> — отмена и повтор</li>',
+  ebar: 'Режим правки: клик — новая точка, перетащите точку, чтобы сдвинуть, или ручку у стрелки, чтобы повернуть.',
+  ed_changes: 'Изменений: {n}. Черновик сохраняется в этом браузере.', ed_nochanges: 'Изменений нет.',
+  draft_restore: 'Вернуть черновик от {time} ({n} точек)', draft_restored: 'Черновик восстановлен.',
+  clear_confirm: 'Нажмите ещё раз, чтобы удалить все точки', cleared: 'Все точки удалены. Отменить можно кнопкой «Отменить».',
+  exp: 'Выгрузка в CS:S .cfg',
+  exp_hint: 'Текущая привязка выше переводит точки на радар. Здесь укажите настоящую привязку этого радара в целевой игре — из её <code>resource/overviews/&lt;карта&gt;.txt</code>. Точки пересчитаются: исходные координаты → пиксель радара → координаты цели. Если точки уже в координатах цели, нажмите «Как текущая».',
+  tg_load: 'Загрузить overview цели', tg_same: 'Как текущая', tg_rot: 'Поворот картинки в цели', tg_dz: 'Сдвиг Z', tg_type: 'Тип T по умолчанию',
+  tg_scalez: 'Масштабировать Z вместе с картой', tg_vis: 'Только видимые сейчас точки', tg_cm: 'Комментарии из исходного файла (//)',
+  tg_dl: 'Скачать .cfg', tg_copy: 'Копировать текст', preview: 'Предпросмотр',
+  tg_need_p: 'Сначала задайте текущую привязку.', tg_need_t: 'Укажите привязку цели: загрузите её overview или нажмите «Как текущая».',
+  tg_sum: '{n} спаунов → CS:S. Масштаб ×{k}', tg_rotd: ', поворот {r}°', tg_other: '. Плент и барьеры в этот формат не входят ({n}).', tg_skip: ' Пропущено без команды или сайта: {n}.',
+  tg_saved: 'Сохранено как {name} — уберите «.txt» из имени.', tg_from: 'Привязка цели взята из {name}.',
+  points: 'Точки', th_site: 'Сайт', th_who: 'Кто', th_note: 'Комментарий', total: 'Всего точек: {n}',
+  paste: 'Вставить координаты спаунов текстом', paste_src: 'буфер обмена',
+  paste_b: 'Вставить привязку текстом', paste_b_btn: 'Применить привязку',
+  paste_b_ph: '"de_dust2"\n{\n\t"material"\t"overviews/de_dust2"\n\t"pos_x"\t"-2400"\n\t"pos_y"\t"3383"\n\t"scale"\t"4.4"\n}',
+  paste_b_note: 'Содержимое resource/overviews/<карта>.txt из CS:S/CS:GO или radar_info/<карта>.txt из CS2. Нужны поля pos_x, pos_y и scale.', paste_sp: 'Показать на карте',
+  paste_ph: '"Spawns"\n{\n\t"0"\n\t{\n\t\t"origin"\t"1236 2348 99.7"\n\t\t"angle"\t"0 -159.3 0"\n\t\t"bombsite"\t"A"\n\t\t"team"\t"T"\n\t}\n}',
+  paste_note: 'Подходит содержимое _retake.txt из CS:GO/CS2, .cfg из CS:S или просто строки «x y z» — по одной точке на строку, как в выводе getpos.',
+  tip_dz: 'Прибавляется к Z каждого спауна в файле. Точки на странице не меняются.',
+  tip_type: 'Тип для T-спаунов, у которых его нет в исходнике (формат CS:GO/CS2). У CT всегда 0.',
+  tip_scalez: 'Умножить Z на то же отношение масштабов, что и X, Y (scale цели / текущий scale). Нужно, если карта в цели целиком увеличена или уменьшена. При масштабе ×1 ничего не меняет.',
+  tip_vis: 'Выгрузить только точки, которые сейчас видны на карте с учётом фильтров сайта, команд и Z. Без флажка выгружаются все спауны.',
+  tip_cm: 'Дописать комментарий из исходного файла после строки origin, например // ct spawn water. Включайте, только если ваш плагин читает файлы с комментариями.',
+  local: 'Всё работает локально: файлы никуда не отправляются. Привязки и черновики правок запоминаются для каждой карты в этом браузере.',
+  empty: 'Перетащите сюда радар, overview и файл спаунов', drop: 'Отпустите файлы',
+  zin: 'Приблизить', zout: 'Отдалить', fit: 'Вписать', png: 'Сохранить PNG', done: 'Готово', copied: 'Скопировано', selected: 'Выделено: Ctrl+C',
+  map_none: 'Карта не загружена', map_noname: 'Карта без имени',
+  ov_file: 'overview {name}', ov_preset: 'пресет {name}', ov_saved: 'сохранено для {name}', ov_manual: 'вручную', ov_none: 'нет',
+  sp_line: '{name} — {n} спаунов', sp_pl: ', {n} плентов', sp_new: 'новый набор', nonsquare: 'не квадрат — проверьте привязку',
+  m_vmt: 'VMT описывает только материал{tex}, координат привязки в нём нет. Нужен resource/overviews/{map}.txt.',
+  m_noov: 'В тексте нет pos_x, pos_y и scale.', m_nopts: '{name}: не нашёл ни одной точки.',
+  m_noparams: 'Для {map} нет параметров привязки. Загрузите resource/overviews/{map}.txt или введите pos_x, pos_y, scale вручную.',
+  m_rot: 'В файле rotate = {r}. Это поле не применяется само: обычно оно поворачивает радар в HUD, а не картинку. Если точки легли повёрнутыми, выберите поворот выше.',
+  m_needp: 'Чтобы ставить точки, сначала задайте привязку радара.',
+  k_plant: 'Плент', k_bar: 'Барьер', k_point: 'Точка', site_w: 'сайт',
+  t_carrier: 'только с бомбой', t_never: 'никогда с бомбой', t_normal: 'обычный', weight: 'вес {w}',
+  c_copy: 'Копировать setpos', c_close: 'Закрыть', c_del: 'Удалить', c_dup: 'Дублировать',
+  f_team: 'Команда', f_site: 'Сайт', f_type: 'Тип', f_note: 'Комментарий', f_w: 'Вес',
+  png_site: 'сайт'
+},
+en: {
+  title: 'Retakes spawn radar', files: 'Files', open: 'Open files…',
+  open_hint: 'or drop them on the map: radar (PNG, VTF, DDS), overview .txt, spawn file. Text can be pasted with Ctrl+V.',
+  clip: 'Paste', clip_wait: 'Ctrl+V…',
+  clip_sp_tip: 'Paste spawns from the clipboard: the contents of a CS:GO/CS2 _retake.txt, a CS:S .cfg, or plain “x y z” lines, one per line, like getpos output.',
+  clip_ov_tip: 'Paste a binding from the clipboard: the contents of resource/overviews/<map>.txt from CS:S/CS:GO or radar_info/<map>.txt from CS2 (needs pos_x, pos_y, scale).',
+  clip_denied: 'The browser did not let the page read the clipboard. Press Ctrl+V and the text will go to the same place.',
+  clip_empty: 'The clipboard has no text.', clip_ok_sp: 'Pasted from the clipboard: {n} spawns.', clip_ok_ov: 'Binding pasted from the clipboard.',
+  st_radar: 'Radar', st_ov: 'Binding', st_sp: 'Spawns',
+  binding: 'Radar binding', preset: 'Preset', manual: '— manual —', rot: 'Image rotation',
+  rot0: 'none', rot90: '90° clockwise', rot270: '90° counter-clockwise',
+  show: 'Show', site: 'Site', team: 'Team', both: 'Both', l_plant: 'Plant spots', l_bar: 'Barriers', l_dir: 'View direction', l_other: 'No team',
+  labels: 'Labels', lab_id: 'number', lab_note: 'comment from file', lab_none: 'none', zmin: 'Z from', zmax: 'Z to', msize: 'Marker size',
+  type_legend: 'CS:S, T type: <b>●</b> normal, <b>◉</b> bomb carrier only, <b>○</b> never carrier.',
+  edit: 'Editing', ed_on: 'Turn editing on', ed_off: 'Turn editing off', ed_tool: 'Edit',
+  ed_new: 'New point:', ed_type: 'Type (for T)', ed_z: 'Height Z', ed_znear: 'same as nearest', ed_zfixed: 'custom value', ed_zval: 'Z of new point',
+  ty0: '0 — normal', ty1: '1 — bomb carrier only', ty2: '2 — never carrier',
+  undo: 'Undo', redo: 'Redo', clear: 'Delete all',
+  keys: '<li>Click an empty spot — new point</li><li>Drag a point to move it, drag the handle by the arrow to rotate (<kbd>Shift</kbd> — 15° steps)</li><li><kbd>←↑↓→</kbd> — move by 1 (<kbd>Shift</kbd> — 16), <kbd>[</kbd> <kbd>]</kbd> — rotate by 5°</li><li><kbd>Del</kbd> — delete, <kbd>Ctrl</kbd>+<kbd>D</kbd> — duplicate</li><li><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> — undo and redo</li>',
+  ebar: 'Edit mode: click to add a point, drag a point to move it, or drag the handle by its arrow to rotate.',
+  ed_changes: 'Changes: {n}. A draft is kept in this browser.', ed_nochanges: 'No changes.',
+  draft_restore: 'Restore draft from {time} ({n} points)', draft_restored: 'Draft restored.',
+  clear_confirm: 'Click again to delete all points', cleared: 'All points deleted. Use Undo to bring them back.',
+  exp: 'Export to CS:S .cfg',
+  exp_hint: 'The binding above maps points onto the radar. Here enter the real binding of this radar in the target game, from its <code>resource/overviews/&lt;map&gt;.txt</code>. Points are converted: source coordinates → radar pixel → target coordinates. If the points are already in target coordinates, press “Same as current”.',
+  tg_load: 'Load target overview', tg_same: 'Same as current', tg_rot: 'Image rotation in target', tg_dz: 'Z offset', tg_type: 'Default T type',
+  tg_scalez: 'Scale Z with the map', tg_vis: 'Only points visible now', tg_cm: 'Comments from source file (//)',
+  tg_dl: 'Download .cfg', tg_copy: 'Copy text', preview: 'Preview',
+  tg_need_p: 'Set the current binding first.', tg_need_t: 'Set the target binding: load its overview or press “Same as current”.',
+  tg_sum: '{n} spawns → CS:S. Scale ×{k}', tg_rotd: ', rotation {r}°', tg_other: '. Plant spots and barriers are not part of this format ({n}).', tg_skip: ' Skipped without team or site: {n}.',
+  tg_saved: 'Saved as {name} — remove “.txt” from the name.', tg_from: 'Target binding taken from {name}.',
+  points: 'Points', th_site: 'Site', th_who: 'Who', th_note: 'Comment', total: 'Total points: {n}',
+  paste: 'Paste spawn coordinates as text', paste_src: 'clipboard',
+  paste_b: 'Paste binding as text', paste_b_btn: 'Apply binding',
+  paste_b_ph: '"de_dust2"\n{\n\t"material"\t"overviews/de_dust2"\n\t"pos_x"\t"-2400"\n\t"pos_y"\t"3383"\n\t"scale"\t"4.4"\n}',
+  paste_b_note: 'Contents of resource/overviews/<map>.txt from CS:S/CS:GO or radar_info/<map>.txt from CS2. Needs pos_x, pos_y and scale.', paste_sp: 'Show on map',
+  paste_ph: '"Spawns"\n{\n\t"0"\n\t{\n\t\t"origin"\t"1236 2348 99.7"\n\t\t"angle"\t"0 -159.3 0"\n\t\t"bombsite"\t"A"\n\t\t"team"\t"T"\n\t}\n}',
+  paste_note: 'Accepts the contents of a CS:GO/CS2 _retake.txt, a CS:S .cfg, or plain “x y z” lines — one point per line, like getpos output.',
+  tip_dz: 'Added to the Z of every spawn in the file. Points on the page stay unchanged.',
+  tip_type: 'Type for T spawns that have none in the source (CS:GO/CS2 format). CT is always 0.',
+  tip_scalez: 'Multiply Z by the same scale ratio as X and Y (target scale / current scale). Needed when the target map is scaled as a whole. Does nothing at ×1.',
+  tip_vis: 'Export only the points visible on the map right now, with the site, team and Z filters applied. Unchecked, all spawns are exported.',
+  tip_cm: 'Append the source file comment after the origin line, e.g. // ct spawn water. Turn on only if your plugin reads files with comments.',
+  local: 'Everything runs locally: files are never uploaded. Bindings and edit drafts are remembered per map in this browser.',
+  empty: 'Drop a radar, an overview and a spawn file here', drop: 'Drop the files',
+  zin: 'Zoom in', zout: 'Zoom out', fit: 'Fit', png: 'Save PNG', done: 'Done', copied: 'Copied', selected: 'Selected: Ctrl+C',
+  map_none: 'No map loaded', map_noname: 'Unnamed map',
+  ov_file: 'overview {name}', ov_preset: 'preset {name}', ov_saved: 'saved for {name}', ov_manual: 'manual', ov_none: 'none',
+  sp_line: '{name} — {n} spawns', sp_pl: ', {n} plant spots', sp_new: 'new set', nonsquare: 'not square — check the binding',
+  m_vmt: 'A VMT only describes the material{tex}; it has no binding coordinates. You need resource/overviews/{map}.txt.',
+  m_noov: 'The text has no pos_x, pos_y and scale.', m_nopts: '{name}: no points found.',
+  m_noparams: 'No binding for {map}. Load resource/overviews/{map}.txt or enter pos_x, pos_y, scale by hand.',
+  m_rot: 'The file says rotate = {r}. It is not applied automatically: it usually rotates the HUD radar, not the image. If the points look rotated, pick a rotation above.',
+  m_needp: 'Set the radar binding before placing points.',
+  k_plant: 'Plant', k_bar: 'Barrier', k_point: 'Point', site_w: 'site',
+  t_carrier: 'bomb carrier only', t_never: 'never carrier', t_normal: 'normal', weight: 'weight {w}',
+  c_copy: 'Copy setpos', c_close: 'Close', c_del: 'Delete', c_dup: 'Duplicate',
+  f_team: 'Team', f_site: 'Site', f_type: 'Type', f_note: 'Comment', f_w: 'Weight',
+  png_site: 'site'
+}};
+let LANG = 'ru';
+const L = (k, p) => {
+  let s = (I18N[LANG] && I18N[LANG][k]) ?? I18N.ru[k] ?? k;
+  if (p) for (const n in p) s = s.split('{' + n + '}').join(p[n]);
+  return s;
+};
+
+/* ---------- state ---------- */
+const S = {
+  img: null, iw: 1024, ih: 1024, map: '',
+  P: { pos_x: 0, pos_y: 0, scale: 1, rot: 0 }, hasP: false,
+  pts: [], format: '', site: 'all', sel: -1, hover: -1,
+  view: { s: 1, x: 0, y: 0 },
+  st: { radar: null, ov: null, sp: null }, msg: null, rotFile: 0,
+  edit: false, undo: [], redo: [], changes: 0, nt: 'CT', ns: 'A'
+};
+const cv = $('cv'), ctx = cv.getContext('2d');
+const COL = { T: '#ee8f22', CT: '#3e8fe6', '?': '#b8bcc4', bomb: '#e0393e', bar: '#d94ff0' };
+
+/* ---------- helpers ---------- */
+const mapFrom = s => { const m = String(s || '').toLowerCase().match(/(?:de|cs|ar|dz|gd|aim|awp|fy)_[a-z0-9]+(?:_[a-z0-9]+)*/); return m ? m[0].replace(/_(retake|radar|psd|spawns?)(_.*)?$/, '') : ''; };
+const fmt = v => (Math.round(v * 100) / 100).toString();
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem('rsv:' + k) || 'null'); if (v === null) localStorage.removeItem('rsv:' + k); else localStorage.setItem('rsv:' + k, JSON.stringify(v)); } catch (e) { return null; } }
+function msg(k, p, warn) { S.msg = k ? { k, p, warn } : null; renderMsg(); }
+function renderMsg() { const m = $('msg'); m.hidden = !S.msg; m.textContent = S.msg ? L(S.msg.k, S.msg.p) : ''; m.className = 'note' + (S.msg && S.msg.warn ? ' warn' : ''); }
+const presetLabel = p => p.key + ' — ' + p.game;
+
+function renderStatus() {
+  const r = S.st.radar, o = S.st.ov, s = S.st.sp;
+  $('st-radar').innerHTML = r ? '<span class="ok">✓</span> ' + esc(r.name) + ' (' + r.w + '×' + r.h + ')' + (r.w !== r.h ? ' <span class="warn">' + L('nonsquare') + '</span>' : '') : '—';
+  $('st-ov').innerHTML = !o ? '—' : o.src === 'none' ? '<span class="warn">' + L('ov_none') + '</span>' : '<span class="ok">✓</span> ' + esc(L('ov_' + o.src, { name: o.name }));
+  $('st-sp').innerHTML = !s ? '—' : '<span class="ok">✓</span> ' + esc(L('sp_line', { name: s.name, n: S.pts.filter(p => p.kind === 'spawn').length })) + (S.pts.some(p => p.kind === 'plant') ? esc(L('sp_pl', { n: S.pts.filter(p => p.kind === 'plant').length })) : '');
+  $('mapchip').textContent = (S.map || (S.pts.length || S.img ? L('map_noname') : L('map_none'))) + (S.format ? ' · ' + S.format : '');
+  const rn = $('rotnote'); rn.hidden = !S.rotFile; rn.textContent = L('m_rot', { r: S.rotFile });
+}
+
+function setMap(name) {
+  if (!name || name === S.map) return;
+  S.map = name;
+  const savedT = store('t:' + name);
+  if (savedT) tgSet(savedT);
+  const saved = store('p:' + name);
+  const pre = PRESETS.find(p => p.key === name);
+  if (saved) applyP(saved, { src: 'saved', name });
+  else if (pre) { applyP({ ...pre, rot: 0 }, { src: 'preset', name: presetLabel(pre) }); $('preset').value = pre.key; }
+  else if (!S.hasP) { S.st.ov = { src: 'none' }; msg('m_noparams', { map: name }, true); }
+  renderStatus(); renderDraft();
+}
+function applyP(p, st) {
+  S.P.pos_x = +p.pos_x; S.P.pos_y = +p.pos_y; S.P.scale = +p.scale;
+  if (p.rot !== undefined) S.P.rot = +p.rot;
+  S.hasP = true; S.st.ov = st;
+  if (st.src !== 'file') S.rotFile = 0;
+  $('pos_x').value = S.P.pos_x; $('pos_y').value = S.P.pos_y; $('scale').value = S.P.scale; $('rot').value = S.P.rot;
+  renderStatus(); draw();
+}
+function readP() {
+  const x = parseFloat($('pos_x').value), y = parseFloat($('pos_y').value), s = parseFloat($('scale').value);
+  if ([x, y, s].some(Number.isNaN) || s <= 0) return;
+  S.P.pos_x = x; S.P.pos_y = y; S.P.scale = s; S.P.rot = +$('rot').value; S.hasP = true;
+  S.st.ov = { src: 'manual' };
+  if (S.map) store('p:' + S.map, { pos_x: x, pos_y: y, scale: s, rot: S.P.rot });
+  renderStatus(); draw();
+}
+
+/* ---------- loading ---------- */
+async function loadFiles(list) {
+  const files = [...list];
+  const order = f => /\.(png|jpe?g|webp|gif|bmp|vtf|dds)$/i.test(f.name) ? 0 : 1;
+  files.sort((a, b) => order(a) - order(b));
+  for (const f of files) {
+    try { await loadOne(f); } catch (e) { S.msg = { k: 'raw', p: null, warn: true }; I18N.ru.raw = I18N.en.raw = f.name + ': ' + e.message; renderMsg(); }
+  }
+}
+async function loadOne(f) {
+  const name = f.name, low = name.toLowerCase();
+  if (/\.(png|jpe?g|webp|gif|bmp)$/.test(low)) { setRadar(await createImageBitmap(f), name); return; }
+  if (/\.(vtf|dds)$/.test(low)) {
+    const buf = await f.arrayBuffer();
+    const d = low.endsWith('.vtf') ? Core.decodeVTF(buf) : Core.decodeDDS(buf);
+    const c = document.createElement('canvas'); c.width = d.w; c.height = d.h;
+    c.getContext('2d').putImageData(new ImageData(d.rgba, d.w, d.h), 0, 0);
+    setRadar(c, name); return;
+  }
+  const text = await f.text();
+  if (low.endsWith('.vmt')) {
+    const m = text.match(/\$basetexture"?\s+"?([^"\s]+)/i);
+    msg('m_vmt', { tex: m ? ' (' + m[1] + ')' : '', map: mapFrom(name) || '<map>' }, true);
+    return;
+  }
+  loadText(text, name);
+}
+function loadText(text, name, force) {
+  if (force === 'ov' || (!force && Core.looksLikeOverview(text))) {
+    const o = Core.parseOverview(text);
+    if (!o) { msg('m_noov', null, true); return; }
+    setMap(mapFrom(o.name) || mapFrom(name));
+    applyP({ pos_x: o.pos_x, pos_y: o.pos_y, scale: o.scale, rot: 0 }, { src: 'file', name: o.name || name });
+    if (S.map) store('p:' + S.map, { pos_x: o.pos_x, pos_y: o.pos_y, scale: o.scale, rot: 0 });
+    S.rotFile = o.rotate || 0; $('preset').value = '';
+    msg(null); renderStatus(); return;
+  }
+  const r = Core.parseSpawns(text);
+  if (!r.points.length) { msg('m_nopts', { name }, true); return; }
+  S.pts = r.points; S.format = r.format; S.sel = -1; S.hover = -1;
+  S.undo = []; S.redo = []; S.changes = 0;
+  S.st.sp = { name };
+  setMap(mapFrom(name));
+  afterPoints(); hideCard();
+}
+function setRadar(src, name) {
+  S.img = src; S.iw = src.width; S.ih = src.height;
+  S.st.radar = { name, w: S.iw, h: S.ih };
+  setMap(mapFrom(name));
+  renderStatus(); fit();
+}
+
+/* ---------- filtering ---------- */
+function visible(p) {
+  if (S.site !== 'all' && p.site !== S.site) return false;
+  if (p.kind === 'plant') { if (!$('c-plant').checked) return false; }
+  else if (p.kind === 'barrier') { if (!$('c-bar').checked) return false; }
+  else if (p.team === 'T') { if (!$('c-t').checked) return false; }
+  else if (p.team === 'CT') { if (!$('c-ct').checked) return false; }
+  else if (!$('c-other').checked) return false;
+  const zl = parseFloat($('zmin').value), zh = parseFloat($('zmax').value);
+  if (!Number.isNaN(zl) && p.z < zl) return false;
+  if (!Number.isNaN(zh) && p.z > zh) return false;
+  return true;
+}
+const kindName = p => p.kind === 'plant' ? L('k_plant') : p.kind === 'barrier' ? L('k_bar') : (p.team === '?' ? L('k_point') : p.team);
+function typeName(p) {
+  if (p.kind === 'plant') return L('weight', { w: p.weight });
+  if (p.type === 1) return L('t_carrier');
+  if (p.type === 2) return L('t_never');
+  if (p.type === 0 && p.team === 'T') return L('t_normal');
+  return '';
+}
+
+/* ---------- drawing ---------- */
+function resize() {
+  const r = cv.getBoundingClientRect(), d = devicePixelRatio || 1;
+  cv.width = Math.max(1, r.width * d | 0); cv.height = Math.max(1, r.height * d | 0);
+  draw();
+}
+function fit() {
+  const r = cv.getBoundingClientRect(); if (!r.width) return;
+  const s = Math.min(r.width / S.iw, r.height / S.ih) * 0.96;
+  S.view = { s, x: (r.width - S.iw * s) / 2, y: (r.height - S.ih * s) / 2 };
+  draw();
+}
+const toImg = p => Core.worldToImg(p.x, p.y, S.P, S.iw, S.ih);
+const toScr = (x, y, v) => { const [a, b] = Core.worldToImg(x, y, S.P, S.iw, S.ih); v = v || S.view; return [v.x + a * v.s, v.y + b * v.s]; };
+const scrToWorld = (mx, my) => Core.imgToWorld((mx - S.view.x) / S.view.s, (my - S.view.y) / S.view.s, S.P, S.iw, S.ih);
+function dirOf(p, v) {
+  const a = (p.yaw || 0) * Math.PI / 180;
+  const [bx, by] = toScr(p.x, p.y, v), [hx, hy] = toScr(p.x + Math.cos(a) * 100, p.y + Math.sin(a) * 100, v);
+  let dx = hx - bx, dy = hy - by; const l = Math.hypot(dx, dy) || 1; return [dx / l, dy / l];
+}
+function marker(g, p, X, Y, r, opts) {
+  const lw = Math.max(1.2, r * 0.22);
+  if (p.kind === 'barrier') {
+    const [X2, Y2] = opts.end;
+    g.lineCap = 'round';
+    g.strokeStyle = 'rgba(0,0,0,.75)'; g.lineWidth = r * 0.9; g.beginPath(); g.moveTo(X, Y); g.lineTo(X2, Y2); g.stroke();
+    g.strokeStyle = opts.ring ? '#fff' : COL.bar; g.lineWidth = r * 0.5; g.beginPath(); g.moveTo(X, Y); g.lineTo(X2, Y2); g.stroke();
+    return;
+  }
+  const c = p.kind === 'plant' ? COL.bomb : COL[p.team] || COL['?'];
+  if (opts.dir && Number.isFinite(p.yaw)) {
+    const [dx, dy] = dirOf(p, opts.v);
+    const ex = X + dx * r * 2.7, ey = Y + dy * r * 2.7;
+    for (const [w, s] of [[lw + 2.2, 'rgba(0,0,0,.75)'], [lw, c]]) {
+      g.strokeStyle = s; g.lineWidth = w; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(X + dx * r, Y + dy * r); g.lineTo(ex, ey);
+      g.moveTo(ex - dx * r * .7 - dy * r * .5, ey - dy * r * .7 + dx * r * .5); g.lineTo(ex, ey);
+      g.lineTo(ex - dx * r * .7 + dy * r * .5, ey - dy * r * .7 - dx * r * .5); g.stroke();
+    }
+  }
+  g.lineWidth = lw;
+  g.beginPath();
+  if (p.kind === 'plant') { g.moveTo(X, Y - r * 1.15); g.lineTo(X + r * 1.15, Y); g.lineTo(X, Y + r * 1.15); g.lineTo(X - r * 1.15, Y); g.closePath(); }
+  else g.arc(X, Y, r, 0, 7);
+  if (p.type === 2) { g.fillStyle = 'rgba(15,17,20,.75)'; g.fill(); g.strokeStyle = c; g.lineWidth = lw * 1.6; g.stroke(); }
+  else { g.fillStyle = c; g.fill(); g.strokeStyle = 'rgba(0,0,0,.8)'; g.stroke(); }
+  if (p.type === 1) { g.beginPath(); g.arc(X, Y, r * 0.42, 0, 7); g.fillStyle = '#16181b'; g.fill(); }
+  if (opts.ring) { g.beginPath(); g.arc(X, Y, r + 5, 0, 7); g.strokeStyle = '#fff'; g.lineWidth = 2.2; g.stroke(); }
+}
+function handlePos(p, r) { const [X, Y] = toScr(p.x, p.y), [dx, dy] = dirOf(p); return [X + dx * r * 4, Y + dy * r * 4]; }
+function label(g, p, X, Y, r, mode) {
+  let t = mode === 'id' ? p.id : mode === 'note' ? (p.note || p.id) : '';
+  if (p.kind === 'plant' && mode !== 'none') t = (mode === 'note' && p.note ? p.note + ' ' : '') + '×' + p.weight;
+  if (!t || p.kind === 'barrier') return;
+  g.font = '600 ' + Math.round(r * 1.75) + 'px system-ui,sans-serif';
+  g.textBaseline = 'middle'; g.lineJoin = 'round';
+  g.strokeStyle = 'rgba(0,0,0,.85)'; g.lineWidth = Math.max(2.5, r * 0.5);
+  g.strokeText(t, X + r * 1.5, Y); g.fillStyle = '#fff'; g.fillText(t, X + r * 1.5, Y);
+}
+function paint(g, W, H, v, r, ringIdx, withHandle) {
+  g.clearRect(0, 0, W, H);
+  if (S.img) { g.imageSmoothingEnabled = v.s < 2; g.drawImage(S.img, v.x, v.y, S.iw * v.s, S.ih * v.s); }
+  else {
+    g.strokeStyle = 'rgba(255,255,255,.08)'; g.lineWidth = 1;
+    for (let i = 0; i <= 8; i++) { const a = i * 128 * v.s; g.beginPath(); g.moveTo(v.x + a, v.y); g.lineTo(v.x + a, v.y + 1024 * v.s); g.moveTo(v.x, v.y + a); g.lineTo(v.x + 1024 * v.s, v.y + a); g.stroke(); }
+  }
+  if (!S.hasP) return;
+  const mode = $('labels').value, dir = $('c-dir').checked;
+  const order = [...S.pts.keys()].filter(i => visible(S.pts[i]))
+    .sort((a, b) => (S.pts[a].kind === 'barrier' ? -1 : 0) - (S.pts[b].kind === 'barrier' ? -1 : 0));
+  for (const i of order) {
+    const p = S.pts[i], [X, Y] = toScr(p.x, p.y, v);
+    const end = p.kind === 'barrier' ? toScr(p.x2, p.y2, v) : null;
+    marker(g, p, X, Y, r, { dir: dir || (withHandle && i === S.sel), end, ring: ringIdx.includes(i), v });
+  }
+  for (const i of order) { const [X, Y] = toScr(S.pts[i].x, S.pts[i].y, v); label(g, S.pts[i], X, Y, r, mode); }
+  if (withHandle && S.sel >= 0 && S.pts[S.sel] && S.pts[S.sel].kind !== 'barrier' && visible(S.pts[S.sel])) {
+    const p = S.pts[S.sel], [X, Y] = toScr(p.x, p.y), [hx, hy] = handlePos(p, r);
+    g.setLineDash([3, 3]); g.strokeStyle = '#fff'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(X, Y); g.lineTo(hx, hy); g.stroke(); g.setLineDash([]);
+    g.beginPath(); g.arc(hx, hy, r * 0.8, 0, 7); g.fillStyle = '#fff'; g.fill(); g.strokeStyle = '#16181b'; g.lineWidth = 2; g.stroke();
+  }
+}
+const rad = () => 6.5 * +$('msize').value;
+function draw() {
+  const d = devicePixelRatio || 1;
+  ctx.setTransform(d, 0, 0, d, 0, 0);
+  paint(ctx, cv.width / d, cv.height / d, S.view, rad(), [S.sel, S.hover].filter(i => i >= 0), S.edit);
+  $('empty').hidden = !!(S.img || S.pts.length || S.edit);
+  tgSchedule();
+}
+
+/* ---------- list & card ---------- */
+function renderList() {
+  const g = {};
+  for (const p of S.pts) if (p.kind === 'spawn') { const k = p.team + p.site; g[k] = (g[k] || 0) + 1; }
+  const sites = ['A', 'B'].filter(s => S.pts.some(p => p.site === s));
+  const teams = ['CT', 'T', '?'].filter(t => S.pts.some(p => p.kind === 'spawn' && p.team === t));
+  $('counts').innerHTML = sites.length ? '<span></span>' + sites.map(s => '<b class="n">' + s + '</b>').join('') + (sites.length === 1 ? '<span></span>' : '') +
+    teams.map(t => '<span><span class="dot" style="background:' + (COL[t] || COL['?']) + '"></span> ' + (t === '?' ? L('k_point') : t) + '</span>' + sites.map(s => '<span class="n">' + (g[t + s] || 0) + '</span>').join('') + (sites.length === 1 ? '<span></span>' : '')).join('')
+    : '<span>' + L('total', { n: S.pts.length }) + '</span>';
+  const rank = p => ({ spawn: 0, plant: 1, barrier: 2 }[p.kind] * 10 + (p.team === 'CT' ? 0 : 1));
+  const idx = [...S.pts.keys()].sort((a, b) => (S.pts[a].site > S.pts[b].site) - (S.pts[a].site < S.pts[b].site) || rank(S.pts[a]) - rank(S.pts[b]) || (+S.pts[a].id - +S.pts[b].id));
+  $('tbody').innerHTML = idx.map(i => {
+    const p = S.pts[i], ty = typeName(p);
+    return '<tr class="pt" data-i="' + i + '"><td>' + esc(p.site) + '</td><td><span class="dot" style="background:' +
+      (p.kind === 'plant' ? COL.bomb : p.kind === 'barrier' ? COL.bar : COL[p.team] || COL['?']) + '"></span> ' + esc(kindName(p)) +
+      '</td><td class="num">' + esc(p.id) + '</td><td>' + esc(p.note || ty || '') + (p.note && ty ? ' · ' + esc(ty) : '') + '</td></tr>';
+  }).join('');
+  markRow();
+}
+function markRow() { for (const tr of $('tbody').rows) tr.classList.toggle('sel', +tr.dataset.i === S.sel); }
+const spLine = p => 'setpos ' + fmt(p.x) + ' ' + fmt(p.y) + ' ' + fmt(p.z) + '; setang ' + fmt(p.pitch || 0) + ' ' + fmt(p.yaw || 0) + ' 0';
+function renderCard() {
+  const c = $('card');
+  if (S.sel < 0 || !S.pts[S.sel]) { c.hidden = true; $('stage').classList.remove('has-card'); return; }
+  const p = S.pts[S.sel], ty = typeName(p), sp = p.kind === 'barrier' ? '' : spLine(p);
+  let h = '<h3>' + esc(kindName(p)) + ' · ' + L('site_w') + ' ' + esc(p.site) + ' · №' + esc(p.id) + '</h3>';
+  if (!S.edit) {
+    h += (p.note ? '<div>' + esc(p.note) + '</div>' : '') + (ty ? '<div>' + esc(ty) + '</div>' : '') +
+      '<div>x ' + fmt(p.x) + ' · y ' + fmt(p.y) + ' · z ' + fmt(p.z) + (p.kind === 'barrier' ? ' → ' + fmt(p.x2) + ' ' + fmt(p.y2) + ' ' + fmt(p.z2) : ' · yaw ' + fmt(p.yaw || 0)) + '</div>';
+  } else {
+    const opt = (v, cur, txt) => '<option value="' + v + '"' + (String(cur) === String(v) ? ' selected' : '') + '>' + esc(txt) + '</option>';
+    const num = (k, lab, cls) => '<label class="' + (cls || '') + '">' + lab + '<input type="number" step="any" data-f="' + k + '" value="' + (Number.isFinite(p[k]) ? Math.round(p[k] * 1000) / 1000 : '') + '"></label>';
+    h += '<div class="form">';
+    if (p.kind === 'spawn') {
+      h += '<label>' + L('f_team') + '<select data-f="team">' + opt('T', p.team, 'T') + opt('CT', p.team, 'CT') + (p.team === '?' ? opt('?', p.team, '?') : '') + '</select></label>';
+      h += '<label>' + L('f_site') + '<select data-f="site">' + opt('A', p.site, 'A') + opt('B', p.site, 'B') + (p.site === '?' ? opt('?', p.site, '?') : '') + '</select></label>';
+      h += '<label class="w2">' + L('f_type') + '<select data-f="type">' + opt(0, p.type ?? 0, L('ty0')) + opt(1, p.type, L('ty1')) + opt(2, p.type, L('ty2')) + '</select></label>';
+    } else {
+      h += '<label>' + L('f_site') + '<select data-f="site">' + opt('A', p.site, 'A') + opt('B', p.site, 'B') + '</select></label>';
+      if (p.kind === 'plant') h += num('weight', L('f_w'));
+    }
+    h += num('x', 'X') + num('y', 'Y') + num('z', 'Z') + (p.kind === 'barrier' ? '' : num('yaw', 'Yaw'));
+    if (p.kind === 'barrier') h += num('x2', 'X2') + num('y2', 'Y2') + num('z2', 'Z2');
+    h += '<label class="w4">' + L('f_note') + '<input type="text" data-f="note" value="' + esc(p.note || '') + '"></label></div>';
+  }
+  h += sp ? '<code id="sp">' + sp + '</code>' : '';
+  h += '<div class="row">' + (sp ? '<button type="button" data-a="copy">' + L('c_copy') + '</button>' : '') +
+    (S.edit ? '<button type="button" data-a="dup">' + L('c_dup') + '</button><button type="button" class="danger" data-a="del">' + L('c_del') + '</button>' : '') +
+    '<button type="button" data-a="close">' + L('c_close') + '</button></div>';
+  const focusF = document.activeElement && c.contains(document.activeElement) ? document.activeElement.dataset.f : null;
+  c.innerHTML = h; c.hidden = false; $('stage').classList.add('has-card');
+  if (focusF) { const el = c.querySelector('[data-f="' + focusF + '"]'); if (el) el.focus(); }
+}
+function select(i, center) {
+  S.sel = i; markRow();
+  if (i >= 0 && center) {
+    const r = cv.getBoundingClientRect(), [ix, iy] = toImg(S.pts[i]);
+    S.view.x = r.width / 2 - ix * S.view.s; S.view.y = r.height * (r.width < 600 ? 0.28 : 0.5) - iy * S.view.s;
+  }
+  renderCard(); draw();
+}
+function hideCard() { $('card').hidden = true; $('stage').classList.remove('has-card'); }
+$('card').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-a]'); if (!b) return;
+  const a = b.dataset.a;
+  if (a === 'close') select(-1);
+  else if (a === 'del') delSel();
+  else if (a === 'dup') dupSel();
+  else if (a === 'copy') {
+    const txt = $('sp').textContent;
+    try { await navigator.clipboard.writeText(txt); b.textContent = L('copied'); }
+    catch (_) { const rg = document.createRange(); rg.selectNodeContents($('sp')); const s = getSelection(); s.removeAllRanges(); s.addRange(rg); b.textContent = L('selected'); }
+  }
+});
+$('card').addEventListener('change', e => {
+  const el = e.target, f = el.dataset && el.dataset.f; if (!f || S.sel < 0) return;
+  const p = S.pts[S.sel];
+  let v = el.value;
+  if (['x', 'y', 'z', 'yaw', 'x2', 'y2', 'z2', 'weight'].includes(f)) { v = parseFloat(v); if (Number.isNaN(v)) { renderCard(); return; } }
+  if (f === 'type') v = +v;
+  if (p[f] === v) return;
+  pushUndo();
+  if (f === 'team' && v === 'CT') p.type = 0;
+  if ((f === 'team' || f === 'site') && p.kind === 'spawn') { p[f] = v; p.id = nextId(p.team, p.site, p.kind, S.sel); }
+  else p[f] = v;
+  afterEdit();
+});
+
+/* ---------- editing ---------- */
+function snapshot() { return JSON.stringify(S.pts); }
+function pushUndo() { S.undo.push(snapshot()); if (S.undo.length > 200) S.undo.shift(); S.redo = []; S.changes++; }
+function undo() { if (!S.undo.length) return; S.redo.push(snapshot()); S.pts = JSON.parse(S.undo.pop()); S.changes++; if (S.sel >= S.pts.length) S.sel = -1; afterEdit(); }
+function redo() { if (!S.redo.length) return; S.undo.push(snapshot()); S.pts = JSON.parse(S.redo.pop()); S.changes++; if (S.sel >= S.pts.length) S.sel = -1; afterEdit(); }
+function nextId(team, site, kind, skip) {
+  let m = -1;
+  S.pts.forEach((q, i) => { if (i !== skip && q.kind === kind && q.site === site && (kind !== 'spawn' || q.team === team)) { const n = parseInt(q.id, 10); if (n > m) m = n; } });
+  return String(m + 1);
+}
+let draftTimer = 0;
+function afterEdit() {
+  if (!S.st.sp) S.st.sp = { name: L('sp_new') };
+  renderList(); renderCard(); renderStatus(); renderEditState(); draw();
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(() => { if (S.map) store('d:' + S.map, { t: Date.now(), format: S.format, pts: S.pts }); renderDraft(); }, 400);
+}
+function afterPoints() { renderList(); renderStatus(); renderEditState(); renderDraft(); draw(); }
+function renderEditState() {
+  $('ed-undo').disabled = !S.undo.length; $('ed-redo').disabled = !S.redo.length;
+  $('ed-state').textContent = S.changes ? L('ed_changes', { n: S.changes }) : L('ed_nochanges');
+}
+function renderDraft() {
+  const d = S.map ? store('d:' + S.map) : null;
+  const show = !!(d && d.pts && JSON.stringify(d.pts) !== snapshot());
+  $('draft-row').hidden = !show;
+  if (show) $('ed-sec').open = true;
+  if (show) $('ed-draft').textContent = L('draft_restore', { time: new Date(d.t).toLocaleString(LANG === 'ru' ? 'ru-RU' : 'en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), n: d.pts.length });
+}
+$('ed-draft').onclick = () => {
+  const d = store('d:' + S.map); if (!d) return;
+  pushUndo(); S.pts = d.pts; if (d.format && !S.format) S.format = d.format; S.sel = -1;
+  afterEdit(); msg('draft_restored');
+};
+function setEdit(on) {
+  S.edit = on;
+  $('ed-toggle').textContent = L(on ? 'ed_off' : 'ed_on'); $('ed-toggle').classList.toggle('on', on);
+  $('ed-tool').classList.toggle('on', on); $('ed-tool').setAttribute('aria-pressed', on);
+  $('ebar').hidden = !on; cv.classList.toggle('edit', on);
+  if (on) $('ed-sec').open = true;
+  if (on && !S.hasP) msg('m_needp', null, true);
+  renderCard(); draw();
+}
+function newZ(x, y) {
+  if ($('nt-zmode').value === 'fixed') return parseFloat($('nt-z').value) || 0;
+  let best = null, bd = Infinity;
+  for (const q of S.pts) { if (q.kind === 'barrier') continue; const d = Math.hypot(q.x - x, q.y - y); if (d < bd) { bd = d; best = q; } }
+  return best ? best.z : (parseFloat($('nt-z').value) || 0);
+}
+function addAt(mx, my) {
+  if (!S.hasP) { msg('m_needp', null, true); return; }
+  const [x, y] = scrToWorld(mx, my);
+  const team = S.nt, site = S.ns;
+  pushUndo();
+  const p = { kind: 'spawn', id: nextId(team, site, 'spawn'), team, site, x, y, z: newZ(x, y), pitch: 0, yaw: 0, type: team === 'T' ? +$('nt-type').value : 0, note: '' };
+  S.pts.push(p);
+  if (!visible(p)) { S.site = 'all'; syncSiteSeg(); $(team === 'T' ? 'c-t' : 'c-ct').checked = true; $('zmin').value = ''; $('zmax').value = ''; }
+  S.sel = S.pts.length - 1; afterEdit();
+}
+function delSel() {
+  if (S.sel < 0) return;
+  pushUndo(); S.pts.splice(S.sel, 1); S.sel = -1; S.hover = -1; afterEdit();
+}
+function dupSel() {
+  if (S.sel < 0) return;
+  const p = S.pts[S.sel]; pushUndo();
+  const q = { ...p, x: p.x + 32, y: p.y - 32, id: nextId(p.team, p.site, p.kind) };
+  if (p.kind === 'barrier') { q.x2 = p.x2 + 32; q.y2 = p.y2 - 32; }
+  S.pts.push(q); S.sel = S.pts.length - 1; afterEdit();
+}
+let clearArm = 0;
+$('ed-clear').onclick = e => {
+  if (!S.pts.length) return;
+  if (!clearArm) { clearArm = setTimeout(() => { clearArm = 0; e.target.textContent = L('clear'); }, 3000); e.target.textContent = L('clear_confirm'); return; }
+  clearTimeout(clearArm); clearArm = 0; e.target.textContent = L('clear');
+  pushUndo(); S.pts = []; S.sel = -1; afterEdit(); msg('cleared');
+};
+
+/* ---------- interaction ---------- */
+function hit(mx, my) {
+  if (!S.hasP) return -1;
+  let best = -1, bd = 14 * +$('msize').value;
+  S.pts.forEach((p, i) => {
+    if (!visible(p)) return;
+    const [X, Y] = toScr(p.x, p.y);
+    let d;
+    if (p.kind === 'barrier') {
+      const [X2, Y2] = toScr(p.x2, p.y2);
+      const L2 = (X2 - X) ** 2 + (Y2 - Y) ** 2 || 1, t = Math.max(0, Math.min(1, ((mx - X) * (X2 - X) + (my - Y) * (Y2 - Y)) / L2));
+      d = Math.hypot(mx - X - t * (X2 - X), my - Y - t * (Y2 - Y));
+    } else d = Math.hypot(mx - X, my - Y);
+    if (d < bd) { bd = d; best = i; }
+  });
+  return best;
+}
+function hitHandle(mx, my) {
+  if (!S.edit || S.sel < 0 || !S.pts[S.sel] || S.pts[S.sel].kind === 'barrier' || !visible(S.pts[S.sel])) return false;
+  const [hx, hy] = handlePos(S.pts[S.sel], rad());
+  return Math.hypot(mx - hx, my - hy) < rad() * 1.6;
+}
+const ptrs = new Map(); let drag = null, pinch = null;
+cv.addEventListener('pointerdown', e => {
+  cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.offsetX, e.offsetY]);
+  if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), s: S.view.s }; drag = null; return; }
+  const mx = e.offsetX, my = e.offsetY;
+  drag = { x: mx, y: my, vx: S.view.x, vy: S.view.y, moved: false, mode: 'pan' };
+  if (S.edit) {
+    if (hitHandle(mx, my)) { drag.mode = 'rot'; drag.i = S.sel; }
+    else {
+      const h = hit(mx, my);
+      if (h >= 0) {
+        const p = S.pts[h], [wx, wy] = scrToWorld(mx, my);
+        drag.mode = 'move'; drag.i = h; drag.ox = p.x - wx; drag.oy = p.y - wy;
+        if (S.sel !== h) select(h);
+      }
+    }
+  }
+  if (drag.mode === 'pan') cv.classList.add('drag');
+});
+cv.addEventListener('pointermove', e => {
+  const mx = e.offsetX, my = e.offsetY;
+  if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, [mx, my]);
+  if (pinch && ptrs.size === 2) {
+    const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    zoomAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, pinch.s * d / pinch.d / S.view.s); return;
+  }
+  if (drag) {
+    if (!drag.moved && Math.abs(mx - drag.x) + Math.abs(my - drag.y) > 3) {
+      drag.moved = true;
+      if (drag.mode !== 'pan') pushUndo();
+    }
+    if (drag.moved) {
+      if (drag.mode === 'pan') { S.view.x = drag.vx + mx - drag.x; S.view.y = drag.vy + my - drag.y; draw(); }
+      else if (drag.mode === 'move') {
+        const p = S.pts[drag.i], [wx, wy] = scrToWorld(mx, my), nx = wx + drag.ox, ny = wy + drag.oy;
+        if (p.kind === 'barrier') { p.x2 += nx - p.x; p.y2 += ny - p.y; }
+        p.x = nx; p.y = ny; renderCard(); draw();
+      } else if (drag.mode === 'rot') {
+        const p = S.pts[drag.i], [wx, wy] = scrToWorld(mx, my);
+        let yaw = Math.atan2(wy - p.y, wx - p.x) * 180 / Math.PI;
+        if (e.shiftKey) yaw = Math.round(yaw / 15) * 15;
+        p.yaw = yaw; renderCard(); draw();
+      }
+    }
+  }
+  if (S.hasP) { const [wx, wy] = scrToWorld(mx, my); $('coords').textContent = 'x ' + wx.toFixed(0) + '  y ' + wy.toFixed(0); }
+  if (!drag) {
+    const onH = hitHandle(mx, my), h = onH ? -1 : hit(mx, my), tip = $('tip');
+    cv.classList.toggle('handle', onH); cv.classList.toggle('over', S.edit && h >= 0);
+    if (h !== S.hover) { S.hover = h; draw(); }
+    if (h >= 0) { const p = S.pts[h]; tip.hidden = false; tip.style.left = mx + 'px'; tip.style.top = my + 'px'; tip.textContent = kindName(p) + ' ' + p.site + ' №' + p.id + (p.note ? ' — ' + p.note : ''); }
+    else tip.hidden = true;
+  }
+});
+function endPtr(e) {
+  ptrs.delete(e.pointerId);
+  if (ptrs.size < 2) pinch = null;
+  if (drag && e.type === 'pointerup') {
+    if (drag.moved && drag.mode !== 'pan') afterEdit();
+    else if (!drag.moved) {
+      if (drag.mode === 'pan') {
+        const h = hit(e.offsetX, e.offsetY);
+        if (h >= 0) select(h);
+        else if (S.edit) addAt(e.offsetX, e.offsetY);
+        else select(-1);
+      }
+    }
+  }
+  drag = null; cv.classList.remove('drag');
+}
+cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
+cv.addEventListener('pointerleave', () => { $('tip').hidden = true; if (S.hover >= 0) { S.hover = -1; draw(); } });
+function zoomAt(mx, my, k) {
+  const s = Math.min(40, Math.max(0.1, S.view.s * k)); k = s / S.view.s;
+  S.view.x = mx - (mx - S.view.x) * k; S.view.y = my - (my - S.view.y) * k; S.view.s = s; draw();
+}
+cv.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.offsetX, e.offsetY, Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+cv.addEventListener('dblclick', e => { if (!S.edit) fit(); });
+const mid = () => { const r = cv.getBoundingClientRect(); return [r.width / 2, r.height / 2]; };
+$('zin').onclick = () => zoomAt(...mid(), 1.4);
+$('zout').onclick = () => zoomAt(...mid(), 1 / 1.4);
+$('fit').onclick = fit;
+$('tbody').onclick = e => { const tr = e.target.closest('tr'); if (tr) select(+tr.dataset.i, true); };
+let nudgeT = 0;
+function nudge(fn) {
+  if (S.sel < 0) return;
+  if (!nudgeT) pushUndo();
+  clearTimeout(nudgeT); nudgeT = setTimeout(() => { nudgeT = 0; afterEdit(); }, 500);
+  fn(S.pts[S.sel]); renderCard(); draw();
+}
+addEventListener('keydown', e => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  const typing = tag === 'input' || tag === 'textarea' || tag === 'select';
+  if (e.key === 'Escape') { if (typing) e.target.blur(); select(-1); return; }
+  if (typing) return;
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+  if (!S.edit) return;
+  if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); dupSel(); return; }
+  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); delSel(); return; }
+  const st = e.shiftKey ? 16 : 1;
+  const mv = { ArrowLeft: [-st, 0], ArrowRight: [st, 0], ArrowUp: [0, st], ArrowDown: [0, -st] }[e.key];
+  if (mv && S.sel >= 0) { e.preventDefault(); nudge(p => { p.x += mv[0]; p.y += mv[1]; if (p.kind === 'barrier') { p.x2 += mv[0]; p.y2 += mv[1]; } }); return; }
+  if ((e.key === '[' || e.key === ']') && S.sel >= 0 && S.pts[S.sel].kind !== 'barrier') {
+    e.preventDefault(); const d = (e.key === ']' ? -1 : 1) * (e.shiftKey ? 45 : 5);
+    nudge(p => { p.yaw = (((p.yaw || 0) + d + 540) % 360) - 180; });
+  }
+});
+
+/* ---------- export PNG ---------- */
+let downloads = null;
+if (window.claude && window.claude.use) window.claude.use('downloads').then(d => { downloads = d; }).catch(() => {});
+async function saveFile(blob, fname, fallbackName) {
+  if (downloads) {
+    try { await downloads.save({ filename: fname, data: blob }); return 'saved'; }
+    catch (err) { if (err && err.code === 'declined') return 'declined'; }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fallbackName || fname;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  return 'local';
+}
+$('png').onclick = async e => {
+  const btn = e.currentTarget;
+  const W = S.iw, H = S.ih, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  paint(g, W, H, { s: 1, x: 0, y: 0 }, 7.5 * W / 1024 * +$('msize').value, S.sel >= 0 ? [S.sel] : [], false);
+  if (!S.img) { g.globalCompositeOperation = 'destination-over'; g.fillStyle = '#23262b'; g.fillRect(0, 0, W, H); g.globalCompositeOperation = 'source-over'; }
+  const tag = [S.map || 'map', S.site === 'all' ? '' : 'site' + S.site].filter(Boolean).join('_');
+  g.font = '600 ' + Math.round(W / 40) + 'px system-ui,sans-serif'; g.textBaseline = 'bottom';
+  g.lineWidth = W / 220; g.strokeStyle = 'rgba(0,0,0,.85)'; g.fillStyle = '#fff';
+  const cap = (S.map || '') + (S.site === 'all' ? '' : ' · ' + L('png_site') + ' ' + S.site);
+  g.strokeText(cap, W * 0.02, H * 0.98); g.fillText(cap, W * 0.02, H * 0.98);
+  const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+  const res = await saveFile(blob, tag + '_spawns.png');
+  if (res !== 'declined') { btn.textContent = L('done'); setTimeout(() => { btn.textContent = L('png'); }, 1500); }
+};
+
+/* ---------- export to CS:S cfg ---------- */
+const T = { P: null };
+function tgRead() {
+  const x = parseFloat($('tg_pos_x').value), y = parseFloat($('tg_pos_y').value), s = parseFloat($('tg_scale').value);
+  T.P = [x, y, s].some(Number.isNaN) || s <= 0 ? null : { pos_x: x, pos_y: y, scale: s, rot: +$('tg_rot').value };
+  if (T.P && S.map) store('t:' + S.map, T.P);
+  tgUpdate();
+}
+function tgSet(p) {
+  $('tg_pos_x').value = p.pos_x; $('tg_pos_y').value = p.pos_y; $('tg_scale').value = p.scale; $('tg_rot').value = p.rot || 0;
+  tgRead();
+}
+const exportable = p => p.kind === 'spawn' && (p.team === 'T' || p.team === 'CT') && (p.site === 'A' || p.site === 'B');
+function tgPoints() {
+  const vis = $('tg_vis').checked, defT = +$('tg_type').value;
+  const opt = { dz: parseFloat($('tg_dz').value) || 0, scaleZ: $('tg_scalez').checked };
+  return S.pts.filter(p => exportable(p) && (!vis || visible(p))).map(p => {
+    const q = Core.convertPoint(p, S.P, T.P, opt);
+    if (!Number.isInteger(p.type)) q.type = p.team === 'T' ? defT : 0;
+    return q;
+  });
+}
+function tgUpdate() {
+  const sum = $('tg-sum'), out = $('tg-out');
+  if (!S.hasP || !T.P) { sum.textContent = L(!S.hasP ? 'tg_need_p' : 'tg_need_t'); out.value = ''; return null; }
+  const pts = tgPoints();
+  const skipped = S.pts.filter(p => p.kind === 'spawn' && !exportable(p)).length;
+  const other = S.pts.filter(p => p.kind !== 'spawn').length;
+  sum.textContent = L('tg_sum', { n: pts.length, k: (T.P.scale / S.P.scale).toFixed(4) }) +
+    (T.P.rot !== S.P.rot ? L('tg_rotd', { r: (T.P.rot - S.P.rot + 360) % 360 }) : '') +
+    (other ? L('tg_other', { n: other }) : '.') + (skipped ? L('tg_skip', { n: skipped }) : '');
+  const txt = Core.toCSSCfg(pts, { comments: $('tg_cm').checked });
+  out.value = txt;
+  return txt;
+}
+let tgTimer = 0;
+function tgSchedule() { clearTimeout(tgTimer); tgTimer = setTimeout(() => { try { tgUpdate(); } catch (e) { } }, 250); }
+$('tg-load').onclick = () => $('tg-file').click();
+$('tg-file').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  const o = Core.parseOverview(await f.text());
+  if (!o) { msg('m_noov', null, true); return; }
+  tgSet({ pos_x: o.pos_x, pos_y: o.pos_y, scale: o.scale, rot: 0 });
+  msg('tg_from', { name: f.name });
+};
+$('tg-same').onclick = () => tgSet(S.P);
+for (const id of ['tg_pos_x', 'tg_pos_y', 'tg_scale', 'tg_rot']) $(id).addEventListener('input', tgRead);
+for (const id of ['tg_dz', 'tg_type', 'tg_scalez', 'tg_vis', 'tg_cm']) $(id).addEventListener('input', tgUpdate);
+$('tg-copy').onclick = async e => {
+  const b = e.currentTarget, txt = tgUpdate(); if (!txt) return;
+  try { await navigator.clipboard.writeText(txt); b.textContent = L('copied'); }
+  catch (_) { $('tg-out').closest('details').open = true; $('tg-out').select(); b.textContent = L('selected'); }
+  setTimeout(() => { b.textContent = L('tg_copy'); }, 1800);
+};
+$('tg-dl').onclick = async e => {
+  const btn = e.currentTarget, txt = tgUpdate(); if (!txt) return;
+  const name = S.map || 'spawns';
+  const res = await saveFile(new Blob([txt], { type: 'text/plain' }), name + '.cfg.txt', name + '.cfg');
+  if (res === 'saved') msg('tg_saved', { name: name + '.cfg.txt' });
+  if (res !== 'declined') { btn.textContent = L('done'); setTimeout(() => { btn.textContent = L('tg_dl'); }, 1500); }
+};
+
+/* ---------- language ---------- */
+function applyLang(lang) {
+  LANG = lang; store('lang', lang);
+  document.documentElement.lang = lang;
+  document.title = L('title');
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = L(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = L(el.dataset.i18nHtml); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = L(el.dataset.i18nPh); });
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => { el.setAttribute('aria-label', L(el.dataset.i18nAria)); });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = L(el.dataset.i18nTitle); });
+  $('stage').dataset.drop = L('drop');
+  $('lang').textContent = lang === 'ru' ? 'EN' : 'RU';
+  $('lang').setAttribute('aria-label', lang === 'ru' ? 'Switch to English' : 'Переключить на русский');
+  const pv = $('preset').value;
+  $('preset').innerHTML = '<option value="">' + esc(L('manual')) + '</option>' + PRESETS.map(p => '<option value="' + p.key + '">' + esc(presetLabel(p)) + '</option>').join('');
+  $('preset').value = pv;
+  $('ed-toggle').textContent = L(S.edit ? 'ed_off' : 'ed_on');
+  $('ed-clear').textContent = L('clear');
+  renderStatus(); renderMsg(); renderList(); renderCard(); renderEditState(); renderDraft(); tgUpdate();
+}
+$('lang').onclick = () => applyLang(LANG === 'ru' ? 'en' : 'ru');
+
+/* ---------- controls ---------- */
+$('preset').onchange = e => {
+  const p = PRESETS.find(x => x.key === e.target.value); if (!p) return;
+  applyP({ ...p, rot: 0 }, { src: 'preset', name: presetLabel(p) });
+  if (S.map) store('p:' + S.map, { pos_x: p.pos_x, pos_y: p.pos_y, scale: p.scale, rot: 0 });
+};
+for (const id of ['pos_x', 'pos_y', 'scale', 'rot']) $(id).addEventListener('input', () => { $('preset').value = ''; readP(); });
+for (const id of ['c-t', 'c-ct', 'c-plant', 'c-bar', 'c-dir', 'c-other', 'labels', 'zmin', 'zmax', 'msize']) $(id).addEventListener('input', draw);
+function syncSiteSeg() { document.querySelectorAll('[data-site]').forEach(x => x.setAttribute('aria-pressed', x.dataset.site === S.site)); }
+document.querySelectorAll('[data-site]').forEach(b => b.onclick = () => { S.site = b.dataset.site; syncSiteSeg(); draw(); });
+document.querySelectorAll('[data-nt]').forEach(b => b.onclick = () => { S.nt = b.dataset.nt; document.querySelectorAll('[data-nt]').forEach(x => x.setAttribute('aria-pressed', x === b)); });
+document.querySelectorAll('[data-ns]').forEach(b => b.onclick = () => { S.ns = b.dataset.ns; document.querySelectorAll('[data-ns]').forEach(x => x.setAttribute('aria-pressed', x === b)); });
+$('nt-zmode').onchange = () => { $('nt-zbox').hidden = $('nt-zmode').value !== 'fixed'; };
+$('ed-toggle').onclick = () => setEdit(!S.edit);
+$('ed-tool').onclick = () => setEdit(!S.edit);
+$('ed-undo').onclick = undo; $('ed-redo').onclick = redo;
+$('pick').onclick = () => $('file').click();
+$('file').onchange = e => { loadFiles(e.target.files); e.target.value = ''; };
+let pasteArm = null, pasteArmT = 0;
+function applyPaste(kind, text) {
+  text = (text || '').trim();
+  if (!text) { msg('clip_empty', null, true); return; }
+  if (kind === 'sp' && Core.looksLikeOverview(text)) kind = 'ov';
+  if (kind === 'ov') {
+    if (!Core.parseOverview(text)) { msg('m_noov', null, true); return; }
+    loadText(text, S.map || L('paste_src'), 'ov');
+    msg('clip_ok_ov');
+    return;
+  }
+  const r = Core.parseSpawns(text);
+  if (!r.points.length) { msg('m_nopts', { name: L('paste_src') }, true); return; }
+  loadText(text, S.map || L('paste_src'), 'sp');
+  msg('clip_ok_sp', { n: r.points.filter(p => p.kind === 'spawn').length });
+}
+function disarmPaste() {
+  pasteArm = null; clearTimeout(pasteArmT);
+  for (const id of ['clip-sp', 'clip-ov']) { $(id).classList.remove('wait'); $(id).querySelector('span').textContent = L('clip'); }
+}
+async function clipPaste(kind, btn) {
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.readText) throw new Error('no api');
+    const text = await navigator.clipboard.readText();
+    disarmPaste(); applyPaste(kind, text);
+  } catch (e) {
+    disarmPaste();
+    pasteArm = kind; btn.classList.add('wait'); btn.querySelector('span').textContent = L('clip_wait');
+    pasteArmT = setTimeout(disarmPaste, 20000);
+    msg('clip_denied');
+  }
+}
+$('clip-sp').onclick = e => clipPaste('sp', e.currentTarget);
+$('clip-ov').onclick = e => clipPaste('ov', e.currentTarget);
+addEventListener('paste', e => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  if ((tag === 'input' || tag === 'textarea' || e.target.isContentEditable) && !pasteArm) return;
+  const text = e.clipboardData && e.clipboardData.getData('text');
+  if (!text) return;
+  e.preventDefault();
+  const kind = pasteArm || (Core.looksLikeOverview(text) ? 'ov' : 'sp');
+  disarmPaste(); applyPaste(kind, text);
+});
+let dc = 0;
+addEventListener('dragenter', e => { e.preventDefault(); dc++; $('app').classList.add('dropping'); });
+addEventListener('dragleave', () => { if (--dc <= 0) { dc = 0; $('app').classList.remove('dropping'); } });
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', e => { e.preventDefault(); dc = 0; $('app').classList.remove('dropping'); if (e.dataTransfer.files.length) loadFiles(e.dataTransfer.files); });
+addEventListener('beforeunload', e => { if (S.changes) { e.preventDefault(); e.returnValue = ''; } });
+const ro = new ResizeObserver(() => { const had = cv.width > 1; resize(); if (!had) fit(); });
+ro.observe(cv);
+
+/* ---------- start ---------- */
+const savedLang = store('lang');
+applyLang(savedLang || ((navigator.language || 'ru').toLowerCase().startsWith('ru') ? 'ru' : 'en'));
+afterPoints();
+}
+</script>
+</body>
+</html>
