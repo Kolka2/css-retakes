@@ -7,3 +7,5 @@ tools/
 CLAUDE.md
 .claude/
 PORT/
+# Spawn radar site built by radar/build-site.mjs
+_site/
