@@ -34,8 +34,10 @@ aside{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto
 .chip{font-size:13px;color:var(--mute)}
 section{padding:14px 0;border-top:1px solid var(--line)}
 section:first-of-type{border-top:0}
-.drop{display:block;width:100%;border:1.5px dashed var(--line);border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:var(--field);color:var(--ink);font:inherit}
-.drop:hover,.drop:focus-visible{border-color:var(--ct);outline:none}
+.drop{position:relative;display:block;width:100%;border:1.5px dashed var(--line);border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:var(--field);color:var(--ink);font:inherit}
+.drop:hover,.drop:focus-within{border-color:var(--mute)}
+.drop:focus-within{outline:2px solid var(--ct);outline-offset:1px}
+.drop input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
 .drop b{display:block}.drop span{font-size:13px;color:var(--mute)}
 .repo{margin-bottom:12px}
 .repo a{display:inline-block;margin-top:8px;font-size:14px;color:var(--ct)}
@@ -100,7 +102,8 @@ main canvas.drag{cursor:grabbing}
 main canvas.edit{cursor:crosshair}
 main canvas.over{cursor:move}
 main canvas.handle{cursor:alias}
-.tools{position:absolute;top:12px;right:12px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 24px);pointer-events:none}
+.tools{position:absolute;inset:12px 12px auto;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;pointer-events:none}
+.map-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
 .tools button{background:rgba(20,22,25,.82);color:#f1efe9;border-color:rgba(255,255,255,.14);backdrop-filter:blur(4px);pointer-events:auto}
 .tools button.on{background:var(--t);color:#16181b;border-color:var(--t)}
 .history-tools{flex-basis:100%;display:flex;gap:6px;justify-content:flex-end}
@@ -110,7 +113,7 @@ main canvas.handle{cursor:alias}
 #menu-toggle svg{width:20px;height:20px}
 #menu-toggle[aria-expanded=false] .menu-arrow{transform:rotate(180deg);transform-origin:15px 12px}
 #menu-toggle .mobile-menu{display:none}
-.ebar{position:absolute;top:12px;left:12px;max-width:min(430px,calc(100% - 330px));background:rgba(238,143,34,.94);color:#16181b;font-size:12.5px;line-height:1.35;padding:7px 10px;border-radius:8px;pointer-events:none}
+.ebar{position:absolute;top:62px;left:12px;max-width:min(430px,calc(100% - 330px));background:rgba(238,143,34,.94);color:#16181b;font-size:12.5px;line-height:1.35;padding:7px 10px;border-radius:8px;pointer-events:none}
 .ebar[hidden]{display:none}
 .coords{position:absolute;right:12px;bottom:10px;font:12px ui-monospace,Consolas,monospace;color:#d9d6cf;background:rgba(20,22,25,.7);padding:4px 8px;border-radius:6px;pointer-events:none}
 .card{position:absolute;left:12px;bottom:12px;max-width:min(440px,calc(100% - 24px));max-height:calc(100% - 70px);overflow-y:auto;background:rgba(20,22,25,.94);color:#f1efe9;border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:12px 14px;font-size:13px}
@@ -136,6 +139,7 @@ main canvas.handle{cursor:alias}
  aside{display:contents}.head{order:-2;padding:14px 16px 4px;background:var(--panel)}
  main{order:-1;height:62vh}.side{padding:0 16px 28px;background:var(--panel)}
  .ebar{top:auto;bottom:46px;max-width:calc(100% - 24px)} main.has-card .ebar{display:none}}
+@media(max-width:480px){#menu-toggle .menu-label{display:none}#menu-toggle{min-width:42px;font-size:18px}}
 @media(max-width:600px){.card{left:8px;right:8px;bottom:8px;max-width:none;max-height:46%;padding:9px 10px}.card h3{font-size:15px}
  .form{gap:4px 6px;margin-top:4px}.form label{font-size:11px}.card input,.card select{min-height:32px;padding:2px 5px;font-size:16px}
  main.has-card .coords{display:none} .card code{margin:6px 0;font-size:11px}.card .row{margin-top:6px;gap:6px}.card .row button{min-height:32px;padding:4px 8px;font-size:13px}}
@@ -158,8 +162,10 @@ main canvas.handle{cursor:alias}
       <a id="repo-gh" target="_blank" rel="noopener" data-i18n="repo_gh" hidden>Открыть конфиг на GitHub</a>
       <p class="note" data-i18n="repo_note"></p>
     </div>
-    <button class="drop" id="pick" type="button"><b data-i18n="open">Открыть файлы…</b><span data-i18n="open_hint">или перетащите на карту</span></button>
-    <input type="file" id="file" multiple hidden>
+    <label class="drop" for="file">
+      <b id="file-label" data-i18n="open">Открыть файлы…</b><span id="file-hint" data-i18n="open_hint">или перетащите на карту</span>
+      <input type="file" id="file" multiple aria-labelledby="file-label" aria-describedby="file-hint">
+    </label>
     <ul class="status">
       <li><span data-i18n="st_radar">Радар</span><span id="st-radar">—</span></li>
       <li><span data-i18n="st_ov">Привязка</span><span id="st-ov">—</span></li>
@@ -278,18 +284,20 @@ main canvas.handle{cursor:alias}
   <div class="empty" id="empty" hidden data-i18n="empty">Перетащите сюда радар, overview и файл спаунов</div>
   <div class="ebar" id="ebar" hidden data-i18n="ebar"></div>
   <div class="tools">
-    <button type="button" id="zin" data-i18n-aria="zin">+</button>
-    <button type="button" id="zout" data-i18n-aria="zout">−</button>
-    <button type="button" id="fit" data-i18n="fit">Вписать</button>
-    <button type="button" id="ed-tool" aria-pressed="false">Править</button>
-    <button type="button" id="png" data-i18n="png">Сохранить PNG</button>
-    <div class="history-tools">
-      <button type="button" id="menu-toggle" aria-controls="main-menu" aria-expanded="true" aria-label="Скрыть меню">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M8 4v16"/><path class="menu-arrow" d="m17 9-4 3 4 3"/></svg>
-        <span class="mobile-menu"><span aria-hidden="true">☰</span> <span data-i18n="menu">Меню</span></span>
-      </button>
-      <button type="button" id="map-undo" data-i18n-aria="undo" data-i18n-title="undo" disabled>↶</button>
-      <button type="button" id="map-redo" data-i18n-aria="redo" data-i18n-title="redo" disabled>↷</button>
+    <button type="button" id="menu-toggle" aria-controls="main-menu" aria-expanded="true" aria-label="Скрыть меню">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M8 4v16"/><path class="menu-arrow" d="m17 9-4 3 4 3"/></svg>
+      <span class="mobile-menu"><span aria-hidden="true">☰</span> <span class="menu-label" data-i18n="menu">Меню</span></span>
+    </button>
+    <div class="map-actions">
+      <button type="button" id="zin" data-i18n-aria="zin">+</button>
+      <button type="button" id="zout" data-i18n-aria="zout">−</button>
+      <button type="button" id="fit" data-i18n="fit">Вписать</button>
+      <button type="button" id="ed-tool" aria-pressed="false">Править</button>
+      <button type="button" id="png" data-i18n="png">Сохранить PNG</button>
+      <div class="history-tools">
+        <button type="button" id="map-undo" data-i18n-aria="undo" data-i18n-title="undo" disabled>↶</button>
+        <button type="button" id="map-redo" data-i18n-aria="redo" data-i18n-title="redo" disabled>↷</button>
+      </div>
     </div>
   </div>
   <div class="tip" id="tip" hidden></div>
@@ -1651,7 +1659,6 @@ $('nt-zmode').onchange = () => { $('nt-zbox').hidden = $('nt-zmode').value !== '
 $('ed-tool').onclick = () => setEdit(!S.edit);
 $('map-undo').onclick = undo;
 $('map-redo').onclick = redo;
-$('pick').onclick = () => $('file').click();
 $('file').onchange = e => { loadFiles(e.target.files); e.target.value = ''; };
 let pasteArm = null, pasteArmT = 0;
 function applyPaste(kind, text) {
