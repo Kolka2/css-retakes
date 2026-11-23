@@ -206,9 +206,6 @@ main canvas.handle{cursor:alias}
   <section>
     <details class="sec" id="ed-sec">
     <summary><span class="chev" aria-hidden="true">▸</span><h2 data-i18n="edit">Редактирование</h2></summary>
-    <div class="row" style="margin-top:0">
-      <button type="button" id="ed-toggle" data-i18n="ed_on">Включить редактирование</button>
-    </div>
     <p class="note" data-i18n="ed_new">Новая точка:</p>
     <div class="row" style="margin-top:4px">
       <div class="seg" role="group" data-i18n-aria="team"><button type="button" data-nt="T" aria-pressed="false">T</button><button type="button" data-nt="CT" aria-pressed="true">CT</button></div>
@@ -220,8 +217,7 @@ main canvas.handle{cursor:alias}
     </div>
     <label class="f" style="margin-top:8px" id="nt-zbox" hidden><span data-i18n="ed_zval">Z новой точки</span><input type="number" id="nt-z" step="any" value="0"></label>
     <div class="row">
-      <button type="button" id="ed-undo" data-i18n="undo" disabled>Отменить</button>
-      <button type="button" id="ed-redo" data-i18n="redo" disabled>Повторить</button>
+      <button type="button" id="ed-reset" data-i18n="reset_cfg" hidden>Восстановить из конфига</button>
       <button type="button" id="ed-clear" data-i18n="clear">Удалить все</button>
     </div>
     <div class="row" id="draft-row" hidden><button type="button" id="ed-draft"></button></div>
@@ -276,7 +272,7 @@ main canvas.handle{cursor:alias}
     <button type="button" id="zin" data-i18n-aria="zin">+</button>
     <button type="button" id="zout" data-i18n-aria="zout">−</button>
     <button type="button" id="fit" data-i18n="fit">Вписать</button>
-    <button type="button" id="ed-tool" data-i18n="ed_tool">Править</button>
+    <button type="button" id="ed-tool" aria-pressed="false">Править</button>
     <button type="button" id="png" data-i18n="png">Сохранить PNG</button>
     <div class="history-tools">
       <button type="button" id="map-undo" data-i18n-aria="undo" data-i18n-title="undo" disabled>↶</button>
@@ -668,7 +664,8 @@ ru: {
   show: 'Показать', site: 'Сайт', team: 'Команда', both: 'Оба', l_plant: 'Точки плента', l_bar: 'Барьеры', l_dir: 'Взгляд', l_other: 'Без команды',
   labels: 'Подписи', lab_id: 'номер', lab_note: 'комментарий из файла', lab_none: 'нет', zmin: 'Z от', zmax: 'Z до', msize: 'Размер меток',
   type_legend: 'CS:S, тип T: <b>●</b> обычный, <b>◉</b> только с бомбой, <b>○</b> никогда с бомбой.',
-  edit: 'Редактирование', ed_on: 'Включить редактирование', ed_off: 'Выключить редактирование', ed_tool: 'Править',
+  edit: 'Редактирование', ed_off: 'Завершить правку', ed_tool: 'Править',
+  reset_cfg: 'Восстановить из конфига', reset_confirm: 'Вернуть точки карты {map} из конфига и удалить её черновик и историю правок?',
   ed_new: 'Новая точка:', ed_type: 'Тип (для T)', ed_z: 'Высота Z', ed_znear: 'как у ближайшей', ed_zfixed: 'своё значение', ed_zval: 'Z новой точки',
   ty0: '0 — обычный', ty1: '1 — только с бомбой', ty2: '2 — никогда с бомбой',
   undo: 'Отменить', redo: 'Повторить', clear: 'Удалить все',
@@ -732,7 +729,8 @@ en: {
   show: 'Show', site: 'Site', team: 'Team', both: 'Both', l_plant: 'Plant spots', l_bar: 'Barriers', l_dir: 'View direction', l_other: 'No team',
   labels: 'Labels', lab_id: 'number', lab_note: 'comment from file', lab_none: 'none', zmin: 'Z from', zmax: 'Z to', msize: 'Marker size',
   type_legend: 'CS:S, T type: <b>●</b> normal, <b>◉</b> bomb carrier only, <b>○</b> never carrier.',
-  edit: 'Editing', ed_on: 'Turn editing on', ed_off: 'Turn editing off', ed_tool: 'Edit',
+  edit: 'Editing', ed_off: 'Finish editing', ed_tool: 'Edit',
+  reset_cfg: 'Restore from config', reset_confirm: 'Restore the spawns for {map} from its config and discard its draft and edit history?',
   ed_new: 'New point:', ed_type: 'Type (for T)', ed_z: 'Height Z', ed_znear: 'same as nearest', ed_zfixed: 'custom value', ed_zval: 'Z of new point',
   ty0: '0 — normal', ty1: '1 — bomb carrier only', ty2: '2 — never carrier',
   undo: 'Undo', redo: 'Redo', clear: 'Delete all',
@@ -922,7 +920,7 @@ function setRadar(src, name) {
    The site build (radar/build-site.mjs) puts maps.json next to the page. Without it (the page opened
    from disk or hosted elsewhere) only manual loading works. The files of a map go through the same
    setRadar / loadText as dropped files. */
-const R = { repo: '', branch: '', maps: [], cur: '', token: 0 };
+const R = { repo: '', branch: '', maps: [], cur: '', token: 0, cfgText: '' };
 let repoLoad;
 let manualInput = Promise.resolve();
 function currentInputMap() {
@@ -973,7 +971,8 @@ async function fetchRepoMap(e) {
 async function loadRepoMap(name, note) {
   const e = R.maps.find(m => m.map === name); if (!e) return;
   const token = ++R.token;
-  R.cur = e.map; $('repo-map').value = e.map; renderRepoLink();
+  R.cur = e.map; R.cfgText = ''; $('ed-reset').hidden = true;
+  $('repo-map').value = e.map; renderRepoLink();
   /* everything is fetched and decoded first, so a map picked later cannot get mixed with this one */
   const [rad, ov, cfg] = await fetchRepoMap(e);
   if (token !== R.token) return;
@@ -990,7 +989,10 @@ async function loadRepoMap(name, note) {
         tgSet(S.P);
       }
     }
-    if (cfg.v) loadText(cfg.v, e.cfgPath.split('/').pop(), 'sp');
+    if (cfg.v) {
+      loadText(cfg.v, e.cfgPath.split('/').pop(), 'sp');
+      if (S.st.sp) R.cfgText = cfg.v;
+    }
   } finally { pinMap = ''; }
   afterPoints();
   const errs = [rad, ov, cfg].filter(r => r.err).map(r => r.err);
@@ -1265,14 +1267,15 @@ function afterEdit() {
 }
 function afterPoints() { renderList(); renderStatus(); renderEditState(); renderDraft(); draw(); }
 function renderEditState() {
-  $('ed-undo').disabled = $('map-undo').disabled = !S.undo.length;
-  $('ed-redo').disabled = $('map-redo').disabled = !S.redo.length;
+  $('map-undo').disabled = !S.undo.length;
+  $('map-redo').disabled = !S.redo.length;
   $('ed-state').textContent = S.changes ? L('ed_changes', { n: S.changes }) : L('ed_nochanges');
 }
 function renderDraft() {
   const d = S.map ? store('d:' + S.map) : null;
   const show = !!(d && d.pts && JSON.stringify(d.pts) !== snapshot());
   $('draft-row').hidden = !show;
+  $('ed-reset').hidden = !R.cfgText || S.map !== R.cur;
   if (show) $('ed-sec').open = true;
   if (show) $('ed-draft').textContent = L('draft_restore', { time: new Date(d.t).toLocaleString(LANG === 'ru' ? 'ru-RU' : 'en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), n: d.pts.length });
 }
@@ -1281,9 +1284,21 @@ $('ed-draft').onclick = () => {
   pushUndo(); S.pts = d.pts; if (d.format && !S.format) S.format = d.format; S.sel = -1;
   afterEdit(); msg('draft_restored');
 };
+$('ed-reset').onclick = () => {
+  const map = R.cur;
+  if (!R.cfgText || map !== S.map || !confirm(L('reset_confirm', { map }))) return;
+  queueManualInput(() => {
+    if (!R.cfgText || map !== S.map) return;
+    clearTimeout(draftTimer); draftTimer = 0;
+    store('d:' + map, null);
+    pinMap = map;
+    try { loadText(R.cfgText, map + '.cfg', 'sp'); } finally { pinMap = ''; }
+    msg(null);
+  });
+};
 function setEdit(on) {
   S.edit = on;
-  $('ed-toggle').textContent = L(on ? 'ed_off' : 'ed_on'); $('ed-toggle').classList.toggle('on', on);
+  $('ed-tool').textContent = L(on ? 'ed_off' : 'ed_tool');
   $('ed-tool').classList.toggle('on', on); $('ed-tool').setAttribute('aria-pressed', on);
   $('ebar').hidden = !on; cv.classList.toggle('edit', on);
   if (on) $('ed-sec').open = true;
@@ -1561,7 +1576,7 @@ function applyLang(lang) {
   $('lang').textContent = lang === 'ru' ? 'EN' : 'RU';
   $('lang').setAttribute('aria-label', lang === 'ru' ? 'Switch to English' : 'Переключить на русский');
   renderPresets();
-  $('ed-toggle').textContent = L(S.edit ? 'ed_off' : 'ed_on');
+  $('ed-tool').textContent = L(S.edit ? 'ed_off' : 'ed_tool');
   $('ed-clear').textContent = L('clear');
   renderStatus(); renderMsg(); renderList(); renderCard(); renderEditState(); renderDraft(); tgUpdate();
 }
@@ -1586,10 +1601,9 @@ document.querySelectorAll('[data-site]').forEach(b => b.onclick = () => { S.site
 document.querySelectorAll('[data-nt]').forEach(b => b.onclick = () => { S.nt = b.dataset.nt; document.querySelectorAll('[data-nt]').forEach(x => x.setAttribute('aria-pressed', x === b)); });
 document.querySelectorAll('[data-ns]').forEach(b => b.onclick = () => { S.ns = b.dataset.ns; document.querySelectorAll('[data-ns]').forEach(x => x.setAttribute('aria-pressed', x === b)); });
 $('nt-zmode').onchange = () => { $('nt-zbox').hidden = $('nt-zmode').value !== 'fixed'; };
-$('ed-toggle').onclick = () => setEdit(!S.edit);
 $('ed-tool').onclick = () => setEdit(!S.edit);
-$('ed-undo').onclick = $('map-undo').onclick = undo;
-$('ed-redo').onclick = $('map-redo').onclick = redo;
+$('map-undo').onclick = undo;
+$('map-redo').onclick = redo;
 $('pick').onclick = () => $('file').click();
 $('file').onchange = e => { loadFiles(e.target.files); e.target.value = ''; };
 let pasteArm = null, pasteArmT = 0;
