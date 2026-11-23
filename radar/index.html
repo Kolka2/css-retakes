@@ -294,7 +294,7 @@ function parseKV(text) {
   while (i < n) {
     const c = text[i];
     if (c === '\n') { line++; i++; continue; }
-    if (c === ' ' || c === '\t' || c === '\r' || c === '﻿') { i++; continue; }
+    if (/\s/.test(c)) { i++; continue; }
     if (c === '/' && text[i + 1] === '/') {
       let j = text.indexOf('\n', i); if (j < 0) j = n;
       toks.push({ t: 'c', v: text.slice(i + 2, j).trim(), line }); i = j; continue;
