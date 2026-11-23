@@ -639,10 +639,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 <script>
 {
 const $ = id => document.getElementById(id);
-const PRESETS = [
-  { key: 'de_anubis', game: 'CS2', pos_x: -2796, pos_y: 3328, scale: 5.22 },
-  { key: 'de_dust2', game: 'CS:S', pos_x: -2400, pos_y: 3383, scale: 4.4 }
-];
+const presets = new Map();
 
 /* ---------- i18n ---------- */
 const I18N = {
@@ -800,7 +797,12 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem('rsv:' + k) || 'null'); if (v === null) localStorage.removeItem('rsv:' + k); else localStorage.setItem('rsv:' + k, JSON.stringify(v)); } catch (e) { return null; } }
 function msg(k, p, warn) { S.msg = k ? { k, p, warn } : null; renderMsg(); }
 function renderMsg() { const m = $('msg'); m.hidden = !S.msg; m.textContent = S.msg ? L(S.msg.k, S.msg.p) : ''; m.className = 'note' + (S.msg && S.msg.warn ? ' warn' : ''); }
-const presetLabel = p => p.key + ' — ' + p.game;
+function renderPresets() {
+  const select = $('preset'), selected = select.value;
+  select.replaceChildren(new Option(L('manual'), ''));
+  for (const name of presets.keys()) select.add(new Option(name, name));
+  select.value = presets.has(selected) ? selected : '';
+}
 
 function renderStatus() {
   const r = S.st.radar, o = S.st.ov, s = S.st.sp;
@@ -819,13 +821,14 @@ function setMap(name) {
   const savedT = store('t:' + name);
   if (savedT) tgSet(savedT);
   const saved = store('p:' + name);
-  const pre = PRESETS.find(p => p.key === name);
+  const pre = presets.get(name);
   if (saved) applyP(saved, { src: 'saved', name });
-  else if (pre) { applyP({ ...pre, rot: 0 }, { src: 'preset', name: presetLabel(pre) }); $('preset').value = pre.key; }
+  else if (pre) usePreset(name, pre);
   else if (!S.hasP) { S.st.ov = { src: 'none' }; msg('m_noparams', { map: name }, true); }
   renderStatus(); renderDraft();
 }
 function applyP(p, st) {
+  $('preset').value = '';
   S.P.pos_x = +p.pos_x; S.P.pos_y = +p.pos_y; S.P.scale = +p.scale;
   if (p.rot !== undefined) S.P.rot = +p.rot;
   S.hasP = true; S.st.ov = st;
@@ -926,7 +929,7 @@ async function fetchRepoMap(e) {
   };
   return Promise.all([
     one(e.radar, async rel => decodeImage(await get(rel), rel.toLowerCase())),
-    one(e.overview, rel => get(rel, true)),
+    one(e.overview, rel => e.overviewText ?? get(rel, true)),
     one(e.cfg, rel => get(rel, true))
   ]);
 }
@@ -945,7 +948,10 @@ async function loadRepoMap(name, note) {
     if (ov.v) {
       loadText(ov.v, e.map + '.txt', 'ov');
       /* the configs are CS:S coordinates on the CS:S radar: export with the same binding */
-      if (S.st.ov && S.st.ov.src === 'file') tgSet(S.P);
+      if (S.st.ov && S.st.ov.src === 'file') {
+        if (presets.has(e.map)) $('preset').value = e.map;
+        tgSet(S.P);
+      }
     }
     if (cfg.v) loadText(cfg.v, e.cfgPath.split('/').pop(), 'sp');
   } finally { pinMap = ''; }
@@ -982,6 +988,18 @@ async function initRepo() {
   } catch (x) { return; }
   const maps = j && Array.isArray(j.maps) ? j.maps.filter(m => m && typeof m.map === 'string' && m.map && typeof m.cfg === 'string') : [];
   if (!maps.length) return;
+  const bindings = await Promise.all(maps.map(async entry => {
+    if (!entry.overview) return null;
+    try {
+      const response = await fetch(entry.overview, { cache: 'no-cache' });
+      if (!response.ok) return null;
+      entry.overviewText = await response.text();
+      const p = Core.parseOverview(entry.overviewText);
+      return p && [p.pos_x, p.pos_y, p.scale].every(Number.isFinite) && p.scale > 0 ? p : null;
+    } catch { return null; }
+  }));
+  maps.forEach((entry, i) => { if (bindings[i]) presets.set(entry.map, bindings[i]); });
+  renderPresets();
   R.repo = typeof j.repo === 'string' ? j.repo : ''; R.branch = typeof j.branch === 'string' ? j.branch : ''; R.maps = maps;
   $('repo-map').innerHTML = maps.map(m => '<option value="' + esc(m.map) + '">' + esc(m.map) + '</option>').join('');
   $('repo').hidden = false;
@@ -1504,9 +1522,7 @@ function applyLang(lang) {
   $('stage').dataset.drop = L('drop');
   $('lang').textContent = lang === 'ru' ? 'EN' : 'RU';
   $('lang').setAttribute('aria-label', lang === 'ru' ? 'Switch to English' : 'Переключить на русский');
-  const pv = $('preset').value;
-  $('preset').innerHTML = '<option value="">' + esc(L('manual')) + '</option>' + PRESETS.map(p => '<option value="' + p.key + '">' + esc(presetLabel(p)) + '</option>').join('');
-  $('preset').value = pv;
+  renderPresets();
   $('ed-toggle').textContent = L(S.edit ? 'ed_off' : 'ed_on');
   $('ed-clear').textContent = L('clear');
   renderStatus(); renderMsg(); renderList(); renderCard(); renderEditState(); renderDraft(); tgUpdate();
@@ -1514,9 +1530,15 @@ function applyLang(lang) {
 $('lang').onclick = () => applyLang(LANG === 'ru' ? 'en' : 'ru');
 
 /* ---------- controls ---------- */
+function usePreset(name, p) {
+  applyP({ ...p, rot: 0 }, { src: 'preset', name });
+  S.rotFile = p.rotate || 0;
+  $('preset').value = name;
+  renderStatus();
+}
 $('preset').onchange = e => {
-  const p = PRESETS.find(x => x.key === e.target.value); if (!p) return;
-  applyP({ ...p, rot: 0 }, { src: 'preset', name: presetLabel(p) });
+  const name = e.target.value, p = presets.get(name); if (!p) return;
+  usePreset(name, p);
   if (S.map) store('p:' + S.map, { pos_x: p.pos_x, pos_y: p.pos_y, scale: p.scale, rot: 0 });
 };
 for (const id of ['pos_x', 'pos_y', 'scale', 'rot']) $(id).addEventListener('input', () => { $('preset').value = ''; readP(); });
