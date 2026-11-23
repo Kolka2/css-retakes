@@ -34,10 +34,8 @@ aside{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto
 .chip{font-size:13px;color:var(--mute)}
 section{padding:14px 0;border-top:1px solid var(--line)}
 section:first-of-type{border-top:0}
-.drop{position:relative;display:block;width:100%;border:1.5px dashed var(--line);border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:var(--field);color:var(--ink);font:inherit}
-.drop:hover,.drop:focus-within{border-color:var(--mute)}
-.drop:focus-within{outline:2px solid var(--ct);outline-offset:1px}
-.drop input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.drop{display:block;width:100%;border:1.5px dashed var(--line);border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:var(--field);color:var(--ink);font:inherit}
+.drop:hover,.drop:focus-visible{border-color:var(--ct);outline:none}
 .drop b{display:block}.drop span{font-size:13px;color:var(--mute)}
 .repo{margin-bottom:12px}
 .repo a{display:inline-block;margin-top:8px;font-size:14px;color:var(--ct)}
@@ -162,10 +160,8 @@ main canvas.handle{cursor:alias}
       <a id="repo-gh" target="_blank" rel="noopener" data-i18n="repo_gh" hidden>Открыть конфиг на GitHub</a>
       <p class="note" data-i18n="repo_note"></p>
     </div>
-    <label class="drop" for="file">
-      <b id="file-label" data-i18n="open">Открыть файлы…</b><span id="file-hint" data-i18n="open_hint">или перетащите на карту</span>
-      <input type="file" id="file" multiple aria-labelledby="file-label" aria-describedby="file-hint">
-    </label>
+    <button class="drop" id="pick" type="button"><b data-i18n="open">Открыть файлы…</b><span data-i18n="open_hint">или перетащите на карту</span></button>
+    <input type="file" id="file" multiple hidden>
     <ul class="status">
       <li><span data-i18n="st_radar">Радар</span><span id="st-radar">—</span></li>
       <li><span data-i18n="st_ov">Привязка</span><span id="st-ov">—</span></li>
@@ -1659,6 +1655,7 @@ $('nt-zmode').onchange = () => { $('nt-zbox').hidden = $('nt-zmode').value !== '
 $('ed-tool').onclick = () => setEdit(!S.edit);
 $('map-undo').onclick = undo;
 $('map-redo').onclick = redo;
+$('pick').onclick = () => $('file').click();
 $('file').onchange = e => { loadFiles(e.target.files); e.target.value = ''; };
 let pasteArm = null, pasteArmT = 0;
 function applyPaste(kind, text) {
