@@ -67,6 +67,14 @@ T spawn types (same as in the original plugin):
 
 Leave the editor with "Exit edit mode" in the `!edit` menu; the game restarts. Spawns are stored in `addons/sourcemod/configs/retakes/<map>.cfg`; the file changes only on an explicit save (`!savespawns` or "Save map spawns" in the menu), unsaved changes are lost on map change.
 
+## Spawn radar
+
+The [spawn radar](https://kolka2.github.io/css-retakes/) displays the repository's spawn configs and lets you edit points and download a CS:S `.cfg`. Link directly to a map by appending its name, as in [`#de_dust2`](https://kolka2.github.io/css-retakes/#de_dust2).
+
+To add a map, put its checked config in `configs/retakes/<map>.cfg` and its radar image and `overview.txt` in [`radar/maps/<map>/`](radar/maps/README.md). The folder name must match the config's basename.
+
+Before the first deployment, set **Settings → Pages → Source → GitHub Actions**. The **Deploy spawn radar to GitHub Pages** workflow runs on relevant pushes to `master` and can also be run manually from that branch.
+
 ## How it plays
 
 - **Warmup.** A warmup of `sm_retakes_warmuptime` seconds follows the map start. It is run by the separate `warmup.smx` plugin (see [Warmup plugin](#warmup-plugin)); Retakes only starts it and stays out of the way while it runs: no teams or spawns, no waiting queue, no money or bomb handling, no weapon allocation. When the warmup ends the first retake begins. Without `warmup.smx` there is no warmup.

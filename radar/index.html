@@ -35,6 +35,9 @@ section:first-of-type{border-top:0}
 .drop{display:block;width:100%;border:1.5px dashed var(--line);border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:var(--field);color:var(--ink);font:inherit}
 .drop:hover,.drop:focus-visible{border-color:var(--ct);outline:none}
 .drop b{display:block}.drop span{font-size:13px;color:var(--mute)}
+.repo{margin-bottom:12px}
+.repo a{display:inline-block;margin-top:8px;font-size:14px;color:var(--ct)}
+.repo .note{margin-top:6px}
 .status{margin:10px 0 0;padding:0;list-style:none;font-size:13px}
 .status li{display:grid;grid-template-columns:78px minmax(0,1fr);gap:6px;padding:2px 0}
 .status li span:first-child{color:var(--mute)}
@@ -137,6 +140,12 @@ main canvas.handle{cursor:alias}
   <div class="side">
   <section>
     <div class="sh"><h2 data-i18n="files">Файлы</h2><button type="button" class="ib" id="clip-sp" data-i18n-title="clip_sp_tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h4"/></svg><span data-i18n="clip">Вставить</span></button></div>
+    <div class="repo" id="repo" hidden>
+      <label class="f"><span data-i18n="repo_map">Карта из репозитория</span>
+        <select id="repo-map"></select></label>
+      <a id="repo-gh" target="_blank" rel="noopener" data-i18n="repo_gh" hidden>Открыть конфиг на GitHub</a>
+      <p class="note" data-i18n="repo_note"></p>
+    </div>
     <button class="drop" id="pick" type="button"><b data-i18n="open">Открыть файлы…</b><span data-i18n="open_hint">или перетащите на карту</span></button>
     <input type="file" id="file" multiple hidden>
     <ul class="status">
@@ -646,6 +655,10 @@ ru: {
   clip_denied: 'Браузер не дал странице прочитать буфер обмена. Нажмите Ctrl+V — текст попадёт туда же.',
   clip_empty: 'В буфере обмена нет текста.', clip_ok_sp: 'Вставлено из буфера: {n} спаунов.', clip_ok_ov: 'Привязка вставлена из буфера.',
   st_radar: 'Радар', st_ov: 'Привязка', st_sp: 'Спауны',
+  repo_map: 'Карта из репозитория', repo_gh: 'Открыть конфиг на GitHub',
+  repo_note: 'Спауны, радар и привязка взяты из репозитория. Перетащенный или вставленный файл заменяет данные этой карты. Правки выгружайте кнопкой «Скачать .cfg» в разделе «Выгрузка»: в репозиторий страница не пишет.',
+  repo_err: 'Не удалось загрузить: {err}', repo_noradar: 'Для {map} в репозитории нет радара: точки показаны на сетке.',
+  repo_unknown: 'Карты «{map}» нет в репозитории, открыта {first}.',
   binding: 'Привязка радара', preset: 'Пресет', manual: '— вручную —', rot: 'Поворот картинки',
   rot0: 'нет', rot90: '90° по часовой', rot270: '90° против часовой',
   show: 'Показать', site: 'Сайт', team: 'Команда', both: 'Оба', l_plant: 'Точки плента', l_bar: 'Барьеры', l_dir: 'Взгляд', l_other: 'Без команды',
@@ -706,6 +719,10 @@ en: {
   clip_denied: 'The browser did not let the page read the clipboard. Press Ctrl+V and the text will go to the same place.',
   clip_empty: 'The clipboard has no text.', clip_ok_sp: 'Pasted from the clipboard: {n} spawns.', clip_ok_ov: 'Binding pasted from the clipboard.',
   st_radar: 'Radar', st_ov: 'Binding', st_sp: 'Spawns',
+  repo_map: 'Map from the repository', repo_gh: 'Open the config on GitHub',
+  repo_note: 'Spawns, radar and binding come from the repository. A dropped or pasted file replaces the data of this map. Export your edits with “Download .cfg” in the Export section: the page never writes to the repository.',
+  repo_err: 'Could not load: {err}', repo_noradar: 'The repository has no radar for {map}: the points are shown on a grid.',
+  repo_unknown: 'The repository has no map “{map}”, opened {first}.',
   binding: 'Radar binding', preset: 'Preset', manual: '— manual —', rot: 'Image rotation',
   rot0: 'none', rot90: '90° clockwise', rot270: '90° counter-clockwise',
   show: 'Show', site: 'Site', team: 'Team', both: 'Both', l_plant: 'Plant spots', l_bar: 'Barriers', l_dir: 'View direction', l_other: 'No team',
@@ -794,7 +811,9 @@ function renderStatus() {
   const rn = $('rotnote'); rn.hidden = !S.rotFile; rn.textContent = L('m_rot', { r: S.rotFile });
 }
 
+let pinMap = ''; /* set while a map from the repository loads: its name wins over names guessed from files */
 function setMap(name) {
+  if (pinMap) name = pinMap;
   if (!name || name === S.map) return;
   S.map = name;
   const savedT = store('t:' + name);
@@ -832,16 +851,21 @@ async function loadFiles(list) {
     try { await loadOne(f); } catch (e) { S.msg = { k: 'raw', p: null, warn: true }; I18N.ru.raw = I18N.en.raw = f.name + ': ' + e.message; renderMsg(); }
   }
 }
-async function loadOne(f) {
-  const name = f.name, low = name.toLowerCase();
-  if (/\.(png|jpe?g|webp|gif|bmp)$/.test(low)) { setRadar(await createImageBitmap(f), name); return; }
+const isImage = low => /\.(png|jpe?g|webp|gif|bmp|vtf|dds)$/.test(low);
+/* blob of a radar image -> something drawImage accepts; low is the lower-case file name */
+async function decodeImage(blob, low) {
   if (/\.(vtf|dds)$/.test(low)) {
-    const buf = await f.arrayBuffer();
+    const buf = await blob.arrayBuffer();
     const d = low.endsWith('.vtf') ? Core.decodeVTF(buf) : Core.decodeDDS(buf);
     const c = document.createElement('canvas'); c.width = d.w; c.height = d.h;
     c.getContext('2d').putImageData(new ImageData(d.rgba, d.w, d.h), 0, 0);
-    setRadar(c, name); return;
+    return c;
   }
+  return createImageBitmap(blob);
+}
+async function loadOne(f) {
+  const name = f.name, low = name.toLowerCase();
+  if (isImage(low)) { setRadar(await decodeImage(f, low), name); return; }
   const text = await f.text();
   if (low.endsWith('.vmt')) {
     const m = text.match(/\$basetexture"?\s+"?([^"\s]+)/i);
@@ -873,6 +897,97 @@ function setRadar(src, name) {
   S.st.radar = { name, w: S.iw, h: S.ih };
   setMap(mapFrom(name));
   renderStatus(); fit();
+}
+
+/* ---------- maps from the repository ----------
+   The site build (radar/build-site.mjs) puts maps.json next to the page. Without it (the page opened
+   from disk or hosted elsewhere) only manual loading works. The files of a map go through the same
+   setRadar / loadText as dropped files. */
+const R = { repo: '', branch: '', maps: [], cur: '', token: 0 };
+function resetMap() {
+  if (draftTimer) { /* keep a pending draft of the map being left */
+    clearTimeout(draftTimer); draftTimer = 0;
+    if (S.map && S.changes) store('d:' + S.map, { t: Date.now(), format: S.format, pts: S.pts });
+  }
+  S.img = null; S.iw = S.ih = 1024; S.pts = []; S.map = ''; S.format = ''; S.hasP = false; S.sel = S.hover = -1;
+  S.st = { radar: null, ov: null, sp: null }; S.rotFile = 0; S.undo = []; S.redo = []; S.changes = 0;
+  for (const id of ['pos_x', 'pos_y', 'scale', 'tg_pos_x', 'tg_pos_y', 'tg_scale']) $(id).value = '';
+  $('preset').value = ''; T.P = null; msg(null); hideCard();
+}
+async function fetchRepoMap(e) {
+  const get = async (rel, text) => {
+    const r = await fetch(rel, { cache: 'no-cache' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return text ? r.text() : r.blob();
+  };
+  const one = async (rel, fn) => {
+    if (!rel) return {};
+    try { return { v: await fn(rel) }; } catch (x) { return { err: rel + ' (' + x.message + ')' }; }
+  };
+  return Promise.all([
+    one(e.radar, async rel => decodeImage(await get(rel), rel.toLowerCase())),
+    one(e.overview, rel => get(rel, true)),
+    one(e.cfg, rel => get(rel, true))
+  ]);
+}
+async function loadRepoMap(name, note) {
+  const e = R.maps.find(m => m.map === name); if (!e) return;
+  const token = ++R.token;
+  R.cur = e.map; $('repo-map').value = e.map; renderRepoLink();
+  /* everything is fetched and decoded first, so a map picked later cannot get mixed with this one */
+  const [rad, ov, cfg] = await fetchRepoMap(e);
+  if (token !== R.token) return;
+  resetMap();
+  pinMap = e.map;
+  try {
+    setMap(e.map);
+    if (rad.v) setRadar(rad.v, e.radar.split('/').pop()); else fit();
+    if (ov.v) {
+      loadText(ov.v, e.map + '.txt', 'ov');
+      /* the configs are CS:S coordinates on the CS:S radar: export with the same binding */
+      if (S.st.ov && S.st.ov.src === 'file') tgSet(S.P);
+    }
+    if (cfg.v) loadText(cfg.v, e.cfgPath.split('/').pop(), 'sp');
+  } finally { pinMap = ''; }
+  afterPoints();
+  const errs = [rad, ov, cfg].filter(r => r.err).map(r => r.err);
+  if (errs.length) msg('repo_err', { err: errs.join(', ') }, true);
+  else if (note) msg(note.k, note.p, true);
+  else if (!S.msg && !e.radar) msg('repo_noradar', { map: e.map }, true);
+}
+function renderRepoLink() {
+  const e = R.maps.find(m => m.map === R.cur), a = $('repo-gh');
+  const ok = !!(e && e.cfgPath && /^[\w.-]+\/[\w.-]+$/.test(R.repo) && R.branch);
+  a.hidden = !ok;
+  if (ok) a.href = 'https://github.com/' + R.repo + '/blob/' + [...R.branch.split('/'), ...e.cfgPath.split('/')].map(encodeURIComponent).join('/');
+}
+function hashMap() { try { return decodeURIComponent(location.hash.slice(1)); } catch (x) { return ''; } }
+function openFromHash() {
+  const h = hashMap();
+  const e = R.maps.find(m => m.map === h) || (h && R.maps.find(m => m.map.toLowerCase() === h.toLowerCase()));
+  if (e) { if (e.map !== R.cur) loadRepoMap(e.map); return; }
+  const first = R.maps[0].map;
+  if (h) {
+    history.replaceState(null, '', '#' + encodeURIComponent(first)); /* the link then names the map shown */
+    loadRepoMap(first, { k: 'repo_unknown', p: { map: h, first } });
+  } else if (first !== R.cur) loadRepoMap(first);
+}
+async function initRepo() {
+  let j = null;
+  try {
+    if (location.protocol === 'file:') return;
+    const r = await fetch('maps.json', { cache: 'no-cache' });
+    if (!r.ok) return;
+    j = await r.json();
+  } catch (x) { return; }
+  const maps = j && Array.isArray(j.maps) ? j.maps.filter(m => m && typeof m.map === 'string' && m.map && typeof m.cfg === 'string') : [];
+  if (!maps.length) return;
+  R.repo = typeof j.repo === 'string' ? j.repo : ''; R.branch = typeof j.branch === 'string' ? j.branch : ''; R.maps = maps;
+  $('repo-map').innerHTML = maps.map(m => '<option value="' + esc(m.map) + '">' + esc(m.map) + '</option>').join('');
+  $('repo').hidden = false;
+  $('repo-map').onchange = ev => { location.hash = '#' + encodeURIComponent(ev.target.value); };
+  addEventListener('hashchange', openFromHash);
+  openFromHash();
 }
 
 /* ---------- filtering ---------- */
@@ -1472,6 +1587,7 @@ ro.observe(cv);
 const savedLang = store('lang');
 applyLang(savedLang || ((navigator.language || 'ru').toLowerCase().startsWith('ru') ? 'ru' : 'en'));
 afterPoints();
+initRepo();
 }
 </script>
 </body>
