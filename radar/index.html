@@ -648,11 +648,11 @@ const presets = new Map();
 const I18N = {
 ru: {
   title: 'Радар спаунов Retakes', files: 'Файлы', open: 'Открыть файлы…',
-  open_hint: 'или перетащите на карту: радар (PNG, VTF, DDS), overview .txt, файл спаунов. Текст можно вставить через Ctrl+V.',
+  open_hint: 'Перетащите файлы на карту или нажмите Ctrl+V, чтобы вставить изображение радара, привязку или спауны.',
   clip: 'Вставить', clip_wait: 'Ctrl+V…',
-  clip_sp_tip: 'Вставить спауны из буфера обмена: содержимое _retake.txt из CS:GO/CS2, .cfg из CS:S или строки «x y z» по одной на строку, как в выводе getpos.',
+  clip_sp_tip: 'Вставить изображение радара, текст привязки или спауны (.cfg, _retake.txt или строки координат).',
   clip_ov_tip: 'Вставить привязку из буфера обмена: содержимое resource/overviews/<карта>.txt из CS:S/CS:GO или radar_info/<карта>.txt из CS2 (нужны pos_x, pos_y, scale).',
-  clip_denied: 'Браузер не дал странице прочитать буфер обмена. Нажмите Ctrl+V — текст попадёт туда же.',
+  clip_denied: 'Нажмите Ctrl+V, чтобы вставить из буфера обмена.',
   clip_empty: 'В буфере обмена нет текста.', clip_ok_sp: 'Вставлено из буфера: {n} спаунов.', clip_ok_ov: 'Привязка вставлена из буфера.',
   st_radar: 'Радар', st_ov: 'Привязка', st_sp: 'Спауны',
   repo_map: 'Карта из репозитория', repo_gh: 'Открыть конфиг на GitHub',
@@ -713,11 +713,11 @@ ru: {
 },
 en: {
   title: 'Retakes spawn radar', files: 'Files', open: 'Open files…',
-  open_hint: 'or drop them on the map: radar (PNG, VTF, DDS), overview .txt, spawn file. Text can be pasted with Ctrl+V.',
+  open_hint: 'Drop files on the map or press Ctrl+V to paste a radar image, overview or spawns.',
   clip: 'Paste', clip_wait: 'Ctrl+V…',
-  clip_sp_tip: 'Paste spawns from the clipboard: the contents of a CS:GO/CS2 _retake.txt, a CS:S .cfg, or plain “x y z” lines, one per line, like getpos output.',
+  clip_sp_tip: 'Paste a radar image, overview text or spawns (.cfg, _retake.txt or coordinate lines).',
   clip_ov_tip: 'Paste a binding from the clipboard: the contents of resource/overviews/<map>.txt from CS:S/CS:GO or radar_info/<map>.txt from CS2 (needs pos_x, pos_y, scale).',
-  clip_denied: 'The browser did not let the page read the clipboard. Press Ctrl+V and the text will go to the same place.',
+  clip_denied: 'Press Ctrl+V to paste from the clipboard.',
   clip_empty: 'The clipboard has no text.', clip_ok_sp: 'Pasted from the clipboard: {n} spawns.', clip_ok_ov: 'Binding pasted from the clipboard.',
   st_radar: 'Radar', st_ov: 'Binding', st_sp: 'Spawns',
   repo_map: 'Map from the repository', repo_gh: 'Open the config on GitHub',
@@ -1626,11 +1626,33 @@ function disarmPaste() {
   pasteArm = null; clearTimeout(pasteArmT);
   for (const id of ['clip-sp', 'clip-ov']) { $(id).classList.remove('wait'); $(id).querySelector('span').textContent = L('clip'); }
 }
+function pasteRadar(blob, current = currentInputMap()) {
+  const name = blob.name || '';
+  const ext = isImage(name.toLowerCase()) ? name.split('.').pop() : blob.type.split('/')[1];
+  const file = new File([blob], 'radar.' + ext, { type: blob.type });
+  disarmPaste();
+  return queueManualInput(active => applyFiles([file], active), current);
+}
+const clipboardImageType = type => /^image\/(png|jpeg|webp|gif|bmp)$/i.test(type);
 async function clipPaste(kind, btn) {
   const current = currentInputMap();
   try {
-    if (!navigator.clipboard || !navigator.clipboard.readText) throw new Error('no api');
-    const text = await navigator.clipboard.readText();
+    let text;
+    if (kind === 'sp' && navigator.clipboard?.read) {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const type = item.types.find(clipboardImageType);
+        if (type) {
+          const blob = await item.getType(type);
+          if (current()) pasteRadar(blob, current);
+          return;
+        }
+      }
+      const item = items.find(item => item.types.includes('text/plain'));
+      text = item ? await (await item.getType('text/plain')).text() : '';
+    } else {
+      text = await navigator.clipboard.readText();
+    }
     if (!current()) return;
     disarmPaste(); queueManualInput(() => applyPaste(kind, text), current);
   } catch (e) {
@@ -1646,6 +1668,11 @@ $('clip-ov').onclick = e => clipPaste('ov', e.currentTarget);
 addEventListener('paste', e => {
   const tag = (e.target.tagName || '').toLowerCase();
   if ((tag === 'input' || tag === 'textarea' || e.target.isContentEditable) && !pasteArm) return;
+  if (pasteArm !== 'ov' && e.clipboardData) {
+    const image = Array.from(e.clipboardData.files).find(file =>
+      clipboardImageType(file.type) || isImage(file.name.toLowerCase()));
+    if (image) { e.preventDefault(); pasteRadar(image); return; }
+  }
   const text = e.clipboardData && e.clipboardData.getData('text');
   if (!text) return;
   e.preventDefault();
