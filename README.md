@@ -1,8 +1,6 @@
 Retakes for Counter-Strike: Source
 ==================================
 
-**[Open the spawn radar and editor](https://kolka2.github.io/css-retakes/)**
-
 A port of [splewis/csgo-retakes](https://github.com/splewis/csgo-retakes) (v0.3.4) from CS:GO to **Counter-Strike: Source**. [Русская версия](README.ru.md).
 
 Retakes: the terrorists spawn inside a bombsite with the bomb, the counter-terrorists spawn on the rotation routes and have to retake the site and defuse. It can be played by humans, by bots, or by a mix of both.
@@ -35,7 +33,11 @@ The same file switches the map rotation to its own list: `mapcyclefile "mapcycle
 
 ## Spawns
 
-Spawns are shipped for four maps: `de_dust2`, `de_cache`, `de_nuke` and `de_strike_mirage` (`configs/retakes/`). There are none for other maps: the original files were made for the CS:GO maps and do not fit the CS:S maps. Create them once with the built-in editor (map-change admin flag, `g`):
+Spawn configs are included for `de_dust2`, `de_cache`, `de_nuke`, and `de_strike_mirage` (`configs/retakes/`). If you have spawns for the CS:GO or CS2 version of a map, you can port them to CS:S with the [spawn radar](https://kolka2.github.io/css-retakes/). Open the source file, align the points with the CS:S radar, and export a `.cfg`. If you adjusted the radar binding to align the points, **use the target CS:S map’s original binding** from its `overview.txt` when exporting.
+
+The radar only lets you verify **X and Y**. A spawn can look right from above and still be at the wrong height. Check and adjust its **Z** in the in-game editor. For a first approximation, stand at the intended spawn location in CS:S and read your Z coordinate with `getpos` or `cl_showpos 1`. With Z scaling off, subtract the source spawn’s Z from that value and enter the difference in the “Z offset” field when exporting. The offset applies to every exported point, so check each spawn’s final height in-game.
+
+The in-game editor requires the `changemap` admin flag `g`.
 
 | Chat | Console | What it does |
 |---|---|---|
@@ -68,14 +70,6 @@ T spawn types (same as in the original plugin):
 "Bomb-carrier only" does not tie the bomb carrier to that spot, it only closes the spot for everybody else. The bomb carrier is picked at random among all green **and red** spawns inside the bomb target area. To make the bomb carrier spawn on dedicated spots only, mark the other T spawns inside the bomb target area as "Never bomb-carrier". The type of an existing spawn cannot be edited: delete it (`!delete`) and create it again through `!edit` → "Add a spawn".
 
 Leave the editor with "Exit edit mode" in the `!edit` menu; the game restarts. Spawns are stored in `addons/sourcemod/configs/retakes/<map>.cfg`; the file changes only on an explicit save (`!savespawns` or "Save map spawns" in the menu), unsaved changes are lost on map change.
-
-## Spawn radar
-
-The [spawn radar](https://kolka2.github.io/css-retakes/) displays the repository's spawn configs and lets you edit points and download a CS:S `.cfg`. Link directly to a map by appending its name, as in [`#de_dust2`](https://kolka2.github.io/css-retakes/#de_dust2).
-
-To add a map, put its checked config in `configs/retakes/<map>.cfg` and its radar image and `overview.txt` in [`radar/maps/<map>/`](radar/maps/README.md). The folder name must match the config's basename.
-
-Before the first deployment, set **Settings → Pages → Source → GitHub Actions**. The **Deploy spawn radar to GitHub Pages** workflow runs on relevant pushes to `master` and can also be run manually from that branch.
 
 ## How it plays
 
