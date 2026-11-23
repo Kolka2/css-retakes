@@ -3,9 +3,9 @@
 *Русский — ниже.*
 
 The site (`radar/build-site.mjs`, published by `.github/workflows/radar-pages.yml`) shows the
-spawns of every map that has a config in `configs/retakes/<map>.cfg`. To draw them on the map
-radar it needs two files from the game for each map, in a folder named exactly like the config
-without `.cfg` (case matters: the site is built on Linux):
+spawns of every map that has a config in `configs/retakes/<map>.cfg`. To load the radar image
+and its binding automatically, put the two files below in a folder named exactly like the config
+without `.cfg`. The name is case-sensitive on the Linux build runner.
 
 ```
 radar/maps/<map>/
@@ -22,13 +22,14 @@ radar/maps/<map>/
   archives (`cstrike/cstrike_pak_dir.vpk`): extract them with a VPK tool, for example GCFScape
   or `vpk.exe` from the Source SDK. Custom
   maps keep them in the map package or in the `.bsp` itself.
-- The VTF can be put here as is: the page decodes it. A PNG or WebP converted from it (VTFEdit,
-  `VTFCmd`) weighs several times less and loads faster.
+- The page can open a VTF directly if its decoder supports the texture format. Converting the
+  radar to PNG or WebP can reduce its file size. The result depends on the image and encoder settings.
 - Only one radar file per map is used; if there are several, the first of png, webp, jpg,
   jpeg, vtf, dds wins.
 - A map without a radar or an overview is still published: the build only prints a warning.
-  Without an overview the page cannot place the points; it remembers a binding typed by hand in
-  the browser.
+  To position spawns on the radar, the editor needs a binding. If the repository has no
+  `overview.txt` for the map, the editor uses its saved binding when available. You can also
+  load an overview file, select a matching preset, or enter `pos_x`, `pos_y` and `scale` manually.
 - A folder without a matching config is not published (the build warns about it).
 
 ---
@@ -36,9 +37,9 @@ radar/maps/<map>/
 # Ассеты радаров для сайта
 
 Сайт (`radar/build-site.mjs`, публикует `.github/workflows/radar-pages.yml`) показывает спауны
-каждой карты, у которой есть конфиг `configs/retakes/<map>.cfg`. Чтобы нарисовать их на радаре,
-ему нужны два файла из игры на каждую карту, в папке с тем же именем, что у конфига без `.cfg`
-(регистр важен: сайт собирается на Linux):
+каждой карты, у которой есть конфиг `configs/retakes/<map>.cfg`. Чтобы изображение радара
+и его привязка загружались автоматически, положите оба файла в папку с именем конфига без `.cfg`.
+Учитывайте регистр букв при сборке на Linux.
 
 ```
 radar/maps/<map>/
@@ -55,11 +56,12 @@ radar/maps/<map>/
   (`cstrike/cstrike_pak_dir.vpk`): достать их можно программой для VPK, например GCFScape или
   `vpk.exe` из Source SDK. У сторонних карт они
   лежат в архиве карты или внутри самого `.bsp`.
-- VTF можно положить как есть: страница декодирует его сама. PNG или WebP, сконвертированный из
-  него (VTFEdit, `VTFCmd`), весит в несколько раз меньше и грузится быстрее.
+- Страница открывает VTF напрямую, если её декодер поддерживает формат текстуры. Конвертация
+  радара в PNG или WebP может уменьшить размер файла. Результат зависит от изображения и настроек сжатия.
 - На карту берётся один файл радара; если их несколько, побеждает первый из png, webp, jpg,
   jpeg, vtf, dds.
 - Карта без радара или без overview всё равно публикуется, сборка только пишет предупреждение.
-  Без overview страница не может расставить точки; привязку, введённую вручную, она запоминает в
-  браузере.
+  Для отображения спавнов на радаре нужна привязка. Если в репозитории для карты нет
+  `overview.txt`, редактор использует привязку, сохранённую для этой карты в браузере, если она есть.
+  Можно также загрузить файл overview, выбрать подходящий пресет или ввести `pos_x`, `pos_y` и `scale` вручную.
 - Папка без конфига с тем же именем не публикуется (сборка предупреждает).
