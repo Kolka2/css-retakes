@@ -846,12 +846,16 @@ function readP() {
 }
 
 /* ---------- loading ---------- */
-async function loadFiles(list) {
+function loadFiles(list) {
   const files = [...list];
+  return queueManualInput(current => applyFiles(files, current));
+}
+async function applyFiles(files, current) {
   const order = f => /\.(png|jpe?g|webp|gif|bmp|vtf|dds)$/i.test(f.name) ? 0 : 1;
   files.sort((a, b) => order(a) - order(b));
   for (const f of files) {
-    try { await loadOne(f); } catch (e) { S.msg = { k: 'raw', p: null, warn: true }; I18N.ru.raw = I18N.en.raw = f.name + ': ' + e.message; renderMsg(); }
+    if (!current()) return;
+    try { await loadOne(f, current); } catch (e) { if (!current()) return; S.msg = { k: 'raw', p: null, warn: true }; I18N.ru.raw = I18N.en.raw = f.name + ': ' + e.message; renderMsg(); }
   }
 }
 const isImage = low => /\.(png|jpe?g|webp|gif|bmp|vtf|dds)$/.test(low);
@@ -866,10 +870,15 @@ async function decodeImage(blob, low) {
   }
   return createImageBitmap(blob);
 }
-async function loadOne(f) {
+async function loadOne(f, current) {
   const name = f.name, low = name.toLowerCase();
-  if (isImage(low)) { setRadar(await decodeImage(f, low), name); return; }
+  if (isImage(low)) {
+    const img = await decodeImage(f, low);
+    if (current()) setRadar(img, name);
+    return;
+  }
   const text = await f.text();
+  if (!current()) return;
   if (low.endsWith('.vmt')) {
     const m = text.match(/\$basetexture"?\s+"?([^"\s]+)/i);
     msg('m_vmt', { tex: m ? ' (' + m[1] + ')' : '', map: mapFrom(name) || '<map>' }, true);
@@ -907,6 +916,27 @@ function setRadar(src, name) {
    from disk or hosted elsewhere) only manual loading works. The files of a map go through the same
    setRadar / loadText as dropped files. */
 const R = { repo: '', branch: '', maps: [], cur: '', token: 0 };
+let repoLoad;
+let manualInput = Promise.resolve();
+function currentInputMap() {
+  // Input during manifest discovery belongs to the first selected map.
+  const token = R.token || 1;
+  return () => !R.token || R.token === token;
+}
+function queueManualInput(apply, current = currentInputMap()) {
+  const run = async () => {
+    await repoInit;
+    if (!current()) return;
+    await repoLoad;
+    if (current()) await apply(current);
+  };
+  manualInput = manualInput.then(run, run);
+  return manualInput;
+}
+function selectRepoMap(name, note) {
+  if (R.cur) manualInput = Promise.resolve();
+  repoLoad = loadRepoMap(name, note);
+}
 function resetMap() {
   if (draftTimer) { /* keep a pending draft of the map being left */
     clearTimeout(draftTimer); draftTimer = 0;
@@ -971,12 +1001,12 @@ function hashMap() { try { return decodeURIComponent(location.hash.slice(1)); } 
 function openFromHash() {
   const h = hashMap();
   const e = R.maps.find(m => m.map === h) || (h && R.maps.find(m => m.map.toLowerCase() === h.toLowerCase()));
-  if (e) { if (e.map !== R.cur) loadRepoMap(e.map); return; }
+  if (e) { if (e.map !== R.cur) selectRepoMap(e.map); return; }
   const first = R.maps[0].map;
   if (h) {
     history.replaceState(null, '', '#' + encodeURIComponent(first)); /* the link then names the map shown */
-    loadRepoMap(first, { k: 'repo_unknown', p: { map: h, first } });
-  } else if (first !== R.cur) loadRepoMap(first);
+    selectRepoMap(first, { k: 'repo_unknown', p: { map: h, first } });
+  } else if (first !== R.cur) selectRepoMap(first);
 }
 async function initRepo() {
   let j = null;
@@ -1574,11 +1604,14 @@ function disarmPaste() {
   for (const id of ['clip-sp', 'clip-ov']) { $(id).classList.remove('wait'); $(id).querySelector('span').textContent = L('clip'); }
 }
 async function clipPaste(kind, btn) {
+  const current = currentInputMap();
   try {
     if (!navigator.clipboard || !navigator.clipboard.readText) throw new Error('no api');
     const text = await navigator.clipboard.readText();
-    disarmPaste(); applyPaste(kind, text);
+    if (!current()) return;
+    disarmPaste(); queueManualInput(() => applyPaste(kind, text), current);
   } catch (e) {
+    if (!current()) return;
     disarmPaste();
     pasteArm = kind; btn.classList.add('wait'); btn.querySelector('span').textContent = L('clip_wait');
     pasteArmT = setTimeout(disarmPaste, 20000);
@@ -1594,7 +1627,7 @@ addEventListener('paste', e => {
   if (!text) return;
   e.preventDefault();
   const kind = pasteArm || (Core.looksLikeOverview(text) ? 'ov' : 'sp');
-  disarmPaste(); applyPaste(kind, text);
+  disarmPaste(); queueManualInput(() => applyPaste(kind, text));
 });
 let dc = 0;
 addEventListener('dragenter', e => { e.preventDefault(); dc++; $('app').classList.add('dropping'); });
@@ -1609,7 +1642,7 @@ ro.observe(cv);
 const savedLang = store('lang');
 applyLang(savedLang || ((navigator.language || 'ru').toLowerCase().startsWith('ru') ? 'ru' : 'en'));
 afterPoints();
-initRepo();
+const repoInit = initRepo();
 }
 </script>
 </body>
