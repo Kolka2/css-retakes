@@ -98,9 +98,12 @@ main canvas.drag{cursor:grabbing}
 main canvas.edit{cursor:crosshair}
 main canvas.over{cursor:move}
 main canvas.handle{cursor:alias}
-.tools{position:absolute;top:12px;right:12px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 24px)}
-.tools button{background:rgba(20,22,25,.82);color:#f1efe9;border-color:rgba(255,255,255,.14);backdrop-filter:blur(4px)}
+.tools{position:absolute;top:12px;right:12px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 24px);pointer-events:none}
+.tools button{background:rgba(20,22,25,.82);color:#f1efe9;border-color:rgba(255,255,255,.14);backdrop-filter:blur(4px);pointer-events:auto}
 .tools button.on{background:var(--t);color:#16181b;border-color:var(--t)}
+.history-tools{flex-basis:100%;display:flex;gap:6px;justify-content:flex-end}
+.history-tools button{min-width:40px;font-size:20px;line-height:1;cursor:pointer}
+.history-tools button:disabled{cursor:default}
 .ebar{position:absolute;top:12px;left:12px;max-width:min(430px,calc(100% - 330px));background:rgba(238,143,34,.94);color:#16181b;font-size:12.5px;line-height:1.35;padding:7px 10px;border-radius:8px;pointer-events:none}
 .ebar[hidden]{display:none}
 .coords{position:absolute;right:12px;bottom:10px;font:12px ui-monospace,Consolas,monospace;color:#d9d6cf;background:rgba(20,22,25,.7);padding:4px 8px;border-radius:6px;pointer-events:none}
@@ -275,6 +278,10 @@ main canvas.handle{cursor:alias}
     <button type="button" id="fit" data-i18n="fit">Вписать</button>
     <button type="button" id="ed-tool" data-i18n="ed_tool">Править</button>
     <button type="button" id="png" data-i18n="png">Сохранить PNG</button>
+    <div class="history-tools">
+      <button type="button" id="map-undo" data-i18n-aria="undo" data-i18n-title="undo" disabled>↶</button>
+      <button type="button" id="map-redo" data-i18n-aria="redo" data-i18n-title="redo" disabled>↷</button>
+    </div>
   </div>
   <div class="tip" id="tip" hidden></div>
   <div class="card" id="card" hidden></div>
@@ -1258,7 +1265,8 @@ function afterEdit() {
 }
 function afterPoints() { renderList(); renderStatus(); renderEditState(); renderDraft(); draw(); }
 function renderEditState() {
-  $('ed-undo').disabled = !S.undo.length; $('ed-redo').disabled = !S.redo.length;
+  $('ed-undo').disabled = $('map-undo').disabled = !S.undo.length;
+  $('ed-redo').disabled = $('map-redo').disabled = !S.redo.length;
   $('ed-state').textContent = S.changes ? L('ed_changes', { n: S.changes }) : L('ed_nochanges');
 }
 function renderDraft() {
@@ -1580,7 +1588,8 @@ document.querySelectorAll('[data-ns]').forEach(b => b.onclick = () => { S.ns = b
 $('nt-zmode').onchange = () => { $('nt-zbox').hidden = $('nt-zmode').value !== 'fixed'; };
 $('ed-toggle').onclick = () => setEdit(!S.edit);
 $('ed-tool').onclick = () => setEdit(!S.edit);
-$('ed-undo').onclick = undo; $('ed-redo').onclick = redo;
+$('ed-undo').onclick = $('map-undo').onclick = undo;
+$('ed-redo').onclick = $('map-redo').onclick = redo;
 $('pick').onclick = () => $('file').click();
 $('file').onchange = e => { loadFiles(e.target.files); e.target.value = ''; };
 let pasteArm = null, pasteArmT = 0;
