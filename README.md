@@ -1,6 +1,8 @@
 Retakes for Counter-Strike: Source
 ==================================
 
+**[Open the spawn radar and editor](https://kolka2.github.io/css-retakes/)**
+
 A port of [splewis/csgo-retakes](https://github.com/splewis/csgo-retakes) (v0.3.4) from CS:GO to **Counter-Strike: Source**. [Русская версия](README.ru.md).
 
 Retakes: the terrorists spawn inside a bombsite with the bomb, the counter-terrorists spawn on the rotation routes and have to retake the site and defuse. It can be played by humans, by bots, or by a mix of both.

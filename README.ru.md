@@ -1,6 +1,8 @@
 Retakes для Counter-Strike: Source
 ==================================
 
+**[Открыть радар и редактор спавнов](https://kolka2.github.io/css-retakes/)**
+
 Порт плагина [splewis/csgo-retakes](https://github.com/splewis/csgo-retakes) (v0.3.4) с CS:GO на **Counter-Strike: Source**. [English version](README.md).
 
 Режим Retakes: террористы появляются на бомбплейсе с бомбой, контр-террористы — на путях подхода и должны отбить точку и разминировать бомбу. Играть можно людьми, ботами и вперемешку.
