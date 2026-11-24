@@ -251,6 +251,8 @@ Grenades in the "ask every round" mode showed two engine traits: a grenade given
 
 ### retakes_autoplant
 
+During a playable retake the core clears the attack button while the carrier holds the C4 in freezetime. Held attack passes through again after `round_freeze_end`. The addon schedules its own planting animation ahead of that event.
+
 The bomb is planted by the game code; the plugin only sets up the conditions: in `OnPlayerRunCmd` it selects the C4 for the carrier, zeroes their movement, moves the end of the C4 draw (`m_flNextAttack` of the player) and then the arming deadline `m_fArmedTime` to "now", and holds the attack button. On the next tick the game plants the bomb itself, with all the usual consequences: a real `planted_c4`, the `bomb_planted` event, the sounds, what the bots know.
 
 The other way, used by CS:GO plugins, is to create a `planted_c4` entity. That does not work in CS:S: the bomb gets its timer and its think function from an internal function that only the planting code calls. An entity created by name does not tick.

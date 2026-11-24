@@ -302,6 +302,7 @@ public void OnMapStart() {
     g_NoSpawnsLogged = false;
     g_SiteSpawnsLogged = false;
 
+    g_RetakeFreezeTime = false;
     g_bombPlanted = false;
     g_BombHandedOut = false;
 

@@ -247,7 +247,7 @@ Retakes uses it as an optional dependency:
 ## Known limitations
 
 - Not everything is tested on a live server — see the status note above.
-- The core has no auto-plant: the bomb carrier (human or bot) plants the bomb, as in the original. The `retakes_autoplant` addon plants it automatically.
+- During a retake the carrier can start planting by hand once freezetime ends. The `retakes_autoplant` addon plants the bomb automatically.
 - The teams of the next round are set right after a round ends, not right before the respawn as in CS:GO: CS:S has no event for that moment, and the end of the previous round is the last chance to switch the teams before the game respawns everybody. So during the pause after a round the players are already shown on their new sides (on the scoreboard, with the new team's models).
 - A bot added by the game in the middle of a round sits in spectators until the next round. Because of this the first round after leaving the spawn editor, or after joining an empty server, may be played 1 vs 1: the game adds bots one at a time and the teams are set when only the first one has joined.
 - CS:S only has three grenades: HE, flashbang and smoke. The letters `m`, `i`, `d` in third-party allocator loadouts are ignored; CS:GO weapon class names are not given (an error is logged).

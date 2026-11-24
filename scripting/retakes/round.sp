@@ -215,6 +215,7 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
  */
 public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast) {
     g_RoundSerial++;
+    g_RetakeFreezeTime = false;
     g_bombPlanted = false;
     g_RoundEndedByLeave = false;
 
@@ -257,6 +258,8 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
         return Plugin_Continue;
     }
 
+    g_RetakeFreezeTime = true;
+
     // Checked on a live CS:S server: teleporting and re-equipping the players inside the round_start handler
     // works like it did in player_spawn: everybody starts on the retake spawn with the
     // right weapons, and a player whose team was switched right here (unprepared round)
@@ -286,6 +289,7 @@ public Action Timer_FixBomb(Handle timer, any serial) {
  * Round freezetime end, resets the round points.
  */
 public Action Event_RoundFreezeEnd(Event event, const char[] name, bool dontBroadcast) {
+    g_RetakeFreezeTime = false;
     ResetRoundPoints();
     return Plugin_Continue;
 }
@@ -294,6 +298,7 @@ public Action Event_RoundFreezeEnd(Event event, const char[] name, bool dontBroa
  * Round end event, calls the appropriate winner (T/CT) function and sets the scores.
  */
 public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast) {
+    g_RetakeFreezeTime = false;
     if (!Retakes_Live()) {
         return Plugin_Continue;
     }

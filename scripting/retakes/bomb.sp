@@ -6,6 +6,7 @@
 int g_SelectBombClient = -1;     // the human bomb carrier that still has to pull out the C4
 float g_SelectBombUntil;
 bool g_BombHandedOut;            // FixBomb() has run for the current round
+bool g_RetakeFreezeTime;         // a playable retake is waiting for round_freeze_end
 
 /**
  * Called when the bomb is planted.
@@ -218,6 +219,22 @@ void FixBomb() {
     }
 }
 
+public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3],
+                             int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2]) {
+    Action result = SelectBomb(client, weapon);
+    if (g_RetakeFreezeTime && (buttons & IN_ATTACK) && g_Enabled && IsPlayerAlive(client) && !InFreePlay()) {
+        char classname[32];
+        // CSS-VERIFY: Hold attack across freeze end and check manual and automatic plants.
+        int active = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+        if (active > MaxClients && IsValidEntity(active) && GetEntityClassname(active, classname, sizeof(classname))
+            && StrEqual(classname, "weapon_c4")) {
+            buttons &= ~IN_ATTACK;
+            return Plugin_Changed;
+        }
+    }
+    return result;
+}
+
 /**
  * Puts the C4 into the hands of the human bomb carrier.
  *
@@ -227,8 +244,7 @@ void FixBomb() {
  * weapon-select field of the player's user command, which is what this hook does for
  * a short time after the bomb was handed out (checked on a live server as well).
  */
-public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3],
-                             int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2]) {
+Action SelectBomb(int client, int &weapon) {
     if (client != g_SelectBombClient) {
         return Plugin_Continue;
     }
