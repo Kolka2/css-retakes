@@ -46,7 +46,7 @@
  * single player game (seen by the owner in SourceTV and local demos).
  */
 
-#define AUTOPLANT_VERSION "1.3.0"
+#define AUTOPLANT_VERSION "1.3.1"
 
 #define START_DELAY 0.2     // seconds after round_start to stay away; Retakes hands the C4 out 0.1 s after it
 #define GIVE_UP_TIME 5.0    // seconds after the planned plant before the carrier is left alone
@@ -388,6 +388,10 @@ static void CarrierEffects(int client, float now) {
 
     if (g_Carrier == 0) {
         if (!IsPlayerAlive(client) || GetClientTeam(client) != CS_TEAM_T || GetClientC4(client) == -1) {
+            return;
+        }
+        // CSS-VERIFY: Check the bar, clicks and weapon selection when spawning outside a bomb target.
+        if (HasEntProp(client, Prop_Send, "m_bInBombZone") && !GetEntProp(client, Prop_Send, "m_bInBombZone")) {
             return;
         }
         g_Carrier = client;
