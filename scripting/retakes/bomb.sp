@@ -196,7 +196,7 @@ void FixBomb() {
     g_BombHandedOut = true;
 
     // With zero freezetime the carrier can plant the game's C4 before this timer runs.
-    // CSS-VERIFY: Check that an early plant leaves no second C4 to drop on death.
+    // Skipping the handout in this case was verified on a live CS:S server.
     if (g_bombPlanted) {
         DebugLog("bomb: already planted before handout, skipping the C4 handout");
         return;
