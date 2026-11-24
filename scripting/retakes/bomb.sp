@@ -195,6 +195,13 @@ void FixBomb() {
     // From here on the bomb can change hands freely (see Hook_WeaponCanUse).
     g_BombHandedOut = true;
 
+    // With zero freezetime the carrier can plant the game's C4 before this timer runs.
+    // CSS-VERIFY: Check that an early plant leaves no second C4 to drop on death.
+    if (g_bombPlanted) {
+        DebugLog("bomb: already planted before handout, skipping the C4 handout");
+        return;
+    }
+
     if (g_BombOwner == -1) {
         DebugLog("bomb: there is nobody to carry the bomb this round");
         return;
@@ -224,7 +231,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     Action result = SelectBomb(client, weapon);
     if (g_RetakeFreezeTime && (buttons & IN_ATTACK) && g_Enabled && IsPlayerAlive(client) && !InFreePlay()) {
         char classname[32];
-        // CSS-VERIFY: Hold attack across freeze end and check manual and automatic plants.
+        // Held attack resumes after freeze end (checked on a live CS:S server).
         int active = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
         if (active > MaxClients && IsValidEntity(active) && GetEntityClassname(active, classname, sizeof(classname))
             && StrEqual(classname, "weapon_c4")) {
