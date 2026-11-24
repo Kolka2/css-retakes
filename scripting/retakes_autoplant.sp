@@ -390,7 +390,7 @@ static void CarrierEffects(int client, float now) {
         if (!IsPlayerAlive(client) || GetClientTeam(client) != CS_TEAM_T || GetClientC4(client) == -1) {
             return;
         }
-        // CSS-VERIFY: Check the bar, clicks and weapon selection when spawning outside a bomb target.
+        // Wait for the carrier to enter a bomb target before starting effects (verified on a live CS:S server).
         if (HasEntProp(client, Prop_Send, "m_bInBombZone") && !GetEntProp(client, Prop_Send, "m_bInBombZone")) {
             return;
         }
