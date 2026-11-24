@@ -243,6 +243,7 @@ main canvas.handle{cursor:alias}
     <p class="note" style="margin-top:0" data-i18n-html="exp_hint"></p>
     <div class="row" style="margin-top:8px">
       <button type="button" id="tg-load" data-i18n="tg_load">Загрузить overview цели</button>
+      <button type="button" id="clip-target" data-i18n-title="clip_target_tip"><span data-i18n="clip">Вставить</span></button>
       <button type="button" id="tg-same" data-i18n="tg_same">Как текущая</button>
       <input type="file" id="tg-file" hidden>
     </div>
@@ -670,6 +671,7 @@ ru: {
   clip: 'Вставить', clip_wait: 'Ctrl+V…',
   clip_sp_tip: 'Вставить изображение радара, текст привязки или спауны (.cfg, _retake.txt или строки координат).',
   clip_ov_tip: 'Вставить привязку из буфера обмена: содержимое resource/overviews/<карта>.txt из CS:S/CS:GO или radar_info/<карта>.txt из CS2 (нужны pos_x, pos_y, scale).',
+  clip_target_tip: 'Вставить overview целевой карты CS:S для экспорта .cfg.',
   clip_denied: 'Нажмите Ctrl+V, чтобы вставить из буфера обмена.',
   clip_empty: 'В буфере обмена нет текста.', clip_ok_sp: 'Вставлено из буфера: {n} спаунов.', clip_ok_ov: 'Привязка вставлена из буфера.',
   st_radar: 'Радар', st_ov: 'Привязка', st_sp: 'Спауны',
@@ -736,6 +738,7 @@ en: {
   clip: 'Paste', clip_wait: 'Ctrl+V…',
   clip_sp_tip: 'Paste a radar image, overview text or spawns (.cfg, _retake.txt or coordinate lines).',
   clip_ov_tip: 'Paste a binding from the clipboard: the contents of resource/overviews/<map>.txt from CS:S/CS:GO or radar_info/<map>.txt from CS2 (needs pos_x, pos_y, scale).',
+  clip_target_tip: 'Paste the target CS:S map overview for .cfg export.',
   clip_denied: 'Press Ctrl+V to paste from the clipboard.',
   clip_empty: 'The clipboard has no text.', clip_ok_sp: 'Pasted from the clipboard: {n} spawns.', clip_ok_ov: 'Binding pasted from the clipboard.',
   st_radar: 'Radar', st_ov: 'Binding', st_sp: 'Spawns',
@@ -958,6 +961,7 @@ function queueManualInput(apply, current = currentInputMap()) {
   return manualInput;
 }
 function selectRepoMap(name, note) {
+  disarmPaste();
   if (R.cur) manualInput = Promise.resolve();
   repoLoad = loadRepoMap(name, note);
 }
@@ -1564,12 +1568,17 @@ function tgUpdate() {
 let tgTimer = 0;
 function tgSchedule() { clearTimeout(tgTimer); tgTimer = setTimeout(() => { try { tgUpdate(); } catch (e) { } }, 250); }
 $('tg-load').onclick = () => $('tg-file').click();
+function applyTargetOverview(text, name) {
+  const o = Core.parseOverview(text);
+  if (!o || ![o.pos_x, o.pos_y, o.scale].every(Number.isFinite) || o.scale <= 0) {
+    msg('m_noov', null, true); return;
+  }
+  tgSet({ pos_x: o.pos_x, pos_y: o.pos_y, scale: o.scale, rot: 0 });
+  msg('tg_from', { name });
+}
 $('tg-file').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-  const o = Core.parseOverview(await f.text());
-  if (!o) { msg('m_noov', null, true); return; }
-  tgSet({ pos_x: o.pos_x, pos_y: o.pos_y, scale: o.scale, rot: 0 });
-  msg('tg_from', { name: f.name });
+  applyTargetOverview(await f.text(), f.name);
 };
 $('tg-same').onclick = () => tgSet(S.P);
 for (const id of ['tg_pos_x', 'tg_pos_y', 'tg_scale', 'tg_rot']) $(id).addEventListener('input', tgRead);
@@ -1660,6 +1669,10 @@ $('file').onchange = e => { loadFiles(e.target.files); e.target.value = ''; };
 let pasteArm = null, pasteArmT = 0;
 function applyPaste(kind, text) {
   text = (text || '').trim();
+  if (kind === 'target') {
+    applyTargetOverview(text, L('paste_src'));
+    return;
+  }
   if (!text) { msg('clip_empty', null, true); return; }
   if (kind === 'sp' && Core.looksLikeOverview(text)) kind = 'ov';
   if (kind === 'ov') {
@@ -1675,7 +1688,7 @@ function applyPaste(kind, text) {
 }
 function disarmPaste() {
   pasteArm = null; clearTimeout(pasteArmT);
-  for (const id of ['clip-sp', 'clip-ov']) { $(id).classList.remove('wait'); $(id).querySelector('span').textContent = L('clip'); }
+  for (const id of ['clip-sp', 'clip-ov', 'clip-target']) { $(id).classList.remove('wait'); $(id).querySelector('span').textContent = L('clip'); }
 }
 function pasteRadar(blob, current = currentInputMap()) {
   const name = blob.name || '';
@@ -1716,16 +1729,17 @@ async function clipPaste(kind, btn) {
 }
 $('clip-sp').onclick = e => clipPaste('sp', e.currentTarget);
 $('clip-ov').onclick = e => clipPaste('ov', e.currentTarget);
+$('clip-target').onclick = e => clipPaste('target', e.currentTarget);
 addEventListener('paste', e => {
   const tag = (e.target.tagName || '').toLowerCase();
   if ((tag === 'input' || tag === 'textarea' || e.target.isContentEditable) && !pasteArm) return;
-  if (pasteArm !== 'ov' && e.clipboardData) {
+  if (pasteArm !== 'ov' && pasteArm !== 'target' && e.clipboardData) {
     const image = Array.from(e.clipboardData.files).find(file =>
       clipboardImageType(file.type) || isImage(file.name.toLowerCase()));
     if (image) { e.preventDefault(); pasteRadar(image); return; }
   }
   const text = e.clipboardData && e.clipboardData.getData('text');
-  if (!text) return;
+  if (!text && pasteArm !== 'target') return;
   e.preventDefault();
   const kind = pasteArm || (Core.looksLikeOverview(text) ? 'ov' : 'sp');
   disarmPaste(); queueManualInput(() => applyPaste(kind, text));
