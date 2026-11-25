@@ -142,7 +142,7 @@ Optional plugins, installed next to `retakes.smx`. Use only one allocator.
 
 ### Bot helper (retakes_bothelper)
 
-A CS:S CT bot learns from the plant event that the bomb was planted, but not where: it only finds out when it gets within 1500 units of the beeping bomb or when another bot reports it over the radio. Until then the bots check the bombsites one by one. The moment the bomb shows up, the plugin writes its position and bombsite to every living CT bot — into the same fields of the bot's memory the game fills in when a bot finds the bomb. The stock AI does the rest: the bot plans a path and goes to defuse. The plugin does not touch the bots' movement, aim or shooting, nor humans or terrorist bots.
+A CS:S CT bot learns from the plant event that the bomb was planted, but not where: it only finds out when it gets within 1500 units of the beeping bomb or when another bot reports it over the radio. Until then the bots check the bombsites one by one. After the configured delay, the plugin writes its position and bombsite to every living CT bot — into the same fields of the bot's memory the game fills in when a bot finds the bomb. The stock AI does the rest: the bot plans a path and goes to defuse. The plugin does not touch the bots' movement, aim or shooting, nor humans or terrorist bots.
 
 - It acts once per round: on the `bomb_planted` event or when a `planted_c4` entity appears, whichever comes first. A CT bot that spawns after the plant is told 0.1 s after its spawn.
 - It works without Retakes too (on any CS:S server). With Retakes it only acts in a live game: nothing happens in the warmup, in the spawn editor or with `sm_retakes_enabled 0`.
@@ -155,7 +155,7 @@ Cvars (config `cfg/sourcemod/retakes/retakes_bothelper.cfg`):
 | Cvar | Default | Meaning |
 |---|---|---|
 | `sm_retakes_bothelper_enabled` | `1` | switch |
-| `sm_retakes_bothelper_delay` | `0.0` | seconds between the bomb showing up and the bots being told |
+| `sm_retakes_bothelper_delay` | `1.0` | seconds between the bomb showing up and the bots being told |
 | `sm_retakes_bothelper_debug` | `0` | log `logs/retakes_bothelper_debug.log`: which bots were told, the position, the failed checks |
 | `sm_retakes_bothelper_version` | — | version |
 

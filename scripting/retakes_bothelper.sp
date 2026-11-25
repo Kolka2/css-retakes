@@ -16,7 +16,7 @@
  *
  * A CT bot learns from the bomb_planted event that the bomb was planted, but not where: it
  * walks from bombsite to bombsite until it gets within 1500 units of the beeping bomb. This
- * plugin gives every living CT bot the position of the bomb the moment the bomb shows up,
+ * plugin gives every living CT bot the position of the bomb after the configured delay,
  * and the bot's own AI does the rest: it plans the path and goes to defuse.
  *
  * What a bot knows about the bomb is kept in its CSGameState object (CCSBot::m_gameState).
@@ -100,7 +100,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart() {
     g_hEnabled = CreateConVar("sm_retakes_bothelper_enabled", "1", "Whether the CT bots are told where the bomb was planted", _, true, 0.0, true, 1.0);
-    g_hDelay = CreateConVar("sm_retakes_bothelper_delay", "0.0", "Seconds between the bomb showing up and the CT bots being told where it is", _, true, 0.0);
+    g_hDelay = CreateConVar("sm_retakes_bothelper_delay", "1.0", "Seconds between the bomb showing up and the CT bots being told where it is", _, true, 0.0);
     g_hDebug = CreateConVar("sm_retakes_bothelper_debug", "0", "1 = write which bots were told, the bomb position and the failed checks to addons/sourcemod/logs/retakes_bothelper_debug.log", _, true, 0.0, true, 1.0);
 
     AutoExecConfig(true, "retakes_bothelper", "sourcemod/retakes");
