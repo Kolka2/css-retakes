@@ -3,9 +3,6 @@ build/
 logs/
 # SourcePawn compiler and SourceMod include files: see "Building" in README.md
 tools/
-# Working files of the AI agent
-CLAUDE.md
-.claude/
 PORT/
 # Spawn radar site built by radar/build-site.mjs
 _site/
