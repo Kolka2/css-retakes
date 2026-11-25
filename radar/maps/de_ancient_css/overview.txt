@@ -1,0 +1,7 @@
+"de_ancient_css"
+{
+"material" "overviews/de_ancient_css"
+"pos_x" "-6438"
+"pos_y" "2604"
+"scale" "4.5"
+}
