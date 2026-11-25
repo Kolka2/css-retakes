@@ -1,0 +1,8 @@
+"de_anubis_css"
+{
+"material" "overviews/de_anubis_css"
+
+"pos_x" "-2650"
+"pos_y" "7160"
+"scale" "5"
+}
