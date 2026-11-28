@@ -1,0 +1,10 @@
+// HLTV overview description file for de_season.bsp
+"de_season"
+{
+	"material"	"overviews/de_season"	// texture file
+	"pos_x"		"-1423"	// X coordinate,
+	"pos_y"		"3269"	// Y coordinate,
+	"scale"		"6.00" 	// and used scale used when taking the screenshot
+	"rotate"	"0"	// map was rotated by 90 degress in image editor
+	
+} 
